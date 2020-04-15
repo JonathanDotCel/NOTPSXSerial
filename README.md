@@ -1,17 +1,15 @@
-//
-// NoPS - NotPsxSerial
-// Feb 2020 - github.com/JonathanDotCel
-//
-// 
-// GPL BEER LICENSE.
-// It's the same as the GPL3, but if you fork it, you must send me a beer and leave the original headers.
-// As an addition, only add credits; never remove.
-//
-// 
-// This is the PC-side companion to Unirom8 with backwards compat for Unirom7/PSXSerial format.
-// 
-//
-//
+
+![](social_card_PNG.png)
+
+# NoPS - NotPsxSerial
+Feb 2020 - github.com/JonathanDotCel
+
+GPL BEER LICENSE.
+It's the same as the GPL3, but if you fork it, you must send me a beer and leave the original headers.
+As an addition, only add credits; never remove.
+
+ 
+This is the PC-side companion to Unirom8 with backwards compat for Unirom7/PSXSerial format.
 
 
 Upgrading to UniROM:

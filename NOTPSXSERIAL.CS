@@ -1,4 +1,5 @@
 //
+//
 // NoPS - NotPsxSerial
 // Feb 2020 - github.com/JonathanDotCel
 //
@@ -10,6 +11,9 @@
 // 
 // This is the PC-side companion to Unirom8 with backwards compat for Unirom7/PSXSerial format.
 // 
+// 03_05_2020 - Release 2
+//    - Added the continous hex dump mode
+//    - Removed deprecated response enums
 //
 
 
@@ -76,17 +80,17 @@ public enum CommandMode {
 	[NeedsSize]
 	DUMP,
 
+	[Command( "/watch" )]
+	[Challenge("HEXD")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsSize]
+	WATCH,
+
 	COUNT
 
 };
 
-enum ROMRESPONSE { 
-	INIT,
-	FITS,				// the EEPROM has been identified and we'll write to it 
-	NOPE,				// the EEPROM has been identified but it's too small!
-	NOEEPROM,			// no EEPROM
-	UNKNOWNEEPROM		// Unknown chip manufacturer/ID/clone with wrong ID, etc - contact me about that!
-};
 
 internal class Program {
 
@@ -142,11 +146,14 @@ internal class Program {
 		Console.Write( "		BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000 COM8\n" );
 		Console.Write( "		SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400 COM8\n\n" );
 
+		Console.Write( "    Continuous Hex Dump (to screen):\n" );
+		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 COM8\n\n" );
+
 		Console.Write( "    Legacy Commands:\n" );
 		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> COM8    (PSXSerial, Unirom1-7) \n" );	
 		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> COM8    (Unirom7b Only) \n\n" );	
 
-		Console.Write( "    Misc:\n" );
+		Console.Write( "    Misc:\n" );		
 		Console.Write( "      /m to open the Serial IO monitor (can be used /m COM8 alone)\n\n" );
 
 	}
@@ -450,6 +457,59 @@ internal class Program {
 
 	}
 
+
+	public static void WriteChallenge( SerialPort inPort ){
+		
+		inPort.Write( argCommand.challenge() );
+
+	}
+
+	public static void WaitResponse( SerialPort inPort, bool verbose = true ){
+		
+		// Dump the response into a buffer..
+		// (byte by byte so we can compare the challenge/response)
+		// e.g. it may start spewing data immediately after and we
+		// have to catch that.
+		// note: the attribute extensions use 40ish bytes of memory per pop
+
+		string responseBuffer = "";
+
+		if ( verbose )
+			Console.WriteLine( "Waiting for response: " + argCommand.response() );
+
+		while ( true ){
+			
+			if ( inPort.BytesToRead != 0 ){
+				// Why the fuck does readchar return an int?
+				responseBuffer += (char)inPort.ReadByte();
+			}
+			
+			if ( verbose )
+				Console.Write( "\r Response: " + responseBuffer );
+
+			if ( 
+				// regular mode
+				responseBuffer == argCommand.response()				
+				// legacy modes
+				|| ( argCommand == CommandMode.SEND_OLD_EXE && responseBuffer.Length > 0 && responseBuffer[ responseBuffer.Length -1] == 0x99 )
+				|| ( argCommand == CommandMode.SEND_OLD_ROM && responseBuffer.Length > 0 && responseBuffer[ responseBuffer.Length -1] == 0x99 )
+			){
+				if ( verbose )
+					Console.WriteLine( "\nGot response: " + responseBuffer + "!" );
+				break;
+			}
+
+			// filter any noise at the start of the response
+			// seems to happen once in a while
+			if ( responseBuffer.Length > 4 )
+				responseBuffer = responseBuffer.Remove( 0, 1 );
+				
+
+		} 
+
+	}
+
+
 	private static void Main( string[] args ) {
 
 		
@@ -525,47 +585,12 @@ internal class Program {
 
 		Console.WriteLine( "Waiting for the PS1....\n\n" );
 
-		serialPort.Write( argCommand.challenge() );
+		WriteChallenge( serialPort );
+		
 		Thread.Sleep( 500 );
 
-		// Dump the response into a buffer..
-		// (byte by byte so we can compare the challenge/response)
-		// e.g. it may start spewing data immediately after and we
-		// have to catch that.
-		// note: the attribute extensions use 40ish bytes of memory per pop
-
-		Console.WriteLine( "Waiting for response: " + argCommand.response() );
-
-		string responseBuffer = "";
-
-		while ( true ){
-			
-			if ( serialPort.BytesToRead != 0 ){
-				// Why the fuck does readchar return an int?
-				responseBuffer += (char)serialPort.ReadByte();
-
-			}
-			
-			Console.Write( "\r Response: " + responseBuffer );
-
-			if ( 
-				// regular mode
-				responseBuffer == argCommand.response()				
-				// legacy modes
-				|| ( argCommand == CommandMode.SEND_OLD_EXE && responseBuffer.Length > 0 && responseBuffer[ responseBuffer.Length -1] == 0x99 )
-				|| ( argCommand == CommandMode.SEND_OLD_ROM && responseBuffer.Length > 0 && responseBuffer[ responseBuffer.Length -1] == 0x99 )
-			){
-				Console.WriteLine( "\nGot response: " + responseBuffer + "!" );
-				break;
-			}
-
-			// filter any noise at the start of the response
-			// seems to happen once in a while
-			if ( responseBuffer.Length > 4 )
-				responseBuffer = responseBuffer.Remove( 0, 1 );
-
-		}
-
+		WaitResponse( serialPort );
+		
 		Console.Write( "Success!" );
 
 		bool skipFirstSectorHeader = false;
@@ -618,7 +643,6 @@ internal class Program {
 			serialPort.Write( BitConverter.GetBytes( inFile.Length ), 0, 4 );
 			serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
 
-			//ROMRESPONSE response = ROMRESPONSE.INIT;
 			string flashResponse = "";
 
 			while ( true ){
@@ -631,26 +655,22 @@ internal class Program {
 			
 				Console.Write( "\r EEPROM Check: " + flashResponse );
 
-				if ( flashResponse == "FITS" ){		
-					//response = ROMRESPONSE.FITS;
+				if ( flashResponse == "FITS" ){					
 					Console.WriteLine( "\n\nRom will fit! \n Response: " + flashResponse + "!" );
 					break;
 				}
 
-				if ( flashResponse == "NOPE" ){		
-					//response = ROMRESPONSE.FITS;
+				if ( flashResponse == "NOPE" ){					
 					Console.WriteLine( "\n\nThis rom is too big for the EEPROM! \n Response: " + flashResponse + "!" );
 					return;
 				}
 
-				if ( flashResponse == "NONE" ){
-					//response = ROMRESPONSE.NOEEPROM;
+				if ( flashResponse == "NONE" ){					
 					Console.WriteLine( "\n\nNo EEPROM detected! \n The response was: " + flashResponse + "!" );
 					return;					
 				}
 
-				if ( flashResponse == "UNKN" ){
-					//response = ROMRESPONSE.NOEEPROM;
+				if ( flashResponse == "UNKN" ){					
 					Console.WriteLine( "\n\nUnknown EEPROM detected! \n The response was: " + flashResponse + "!" );
 					return;					
 				}
@@ -728,6 +748,7 @@ internal class Program {
 			
 
 		} // if ( needInputFile )
+		
 
 		if ( argCommand == CommandMode.DUMP ){
 			
@@ -878,7 +899,109 @@ internal class Program {
 
 
 
-		}
+		} // DUMP
+
+
+		if ( argCommand == CommandMode.WATCH ){
+			
+			int bytesRead = 0;
+			int arrayPos = 0;
+			byte[] inArray = new byte[ argSize ];
+
+			// the handshake is done, let's tell it where to start
+			arrayPos = 0;
+			serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );			
+			serialPort.Write( BitConverter.GetBytes( argSize ), 0, 4 );
+			
+			while( true ){
+				
+				// Keep reading bytes until we've got as many back as we've asked for
+
+				if( serialPort.BytesToRead != 0 ){
+					
+					// still bothers me that it reads an int...
+					byte responseByte = (byte)serialPort.ReadByte();
+					inArray[ arrayPos ] = ( responseByte );
+				
+					bytesRead++;
+					arrayPos++;
+					
+					// filled the buffer? Print it
+
+					if ( arrayPos >= inArray.Length ){
+							
+						Console.Clear();
+						Console.Write( "Watching address range 0x" + argAddr.ToString("X8") + " to 0x" + (argAddr+argSize).ToString("X8") +  "\n" );
+						Console.Write( "Bytes read " + bytesRead + "\n\n" );
+
+						for( int i = 0; i < inArray.Length; i++ ){
+							
+							Console.Write( inArray[i].ToString( "X2") + " " );
+
+							// Such a janky way to do it, but is saves appending
+							// tons and tons of strings together
+							if ( i % 16 == 15 ){
+								
+								// print the actual char values
+
+								for( int j = i -15; j <= i; j++ ){
+									
+									Console.Write( " " + (char)inArray[j] );
+
+								}
+
+								// then draw the character data								
+								Console.Write( "\n" );
+
+							}
+							 
+						}
+
+						if ( serialPort.BytesToRead != 0 ){
+							Console.Write( "\nTerminator bytes: " );
+							while( serialPort.BytesToRead != 0 ){
+								int x = serialPort.ReadByte();
+								Console.Write( x.ToString("X2") + " " );
+							}
+							Console.Write( "\n" );
+						}
+
+
+						// slow it down a touch
+						
+						// give the PSX time to do stuff
+						Thread.Sleep( 200 );
+
+						// Just start over...						
+						// PSX will essentially be stuck in an interrupt from here
+
+						WriteChallenge( serialPort );
+						WaitResponse( serialPort, false );
+						
+						// start over
+						arrayPos = 0;
+						serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );						
+						serialPort.Write( BitConverter.GetBytes( argSize ), 0, 4 );
+						
+						/*
+						// remove the challenge/response from the buffer
+						for( int i = 0; i < 8; i++ ){
+							while ( serialPort.BytesToRead == 0 ){
+					
+							}
+							serialPort.ReadByte();
+						}
+						*/
+
+
+					}
+					
+				} // bytestoread
+
+			} // while true
+
+
+		} // WATCH
 
 	doMonitor:
 		

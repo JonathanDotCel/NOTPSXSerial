@@ -230,7 +230,7 @@ internal class Program {
 				break;
 			} else if (NIXDEV.Success) {
 				argComPort = s;
-                remainingArgs.RemoveAt( i );
+				remainingArgs.RemoveAt( i );
 				break;
 			}
 

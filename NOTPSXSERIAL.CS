@@ -23,8 +23,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
-using System.Threading;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
 
 public enum CommandMode {
 
@@ -96,8 +97,16 @@ internal class Program {
 
 	const string VERSION = "v1.Matthew";
 	const int TIMEOUT = 500;
+	static string COMENV = "";
 
 	static void PrintUsage( bool justTheTip = false ) {
+
+		int env = (int) Environment.OSVersion.Platform;
+		if ((env == 4) || (env == 128)) {
+			COMENV = "/dev/tty*";
+		} else {
+			COMENV = "COM8";
+		}
 
 		#if !DebugArgs
 		if( !justTheTip ){
@@ -112,7 +121,7 @@ internal class Program {
 		Console.Write( "\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
-		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79 & Dax\n" );
+		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax and r0r0\n" );
 		Console.Write( "    Not shadow though...\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "\n" );
@@ -129,35 +138,33 @@ internal class Program {
 		Console.Write( "    Usage: NOPS.EXE [/args] FILENAME COMPORT" );
 		Console.Write( "\n\n" );
 
-		Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> COM8\n\n" );
+		Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {0}\n\n", COMENV );
 
-		Console.Write( "      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> COM8\n\n" );
+		Console.Write( "      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> {0}\n\n", COMENV );
 
-		Console.Write( "      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> COM8\n\n" );		
+		Console.Write( "      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {0}\n\n", COMENV );		
 		
-		Console.Write( "      Jump addr (jr) :   NOPS.EXE /jmp 0xADDRESS0 COM8\n" );		
-		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 COM8\n\n" );
+		Console.Write( "      Jump addr (jr) :   NOPS.EXE /jmp 0xADDRESS0 {0}\n", COMENV );		
+		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 {0}\n\n", COMENV );
 		
 		Console.Write( "    Dumpy Stuff:\n" );
-		Console.Write( "		RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 COM8\n" );				
-		Console.Write( "		ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000 COM8\n" );
-		Console.Write( "		ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000 COM8\n" );
-		Console.Write( "		ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000 COM8\n" );
-		Console.Write( "		BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000 COM8\n" );
-		Console.Write( "		SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400 COM8\n\n" );
+		Console.Write( "		RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", COMENV );				
+		Console.Write( "		ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000 {0}\n", COMENV );
+		Console.Write( "		ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000 {0}\n", COMENV );
+		Console.Write( "		ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000 {0}\n", COMENV );
+		Console.Write( "		BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000 {0}\n", COMENV );
+		Console.Write( "		SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400 {0}\n\n", COMENV );
 
 		Console.Write( "    Continuous Hex Dump (to screen):\n" );
-		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 COM8\n\n" );
+		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", COMENV );
 
 		Console.Write( "    Legacy Commands:\n" );
-		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> COM8    (PSXSerial, Unirom1-7) \n" );	
-		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> COM8    (Unirom7b Only) \n\n" );	
+		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> {0}    (PSXSerial, Unirom1-7) \n", COMENV );	
+		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> {0}    (Unirom7b Only) \n\n", COMENV );	
 
 		Console.Write( "    Misc:\n" );		
-		Console.Write( "      /m to open the Serial IO monitor (can be used /m COM8 alone)\n\n" );
-
+		Console.Write( "      /m to open the Serial IO monitor (can be used /m {0} alone)\n\n", COMENV );
 	}
-
 
 	static string argComPort = "";
 	static CommandMode argCommand = CommandMode.NOT_SET;
@@ -208,19 +215,29 @@ internal class Program {
 
 		for( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
-			string s = remainingArgs[ i ].ToUpperInvariant();
+			string s = remainingArgs[ i ];
 
-			if( s.StartsWith( "COM" ) ) {
-				argComPort = s;
-				//Console.WriteLine( " - Using port " + argComPort );
+			Regex COM = new Regex(@"\b(COM(.*))\b", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+			Match COMPORT = COM.Match(s);
+
+			Regex DEV = new Regex(@"\b(dev(.*))\b", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+			Match NIXDEV = DEV.Match(s);
+
+			if (COMPORT.Success) {
+				argComPort = s.ToUpperInvariant();
+				// Console.WriteLine( " - Using port " + argComPort );
 				remainingArgs.RemoveAt( i );
+				break;
+			} else if (NIXDEV.Success) {
+				argComPort = s;
+                remainingArgs.RemoveAt( i );
 				break;
 			}
 
 		}
 
 		if( argComPort =="" ) {
-			return Error( "\nERROR! Please specify a COM port - e.g. COM8!" );			
+			return Error( "\nERROR! Please specify a COM port!" );			
 
 		}
 

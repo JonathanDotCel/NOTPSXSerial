@@ -15,6 +15,12 @@
 //    - Added the continous hex dump mode
 //    - Removed deprecated response enums
 //
+// 10_05_2020 - Release 3
+//    - Added the /fast option for 512k baud
+//    - Ability to use smaller chunks for CP210x UARTs, etc
+//    - Hidden /verify switch for checking faster connections
+//    - Linux support thanks to r0r0
+//
 
 
 #define DebugArgs
@@ -87,6 +93,13 @@ public enum CommandMode {
 	[NeedsSize]
 	WATCH,
 
+	[Command( "/verify" )]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsInputFile]
+	[NeedsAddress]	
+	VERIFY,
+
 	COUNT
 
 };
@@ -112,7 +125,7 @@ internal class Program {
 		Console.Write( "\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
-		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79 & Dax\n" );
+		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax & r0r0\n" );
 		Console.Write( "    Not shadow though...\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "\n" );
@@ -126,41 +139,48 @@ internal class Program {
 
 		if( justTheTip ) return;
 
+		if ( POSIXEnvironment )
+			suggestedComPort = "/dev/ttyUSB0";
+
 		Console.Write( "    Usage: NOPS.EXE [/args] FILENAME COMPORT" );
 		Console.Write( "\n\n" );
 
-		Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> COM8\n\n" );
+		Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {0}\n\n", suggestedComPort );
 
-		Console.Write( "      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> COM8\n\n" );
+		Console.Write( "      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> {0}\n\n", suggestedComPort );
 
-		Console.Write( "      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> COM8\n\n" );		
+		Console.Write( "      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {0}\n\n", suggestedComPort );	
 		
-		Console.Write( "      Jump addr (jr) :   NOPS.EXE /jmp 0xADDRESS0 COM8\n" );		
-		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 COM8\n\n" );
+		Console.Write( "      Jump addr (jr) :   NOPS.EXE /jmp 0xADDRESS0 {0}\n", suggestedComPort );
+		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
 		
 		Console.Write( "    Dumpy Stuff:\n" );
-		Console.Write( "		RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 COM8\n" );				
-		Console.Write( "		ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000 COM8\n" );
-		Console.Write( "		ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000 COM8\n" );
-		Console.Write( "		ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000 COM8\n" );
-		Console.Write( "		BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000 COM8\n" );
-		Console.Write( "		SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400 COM8\n\n" );
+		Console.Write( "		RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
+		Console.Write( "		ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
+		Console.Write( "		ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
+		Console.Write( "		ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
+		Console.Write( "		BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000  {0}\n", suggestedComPort );
+		Console.Write( "		SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400    {0}\n\n", suggestedComPort );
 
 		Console.Write( "    Continuous Hex Dump (to screen):\n" );
-		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 COM8\n\n" );
+		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
 
 		Console.Write( "    Legacy Commands:\n" );
-		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> COM8    (PSXSerial, Unirom1-7) \n" );	
-		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> COM8    (Unirom7b Only) \n\n" );	
+		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> {0}    (PSXSerial, Unirom1-7) \n", suggestedComPort );
+		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> {0}    (Unirom7b Only) \n\n", suggestedComPort );
 
 		Console.Write( "    Misc:\n" );		
-		Console.Write( "      /m to open the Serial IO monitor (can be used /m COM8 alone)\n\n" );
+		Console.Write( "      /m to open the Serial IO monitor (can be used /m {0} alone)\n\n", suggestedComPort );
 
 	}
 
 
 	static string argComPort = "";
+	static string suggestedComPort = "COM8";
+	
 	static CommandMode argCommand = CommandMode.NOT_SET;
+
+	
 
 	static UInt32 argAddr;
 	static UInt32 argSize;
@@ -168,26 +188,33 @@ internal class Program {
 	static bool satisfiedSizeRequirements = false;
 
 	static bool needInputFile = false;
-	static bool needOutputFile = false;
+	static bool needOutputFile = false;	
 	static bool satisfiedFileRequirements = false;
 	static string argFileName;
 	static byte[] inFile;
-	//static byte[] argOutFile;  // Let's do this programmatically?
+	static bool fastMode = false;
+	static bool ignoreChecksum = false;
+	// keep it globally scoped so we can process it later
+	static byte[] lastReadBytes;
 
 	static bool monitorComms = false;
-
+	
 	static UInt32 checkSum = 0; // in or out
 	
-	static bool VerifyArgs( string[] inArgs ) {
 
-		//   - Make a list of args
-		//   - Remove them from the list when they've been processed
-		// 1 - Determine COM port
-		// 2 - Grab any /r /e /b commands
-		// 3 - Get the address value if required
-		// 4 - Get the other address value?
-		// 5 - File name!
-		// 
+	// Quickly check that the input is vaguely sane.
+	// 
+	// - Make a list of args
+	// - Remove them from the list when they've been processed
+	// - Determine COM port
+	// - Grab any /r /e /b commands
+	// - Get the address value if required
+	// - Get the other address value?
+	// - File name!
+	// 
+
+
+	static bool VerifyArgs( string[] inArgs ) {
 		
 		if ( inArgs.Length == 0 ){
 			PrintUsage( false );
@@ -203,25 +230,44 @@ internal class Program {
 		// Specified a com port?
 
 		#if DebugArgs
-		Console.WriteLine( "__TEST__Argsleft: " + remainingArgs.Count );
+		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
 		#endif
 
 		for( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
-			string s = remainingArgs[ i ].ToUpperInvariant();
+			string s = remainingArgs[ i ];
 
-			if( s.StartsWith( "COM" ) ) {
+			if ( ValidPort( s ) ){
 				argComPort = s;
-				//Console.WriteLine( " - Using port " + argComPort );
 				remainingArgs.RemoveAt( i );
 				break;
 			}
 
 		}
 
-		if( argComPort =="" ) {
-			return Error( "\nERROR! Please specify a COM port - e.g. COM8!" );			
+		// Likewise get the "/FAST" parameter out of the way
 
+		for( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
+
+			string s = remainingArgs[ i ].ToUpperInvariant();
+
+			if( s == "/FAST" ) {				
+				fastMode = true;
+				remainingArgs.RemoveAt( i );
+			}
+
+		}
+		
+
+
+		if( argComPort =="" ) {
+			
+			if ( POSIXEnvironment ){
+				return Error( "\nERROR! Please specify a device - e.g. /dev/ttyUSB0\n" );
+			} else {
+				return Error( "\nERROR! Please specify a COM port - e.g. COM8\n" );
+			}
+			
 		}
 
 		// going straight into monitor mode?
@@ -231,8 +277,9 @@ internal class Program {
 
 
 		#if DebugArgs
-		Console.WriteLine( "__TEST__Argsleft: " + remainingArgs.Count );
-		Console.WriteLine( "__TEST__COM: " + argComPort );
+		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
+		Console.WriteLine( "__DEBUG__COM: " + argComPort );
+		Console.WriteLine( "__DEBUG__FAST: " + fastMode );
 		#endif
 		
 		// Specified a command arg (or severay for future-proofing)?
@@ -244,7 +291,7 @@ internal class Program {
 			if ( argVal == "/m" ){
 				
 				#if DebugArgs
-				Console.WriteLine( "__TEST__CommsMonitor Enabled: ");
+				Console.WriteLine( "__DEBUG__CommsMonitor Enabled: ");
 				#endif
 
 				monitorComms = true;
@@ -278,7 +325,7 @@ internal class Program {
 					if( argCommand.needsAddress() ) {
 						
 						#if DebugArgs
-						Console.WriteLine( "__TEST__Command " + c + " requires an address " );
+						Console.WriteLine( "__DEBUG__Command " + c + " requires an address " );
 						#endif
 
 						// reassign it						
@@ -300,7 +347,7 @@ internal class Program {
 					if ( argCommand.needsSize() ){
 						
 						#if DebugArgs
-						Console.WriteLine( "__TEST__Command " + c + " requires a size parameter " );
+						Console.WriteLine( "__DEBUG__Command " + c + " requires a size parameter " );
 						#endif
 
 						// reassign it
@@ -328,13 +375,13 @@ internal class Program {
 		} // outer loop
 
 		#if DebugArgs
-		Console.WriteLine( "__TEST__Argsleft: " + remainingArgs.Count );
-		Console.WriteLine( "__TEST__COM: " + argComPort );
-		Console.WriteLine( "__TEST__COMMAND: " + argCommand );
-		Console.WriteLine( "__TEST__ADDR: " + argAddr.ToString("X8") );
-		Console.WriteLine( "__TEST__NEEDSADDR: " + argCommand.needsAddress() );
-		Console.WriteLine( "__TEST__NEEDSINPUT: " + argCommand.needsInputFile() );
-		Console.WriteLine( "__TEST__NEEDSOUTPUT: " + argCommand.needsOutputFile() );
+		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
+		Console.WriteLine( "__DEBUG__COM: " + argComPort );
+		Console.WriteLine( "__DEBUG__COMMAND: " + argCommand );
+		Console.WriteLine( "__DEBUG__ADDR: " + argAddr.ToString("X8") );
+		Console.WriteLine( "__DEBUG__NEEDSADDR: " + argCommand.needsAddress() );
+		Console.WriteLine( "__DEBUG__NEEDSINPUT: " + argCommand.needsInputFile() );
+		Console.WriteLine( "__DEBUG__NEEDSOUTPUT: " + argCommand.needsOutputFile() );
 		#endif
 				
 		if( argCommand == CommandMode.NOT_SET ) {
@@ -398,10 +445,10 @@ internal class Program {
 		}
 
 		#if DebugArgs
-		Console.WriteLine( "__TEST__Argsleft: " + remainingArgs.Count );
-		Console.WriteLine( "__TEST__FILENAME: " + argFileName );		
-		Console.WriteLine( "__TEST__INPUTFILE: " + inFile );
-		//Console.WriteLine( "__TEST__OUTPUTFILE: " + argOutFile );		
+		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
+		Console.WriteLine( "__DEBUG__FILENAME: " + argFileName );		
+		Console.WriteLine( "__DEBUG__INPUTFILE: " + inFile );
+		//Console.WriteLine( "__DEBUG__OUTPUTFILE: " + argOutFile );
 		#endif
 
 		// there shouldn't be any arguments left!
@@ -511,18 +558,83 @@ internal class Program {
 
 
 	private static void Main( string[] args ) {
-
+		
 		
 		if ( !VerifyArgs( args ) ){
 			return;
 		}
+
+		
+		if ( argCommand != CommandMode.VERIFY ){
+			
+			// Just normal mode
+
+			Transfer();
+
+		} else {
+			
+			VerifyTransfer();
+
+		}
+
+	}
+
+
+
+
+	private static bool Transfer() {
+		
 		
 		PrintUsage( true );
 
 		// See the warning regarding 115200 compat on some FTDIs under windows
 		// Personally, I've had the most luck with an arduino.
 
+		
 		SerialPort serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.One );
+		
+		if ( fastMode ){
+			
+		
+			serialPort.ReadTimeout = TIMEOUT;
+			serialPort.WriteTimeout = TIMEOUT;
+
+			try {
+				serialPort.Open();
+			} catch( Exception exception ) {
+
+				Console.WriteLine( "Error opening temporary serial port on " + argComPort + "!" );
+				Console.WriteLine( exception.Message );
+
+				return false;
+
+			}
+
+			// The bytes "FAST" with no null terminator
+			serialPort.Write( BitConverter.GetBytes( 0x54534146 ), 0, 4 );
+			
+
+			Thread.Sleep( 100 );
+			
+
+			serialPort.Close();
+			
+
+			// PSX must use integer divisions of 2073600 for anything over 115200
+			
+			serialPort = new SerialPort( argComPort, 518400, Parity.None, 8, StopBits.One );
+
+			// Let's leave these here for testing:
+			//serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.One );
+			//serialPort = new SerialPort( argComPort, 129600, Parity.None, 8, StopBits.One );
+			//serialPort = new SerialPort( argComPort, 259200, Parity.None, 8, StopBits.One );
+			//serialPort = new SerialPort( argComPort, 518400, Parity.None, 8, StopBits.One );
+			//serialPort = new SerialPort( argComPort, 1038600, Parity.None, 8, StopBits.One );
+
+		}
+
+		// Now the main serial port
+
 		serialPort.ReadTimeout = TIMEOUT;
 		serialPort.WriteTimeout = TIMEOUT;
 
@@ -533,12 +645,14 @@ internal class Program {
 			Console.WriteLine( "Error opening the serial port on " + argComPort + "!" );
 			Console.WriteLine( exception.Message );
 
-			return;
+			return false;
 
 		}
+			
+
 
 		// maybe we just want to go straight to comms monitor
-		if( monitorComms && args.Length == 2 ){
+		if( monitorComms && argCommand == CommandMode.NOT_SET ){
 			goto doMonitor;
 		}
 
@@ -563,10 +677,14 @@ internal class Program {
 			}
 			
 			// checksum ( fancy way of saying added all the things together )
+			// start it after 2k for the .exe (as that's all we'll send)
+			// just send a 0 for verify mode so the PSX doesn't stop
 			checkSum = 0;
-			// start the checksum after 2k for the .exe (as that's all we'll send)
-			for ( int i = argCommand == CommandMode.SEND_EXE ? 0x800 : 0; i < inFile.Length; i++ ){
-				checkSum += (UInt32)inFile[i];  // signed add?
+			
+			if ( !ignoreChecksum ){
+				for ( int i = argCommand == CommandMode.SEND_EXE ? 0x800 : 0; i < inFile.Length; i++ ){
+					checkSum += (UInt32)inFile[i];  // signed add?
+				}
 			}
 
 		}
@@ -662,17 +780,17 @@ internal class Program {
 
 				if ( flashResponse == "NOPE" ){					
 					Console.WriteLine( "\n\nThis rom is too big for the EEPROM! \n Response: " + flashResponse + "!" );
-					return;
+					return false;
 				}
 
 				if ( flashResponse == "NONE" ){					
 					Console.WriteLine( "\n\nNo EEPROM detected! \n The response was: " + flashResponse + "!" );
-					return;					
+					return false;
 				}
 
 				if ( flashResponse == "UNKN" ){					
 					Console.WriteLine( "\n\nUnknown EEPROM detected! \n The response was: " + flashResponse + "!" );
-					return;					
+					return false;
 				}
 				
 
@@ -700,36 +818,46 @@ internal class Program {
 		// send it over in 2kb chunks (same as CD sector size)
 		if ( needInputFile ){
 			
-			// TODO: find an integer ceil function
-			int numChunks = inFile.Length / 2048;
-			// anything left over?
-			if ( inFile.Length % 2048 != 0 )
-				numChunks ++;
 			
-
 			// .exe files go [ header ][ meta ][ data @ write address ]
 			// .rom files go [ meta ][ data @ 0x80100000 ]
 			// .bin files go [ size ][ data @ 0xWRITEADR ]
 			
-			int start = skipFirstSectorHeader ? 1 : 0;
+			int start = skipFirstSectorHeader ? 2048 : 0;		// for .exes
 
+			int chunkSize = 2048;								// 2048 seems the most stable
+			int numChunks = inFile.Length / chunkSize + ( inFile.Length % chunkSize == 0 ? 0 : 1 );
+
+			int waityCakes = 0;									// Kinda extraneous, but it's interesting to watch
+			
 			// we already sent the first one?
-			for( int i = start; i < numChunks; i++ ){
+			for( int i = start; i < inFile.Length; i += chunkSize ){
 				
-				serialPort.Write( inFile, 2048 * i, 2048 );
+				// Are we about to go out of range?
+				// .NET doesn't care if you specify 2kb when you're only e.g. 1.7kb from the boundary
+				// but it's best to declare explicityly
+				if ( inFile.Length - i < chunkSize )
+					chunkSize = inFile.Length -1;
+
+				serialPort.Write( inFile, i, chunkSize );
+				
+				while( serialPort.BytesToWrite != 0 ){
+					waityCakes++;					
+				}
 
 				Console.ForegroundColor = ConsoleColor.Green;				
-				int percent = (i + 1) * 100 / ( numChunks );
-				Console.Write( "\r Sending packet {0} of {1} ({2})%", (i+1), numChunks, percent );
+				int percent = (i + 1) * 100 / ( inFile.Length );
+				Console.Write( "\r Sending chunk {0} of {1} ({2})%", (i/chunkSize)+1, numChunks, percent );
 
 				Console.ForegroundColor = ConsoleColor.White;
-
-				// get a response byte every 2kb
-						
-
+				
+				/*
+				// Removed due to complications with cp2104
+				// Possible to recieve a response byte every 2kb
 				while ( serialPort.BytesToRead != 0 ){
 					Console.Write( (char)serialPort.ReadByte() );
 				}
+				*/
 				
 				Console.WriteLine( " OK" );
 
@@ -738,8 +866,7 @@ internal class Program {
 			// might have to terminate previous line
 			Console.WriteLine( "\nSend finished!\n" );
 
-			// debating whether or not to still do this?
-			
+			// Doesn't look like anyone misses this for older serial comms.
 			/*
 			for( int j = 0; j < 2048; j++ ) {
 				serialPort.Write( new byte[] { 255 }, 0, 1 );
@@ -758,8 +885,8 @@ internal class Program {
 			serialPort.Write( BitConverter.GetBytes( argSize ), 0, 4 );
 
 			// now go!
-			int arrayPos = 0;
-			byte[] inArray = new byte[ argSize ];
+			int arrayPos = 0;			
+			lastReadBytes = new byte[ argSize ];
 
 			// Let the loop time out if something gets a bit fucky.
 			TimeSpan startSpan = (DateTime.UtcNow - new DateTime(1970, 1, 1)); // shortest way to represent the epoch?
@@ -780,13 +907,13 @@ internal class Program {
 					lastReadTime = currentTime;
 
 					byte responseByte = (byte)serialPort.ReadByte();				// todo: why does ReadByte read an Int?
-					inArray[ arrayPos ] = ( responseByte );
+					lastReadBytes[ arrayPos ] = ( responseByte );
 				
 					arrayPos++;
-
+					
 					checkSum += (UInt32)responseByte;
 
-					if ( arrayPos >= inArray.Length ){
+					if ( arrayPos >= lastReadBytes.Length ){
 						break;
 					}
 					
@@ -801,7 +928,7 @@ internal class Program {
 				if ( currentTime > lastReadTime + 2 ){
 					if ( arrayPos == 0 ){
 						Error( "There was no data for a long time! 0 bytes were read!", false );
-						return;
+						return false;
 					} else {
 						Error( "There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString("X8") + ") bytes that were read!", false );
 					}
@@ -888,12 +1015,12 @@ internal class Program {
 
 			try{
 				
-				File.WriteAllBytes( fileName, inArray );
+				File.WriteAllBytes( fileName, lastReadBytes );
 
 			} catch ( Exception e ) {
 				
 				Error( "Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false );
-				return;
+				return false;
 				
 			}
 
@@ -905,8 +1032,8 @@ internal class Program {
 		if ( argCommand == CommandMode.WATCH ){
 			
 			int bytesRead = 0;
-			int arrayPos = 0;
-			byte[] inArray = new byte[ argSize ];
+			int arrayPos = 0;			
+			lastReadBytes = new byte[ argSize ];
 
 			// the handshake is done, let's tell it where to start
 			arrayPos = 0;
@@ -921,22 +1048,22 @@ internal class Program {
 					
 					// still bothers me that it reads an int...
 					byte responseByte = (byte)serialPort.ReadByte();
-					inArray[ arrayPos ] = ( responseByte );
+					lastReadBytes[ arrayPos ] = ( responseByte );
 				
 					bytesRead++;
 					arrayPos++;
 					
 					// filled the buffer? Print it
 
-					if ( arrayPos >= inArray.Length ){
+					if ( arrayPos >= lastReadBytes.Length ){
 							
 						Console.Clear();
 						Console.Write( "Watching address range 0x" + argAddr.ToString("X8") + " to 0x" + (argAddr+argSize).ToString("X8") +  "\n" );
 						Console.Write( "Bytes read " + bytesRead + "\n\n" );
 
-						for( int i = 0; i < inArray.Length; i++ ){
+						for( int i = 0; i < lastReadBytes.Length; i++ ){
 							
-							Console.Write( inArray[i].ToString( "X2") + " " );
+							Console.Write( lastReadBytes[i].ToString( "X2") + " " );
 
 							// Such a janky way to do it, but is saves appending
 							// tons and tons of strings together
@@ -946,7 +1073,7 @@ internal class Program {
 
 								for( int j = i -15; j <= i; j++ ){
 									
-									Console.Write( " " + (char)inArray[j] );
+									Console.Write( " " + (char)lastReadBytes[j] );
 
 								}
 
@@ -1009,7 +1136,7 @@ internal class Program {
 			
 			Console.WriteLine( "\n This is where we part ways!" );
 			serialPort.Close();
-			return;
+			return true;
 
 		} else {
 
@@ -1027,9 +1154,141 @@ internal class Program {
 		}
 
 		// Hi! The compiler says I'm unreachable
+		
 
-	} // void Main
+	} // void Transfer
 
+
+	// TODO: this is so hacky
+	// E.g. it uses the args supplied to SBIN (upload bin)
+	// then tweaks the params and redownloads them.
+
+	static void VerifyTransfer(){
+				
+			// Run a bin upload then a verify
+
+			// would gum things up
+			monitorComms = false;
+			ignoreChecksum = true;
+			
+			// Switch to upload mode, same params
+			argCommand = CommandMode.SEND_BIN;
+			if ( !Transfer() ){
+				return;
+			}
+
+			// PSX is about to wait a fixed time
+			// let's do the same rather than interfering with SIO
+			Console.Write( "Waiting for PSX...\n" );
+			Thread.Sleep( 1000 );
+			
+			// Then switch back to dump mode
+			needInputFile = false;
+			argSize = (uint)inFile.Length;
+			argCommand = CommandMode.DUMP;
+			Transfer();
+
+			Console.WriteLine( "InFile: " + inFile.Length + "bytes" );
+			Console.WriteLine( "OutFile: " + lastReadBytes.Length + "bytes" );
+
+			// Now verify the dump vs the original (possible patched) bytes
+
+			int numErrors = 0;
+			for( int i = 0; i <inFile.Length; i++ ){
+				
+				if ( inFile[i] != lastReadBytes[i] ){					
+					if ( numErrors < 2000 ){
+						
+						// Do a little hex dump
+
+						Console.Write( "Error at 0x" + i.ToString( "X" ) + " (0x" + ( i + argAddr).ToString("X") + "):    (expected/actual)\n" );
+						
+						// Could use a stringbuilder... or we could keep it readable...
+						string expectedLeft = "0x" + i.ToString("X") + ": ";
+						string expectedRight = "  ";
+						string actualLeft = "0x" + i.ToString("X") + ": ";
+						string actualRight = "  ";
+
+						int lineStart = i - ( i % 16 );
+
+						for( int j = lineStart; j < lineStart + 16; j++ ){
+
+							// Highlight current or previous byte?
+							if ( i == j ){
+								expectedLeft += ">";
+								actualLeft += ">";
+							} else if ( j == i + 1 ){
+								expectedLeft += "<";
+								actualLeft += "<";
+							} else {
+								expectedLeft += " ";
+								actualLeft += " ";
+							}
+
+							// Print!
+							expectedLeft += inFile[ j ].ToString( "X2" );
+							actualLeft += lastReadBytes[ j ].ToString( "X2" );
+							expectedRight += (char)inFile[i];
+							actualRight += (char)lastReadBytes[i];
+
+						}
+						
+						Console.Write( expectedLeft );
+						Console.Write( expectedRight + "\n\n" );
+
+						Console.Write( actualLeft );
+						Console.Write( actualRight + "\n" );
+						
+
+					}
+
+					numErrors++;
+
+				}
+
+			}
+			Console.Write( "Total errors: " + numErrors + "\n" );
+			if ( numErrors > 2000 ){
+				Console.Write( "Stopped listing after 2000 errors!\n" );
+			}
+
+			Console.Write( "NOTE: Please be aware that the area of ram you've selected may be in use!\n" );
+
+
+	} //VerifyTransfer
+
+	// Older .NET so getter/setter instead of expression-bodied statement.
+	public static bool POSIXEnvironment{ get{
+		
+		// 128 being mono's "Unix" ID in older versions.
+
+		return (
+			Environment.OSVersion.Platform == PlatformID.MacOSX 
+			|| Environment.OSVersion.Platform == PlatformID.Unix
+			|| Environment.OSVersion.Platform == (PlatformID)128
+		);
+
+	} }
+
+	public static bool ValidPort( string inPort ){
+		
+		if ( POSIXEnvironment ){
+		
+			// Some kinda POSIXy environment
+			// Allow any tty device as *nix users could be using all sorts of pipes n redirects
+
+			return inPort.StartsWith( "/dev/tty" );
+		
+		} else {
+		
+			// A windowsy sort of affair
+
+			return inPort.ToUpperInvariant().StartsWith( "COM" );
+			
+		}
+	
+
+	}
 
 } // Main Class
 

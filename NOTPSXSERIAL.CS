@@ -106,12 +106,19 @@ public enum CommandMode {
 	[Response("OKAY")]		
 	DEBUG,
 
+	[Command( "/reset" )]
+	[Challenge("REST")]
+	[Response("OKAY")]	
+	RESET,
+
 	[Command( "/verify" )]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
 	[NeedsInputFile]
 	[NeedsAddress]	
 	VERIFY,
+
+
 
 	COUNT
 
@@ -556,6 +563,11 @@ internal class Program {
 
 	public static bool WaitResponse( SerialPort inPort, bool verbose = true ){
 		
+		if ( argCommand == CommandMode.RESET ){
+			// just reset
+			return true;
+		}
+
 		// Dump the response into a buffer..
 		// (byte by byte so we can compare the challenge/response)
 		// e.g. it may start spewing data immediately after and we

@@ -20,6 +20,14 @@
 //    - Ability to use smaller chunks for CP210x UARTs, etc
 //    - Hidden /verify switch for checking faster connections
 //    - Linux support thanks to r0r0
+//	
+// 26_05_2020 - Release 4
+//    - Now supports binary upload/download during gameplay through Unirom 8.0.B4
+//	    /debug to enable this via Unirom's debug mode
+//    - /reset to reset the machine
+//    - /fast improvements on the other end
+//    - "unsp" response for unsupported command (unirom in debug mode)
+//    - Remembers your last-used com port
 //
 
 
@@ -93,6 +101,11 @@ public enum CommandMode {
 	[NeedsSize]
 	WATCH,
 
+	[Command( "/debug" )]
+	[Challenge("DEBG")]
+	[Response("OKAY")]		
+	DEBUG,
+
 	[Command( "/verify" )]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
@@ -107,7 +120,7 @@ public enum CommandMode {
 
 internal class Program {
 
-	const string VERSION = "v1.Matthew";
+	const string VERSION = "v4.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -169,8 +182,11 @@ internal class Program {
 		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> {0}    (PSXSerial, Unirom1-7) \n", suggestedComPort );
 		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> {0}    (Unirom7b Only) \n\n", suggestedComPort );
 
-		Console.Write( "    Misc:\n" );		
-		Console.Write( "      /m to open the Serial IO monitor (can be used /m {0} alone)\n\n", suggestedComPort );
+		Console.Write( "    Extra switches:\n" );		
+		Console.Write( "      /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
+		Console.Write( "      /fast to enable or continue using 500k baud\n" );
+		Console.Write( "      /debug to enable experimental /bin & /dump during gameplay\n" );
+		Console.Write( "\n" );
 
 	}
 
@@ -198,6 +214,7 @@ internal class Program {
 	static byte[] lastReadBytes;
 
 	static bool monitorComms = false;
+	static bool usingCachedComPort = false;
 	
 	static UInt32 checkSum = 0; // in or out
 	
@@ -262,13 +279,38 @@ internal class Program {
 
 		if( argComPort =="" ) {
 			
-			if ( POSIXEnvironment ){
-				return Error( "\nERROR! Please specify a device - e.g. /dev/ttyUSB0\n" );
+			try{
+				if ( System.IO.File.Exists( "comport.txt" ) ){
+					argComPort = File.ReadAllText( "comport.txt" );
+				}
+			} catch ( System.Exception e ){
+				Console.Write( "Error checking for cached com port...\n" + e );
+			}
+
+			if ( argComPort == "" ){
+				if( POSIXEnvironment ) {
+					return Error( "\nERROR! Please specify a device - e.g. /dev/ttyUSB0\n" );
+				} else {
+					return Error( "\nERROR! Please specify a COM port - e.g. COM8\n" );
+				}
 			} else {
-				return Error( "\nERROR! Please specify a COM port - e.g. COM8\n" );
+				usingCachedComPort = true;
 			}
 			
+		} else {
+			
+			
+
+			try{
+				File.WriteAllText( "comport.txt", argComPort );
+			} catch ( System.Exception e ){
+				Console.Write( "Error writing cached com port!\n" + e );
+			}
+
 		}
+
+
+
 
 		// going straight into monitor mode?
 		if ( remainingArgs.Count == 1  && remainingArgs[0].ToLowerInvariant() == "/m" ){
@@ -315,15 +357,15 @@ internal class Program {
 
 					// Now we've removed the /command, if there's
 					// an address after it, it will be remaningArgs[ arg ]
-
-					// end of the array!
-					if( arg >= remainingArgs.Count ) {
-						return Error( "Specify an address in the format 0x01234567\n" );
-					}
-
+					
 					// found the command... do we need to find an address?
 					if( argCommand.needsAddress() ) {
 						
+						// end of the array!
+						if( arg >= remainingArgs.Count ) {
+							return Error( "Specify an address in the format 0x01234567\n" );
+						}
+
 						#if DebugArgs
 						Console.WriteLine( "__DEBUG__Command " + c + " requires an address " );
 						#endif
@@ -492,6 +534,7 @@ internal class Program {
 
 		if ( printHeader )
 			PrintUsage( false );
+		
 		Console.ForegroundColor = ConsoleColor.Red;
 		Console.Write( "\n\n" );
 		Console.Write( "ERROR! " + inString + " \n \n " );
@@ -511,7 +554,7 @@ internal class Program {
 
 	}
 
-	public static void WaitResponse( SerialPort inPort, bool verbose = true ){
+	public static bool WaitResponse( SerialPort inPort, bool verbose = true ){
 		
 		// Dump the response into a buffer..
 		// (byte by byte so we can compare the challenge/response)
@@ -533,6 +576,11 @@ internal class Program {
 			
 			if ( verbose )
 				Console.Write( "\r Response: " + responseBuffer );
+			
+			// command unsupported in debug mode
+			if ( responseBuffer == "UNSP" ){
+				return false;
+			}
 
 			if ( 
 				// regular mode
@@ -552,7 +600,9 @@ internal class Program {
 				responseBuffer = responseBuffer.Remove( 0, 1 );
 				
 
-		} 
+		}
+
+		return true;
 
 	}
 
@@ -689,6 +739,11 @@ internal class Program {
 
 		}
 
+		if ( usingCachedComPort ){
+			
+			Console.WriteLine( "Using port " + argComPort + " from comport.txt\n" );
+
+		}
 		
 		// Clear the SIO buffer incase the last program has been spamming
 
@@ -707,10 +762,18 @@ internal class Program {
 		
 		Thread.Sleep( 500 );
 
-		WaitResponse( serialPort );
-		
-		Console.Write( "Success!" );
 
+		if ( WaitResponse( serialPort ) ){
+			
+			Console.Write( "Success!" );
+
+		} else {
+			
+			return Error( "This function is not supported while UniROM is in debug mode!\n" );
+
+		}
+
+		
 		bool skipFirstSectorHeader = false;
 
 		
@@ -744,6 +807,13 @@ internal class Program {
 			serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
 
 			// then the actual contents.
+
+		}
+
+		// Unirom 4 and up, enables debug features in game
+		if ( argCommand == CommandMode.DEBUG ){
+			
+			// challenge is handled... 
 
 		}
 

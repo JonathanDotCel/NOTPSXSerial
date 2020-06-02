@@ -117,8 +117,7 @@ public enum CommandMode {
 	[NeedsInputFile]
 	[NeedsAddress]	
 	VERIFY,
-
-
+		
 
 	COUNT
 
@@ -319,8 +318,9 @@ internal class Program {
 
 
 
-		// going straight into monitor mode?
-		if ( remainingArgs.Count == 1  && remainingArgs[0].ToLowerInvariant() == "/m" ){
+		// is /m the last remaining arg?
+		if ( remainingArgs.Count == 1  && remainingArgs[0].ToLowerInvariant() == "/m" ){			
+			monitorComms = true;
 			return true;
 		}
 
@@ -713,7 +713,7 @@ internal class Program {
 			
 
 
-		// maybe we just want to go straight to comms monitor
+		// just lets us skip a ton of ifs
 		if( monitorComms && argCommand == CommandMode.NOT_SET ){
 			goto doMonitor;
 		}
@@ -765,27 +765,33 @@ internal class Program {
 		}
 		Console.WriteLine( "...done!\n\n" );
 		
-
-		// Now send the challenge code and wait
-
-		Console.WriteLine( "Waiting for the PS1....\n\n" );
-
-		WriteChallenge( serialPort );
 		
-		Thread.Sleep( 500 );
+		// If we're in solo monitor mode, there will be no
+		// challenge/response, let's future-proof it though
 
-
-		if ( WaitResponse( serialPort ) ){
+		if ( !string.IsNullOrEmpty( argCommand.challenge() ) ){
 			
-			Console.Write( "Success!" );
+			// Now send the challenge code and wait
+			Console.WriteLine( "Waiting for the PS1....\n\n" );
 
-		} else {
+			WriteChallenge( serialPort );
+		
+			Thread.Sleep( 500 );
+
+
+			if ( WaitResponse( serialPort ) ){
 			
-			return Error( "This function is not supported while UniROM is in debug mode!\n" );
+				Console.Write( "Success!" );
+
+			} else {
+			
+				return Error( "This function is not supported while UniROM is in debug mode!\n" );
+
+			}
 
 		}
-
 		
+
 		bool skipFirstSectorHeader = false;
 
 		
@@ -1212,6 +1218,7 @@ internal class Program {
 
 		} // WATCH
 
+
 	doMonitor:
 		
 		if ( !monitorComms ){
@@ -1442,7 +1449,7 @@ public static class CommandModeExtensions {
 			(ChallengeAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( ChallengeAttribute ), false );
 
 		if( attributes.Length == 0 ) {
-			Console.WriteLine( "internal error" );
+			//Console.WriteLine( "internal error" );
 			return "";
 		} else {
 			return attributes[ 0 ].challenge;

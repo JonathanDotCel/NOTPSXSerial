@@ -688,17 +688,19 @@ internal class Program {
 			serialPort.Close();
 			
 			// We need to find a suitable overlap in frequencies which can be divided
-			// from the playstation's clock and from the FTDI/clone, with some wiggle room.
+			// from the Playstation's clock and from the FTDI/clone, with some wiggle room.
 			//
 			// PSX/libs uses whole integer divisions of 2073600 for anything over 115200
 			// giving us 518400 close to the half-megabyte mark.
 			//		
-			// Most UARTs seem to operate in 2xinteger divisions of 48mhz
-			// giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/42)
+			// Most FTDI/clones seem to operate in 2xinteger divisions of 48mhz
+			// giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/2)
 			//
 			// 5210000 (and even 518400) is a little fast, but the lower end
 			// of things (510000 to 518300) seems pretty stable.
-						
+			//
+			// note: psx @ 518400, pc @ 510000
+			//
 			serialPort = new SerialPort( argComPort, 510000, Parity.None, 8, StopBits.Two );
 
 		}

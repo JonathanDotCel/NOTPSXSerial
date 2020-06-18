@@ -132,7 +132,7 @@ public enum CommandMode {
 
 internal class Program {
 
-	const string VERSION = "v5.Matthew";
+	const string VERSION = "v6.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -687,17 +687,19 @@ internal class Program {
 
 			serialPort.Close();
 			
-
-			// PSX must use integer divisions of 2073600 for anything over 115200
-			
-			serialPort = new SerialPort( argComPort, 518300, Parity.Odd, 8, StopBits.Two );
-
-			// Let's leave these here for testing:
-			//serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.One );
-			//serialPort = new SerialPort( argComPort, 129600, Parity.None, 8, StopBits.One );
-			//serialPort = new SerialPort( argComPort, 259200, Parity.None, 8, StopBits.One );
-			//serialPort = new SerialPort( argComPort, 518400, Parity.None, 8, StopBits.One );
-			//serialPort = new SerialPort( argComPort, 1038600, Parity.None, 8, StopBits.One );
+			// We need to find a suitable overlap in frequencies which can be divided
+			// from the playstation's clock and from the FTDI/clone, with some wiggle room.
+			//
+			// PSX/libs uses whole integer divisions of 2073600 for anything over 115200
+			// giving us 518400 close to the half-megabyte mark.
+			//		
+			// Most UARTs seem to operate in 2xinteger divisions of 48mhz
+			// giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/42)
+			//
+			// 5210000 (and even 518400) is a little fast, but the lower end
+			// of things (510000 to 518300) seems pretty stable.
+						
+			serialPort = new SerialPort( argComPort, 510000, Parity.None, 8, StopBits.Two );
 
 		}
 

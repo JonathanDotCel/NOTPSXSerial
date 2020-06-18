@@ -30,6 +30,12 @@
 //    - Remembers your last-used com port
 //
 
+// 18_06_2020 - Release 5
+//    - .exe file size is now calculated as ( total - 0x800 )
+//    - 2x stop bits by default for all modes now
+//    - fast sio will now use odd parity
+//
+
 
 #define DebugArgs
 
@@ -126,7 +132,7 @@ public enum CommandMode {
 
 internal class Program {
 
-	const string VERSION = "v4.Matthew";
+	const string VERSION = "v5.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -653,7 +659,7 @@ internal class Program {
 		// Personally, I've had the most luck with an arduino.
 
 		
-		SerialPort serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.One );
+		SerialPort serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.Two );
 		
 		if ( fastMode ){
 			
@@ -684,7 +690,7 @@ internal class Program {
 
 			// PSX must use integer divisions of 2073600 for anything over 115200
 			
-			serialPort = new SerialPort( argComPort, 518400, Parity.None, 8, StopBits.One );
+			serialPort = new SerialPort( argComPort, 518300, Parity.Odd, 8, StopBits.Two );
 
 			// Let's leave these here for testing:
 			//serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.One );
@@ -744,7 +750,7 @@ internal class Program {
 			checkSum = 0;
 			
 			if ( !ignoreChecksum ){
-				for ( int i = argCommand == CommandMode.SEND_EXE ? 0x800 : 0; i < inFile.Length; i++ ){
+				for ( int i = (argCommand == CommandMode.SEND_EXE ? 0x800 : 0); i < inFile.Length; i++ ){
 					checkSum += (UInt32)inFile[i];  // signed add?
 				}
 			}
@@ -805,7 +811,9 @@ internal class Program {
 			// Write in the header		
 			serialPort.Write( inFile, 16, 4 );		// the .exe jump address
 			serialPort.Write( inFile, 24, 4 );		// the base/write address, e.g. where the linker org'd it
-			serialPort.Write( inFile, 28, 4 );		// size
+			//serialPort.Write( inFile, 28, 4 );		// size
+			// let's not use the header-defined length, instead the actual file length minus the header
+			serialPort.Write( BitConverter.GetBytes( inFile.Length - 0x800 ), 0, 4 );
 
 			// old mode doesn't use checksum
 			if ( argCommand == CommandMode.SEND_EXE ){
@@ -814,7 +822,7 @@ internal class Program {
 
 			// We could send over the initial values for the fp and gp register, but 
 			// GP is set via LIBSN or your Startup.s/crt0 and it's never been an issue afaik
-						
+			
 		}
 
 		if ( argCommand == CommandMode.SEND_BIN ){

@@ -132,7 +132,7 @@ public enum CommandMode {
 
 internal class Program {
 
-	const string VERSION = "v6.Matthew";
+	const string VERSION = "v7.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -822,6 +822,7 @@ internal class Program {
 			// old mode doesn't use checksum
 			if ( argCommand == CommandMode.SEND_EXE ){
 				serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
+				Console.WriteLine( "__DEBUG__Expected checksum: 0x" + checkSum.ToString("X8") );
 			}
 
 			// We could send over the initial values for the fp and gp register, but 
@@ -930,8 +931,16 @@ internal class Program {
 
 			int waityCakes = 0;									// Kinda extraneous, but it's interesting to watch
 			
+			// Did unirom request a checksum for the first chunk?
+			// If so it'll want them individually
+			bool requestedChecksumForFirstChunk = false;
+
 			// we already sent the first one?
 			for( int i = start; i < inFile.Length; i += chunkSize ){
+				
+				retryThisChunk:
+
+				ulong chunkChecksum = 0;	
 				
 				// Are we about to go out of range?
 				// .NET doesn't care if you specify 2kb when you're only e.g. 1.7kb from the boundary
@@ -941,6 +950,12 @@ internal class Program {
 
 				serialPort.Write( inFile, i, chunkSize );
 				
+				
+				// update the expected checksum value
+				for( int j = 0; j < chunkSize; j++ ){
+					chunkChecksum += inFile[i + j];
+				}
+
 				while( serialPort.BytesToWrite != 0 ){
 					waityCakes++;					
 				}
@@ -951,15 +966,90 @@ internal class Program {
 
 				Console.ForegroundColor = ConsoleColor.White;
 				
-				/*
-				// Removed due to complications with cp2104
-				// Possible to recieve a response byte every 2kb
-				while ( serialPort.BytesToRead != 0 ){
-					Console.Write( (char)serialPort.ReadByte() );
-				}
-				*/
+				// We'll only wait 300ms for a response
+				// (Unirom will timeout after 500)
+				// This should allow users to upgrade from older versions with
+				// a tiny bit of spam but keep the code relatively simple
+
+				bool firstPacket = ( i == start );
+
+				if ( firstPacket || (!firstPacket && requestedChecksumForFirstChunk) )
+				{
 				
-				Console.WriteLine( " OK" );
+					// Format change as of 8.0.C
+					// every 2k, we'll send back a "MORE" from Unirom
+
+					Console.Write( " ... " );
+
+					string more = "";
+
+					TimeSpan startSpan = GetSpan();
+					while ( more != "CHEK" ){
+
+						if ( serialPort.BytesToRead != 0 ){
+							// Why the fuck does readchar return an int?
+							more += (char)serialPort.ReadByte();
+
+						}
+						while ( more.Length > 4 )
+							more.Remove( 0, 1 );
+
+						// if unirom didn't repond for 20ms, let's assume it's an older version
+						// but only for the first packet! 
+						if ( 
+							firstPacket && ( GetSpan() -startSpan ).TotalMilliseconds > 20 
+						){
+							Console.Write( "No Checksum..." );
+							break;
+						}
+
+					}
+
+					// did it ask for a checksum?
+					if ( more == "CHEK" ){
+						
+						requestedChecksumForFirstChunk = true;
+
+						Console.Write( "Sending checksum..." );						
+						
+						serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
+						Thread.Sleep( 1 );
+
+						startSpan = GetSpan();
+						int fCount = 0;
+						while ( more != "MORE" && more != "ERR!" ){
+							
+							// keep sending it till the psx gets it?
+							//serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
+							
+							if ( serialPort.BytesToRead != 0 ){								
+								char readVal = (char)serialPort.ReadByte();
+								more += readVal;
+								Console.Write( readVal );								
+							}
+							while ( more.Length > 4 ){
+								more = more.Remove( 0, 1 );								
+							}
+							
+						}
+
+						if ( more == "ERR!" ){
+							Console.WriteLine( "... Retrying\n" );
+							goto retryThisChunk;
+						}
+
+						if ( more == "MORE" ){
+							//Console.Write( "... OK\n" );							
+						}
+
+					}
+					
+					// if it didn't ask for one, crack on.
+
+
+				} // corrective transfer
+
+				Console.Write( " OK\n" );
 
 			}
 			
@@ -988,23 +1078,20 @@ internal class Program {
 			int arrayPos = 0;			
 			lastReadBytes = new byte[ argSize ];
 
-			// Let the loop time out if something gets a bit fucky.
-			TimeSpan startSpan = (DateTime.UtcNow - new DateTime(1970, 1, 1)); // shortest way to represent the epoch?
-			double lastReadTime = startSpan.TotalSeconds;
-
-			TimeSpan currentSpan = (DateTime.UtcNow - new DateTime(1970, 1, 1));
-			double currentTime = currentSpan.TotalSeconds;
+			// Let the loop time out if something gets a bit fucky.			
+			TimeSpan lastSpan = GetSpan();
+			TimeSpan currentSpan = GetSpan();
 
 			checkSum = 0;
 
 			while ( true ){
 				
-				currentSpan = (DateTime.UtcNow - new DateTime(1970, 1, 1));
-				currentTime = currentSpan.TotalSeconds;
+				
+				currentSpan = GetSpan();
 
 				if( serialPort.BytesToRead != 0 ){
 				
-					lastReadTime = currentTime;
+					lastSpan = GetSpan();
 
 					byte responseByte = (byte)serialPort.ReadByte();				// todo: why does ReadByte read an Int?
 					lastReadBytes[ arrayPos ] = ( responseByte );
@@ -1025,7 +1112,7 @@ internal class Program {
 				}
 
 				// if we've been without data for more than 2 seconds, something's really up				
-				if ( currentTime > lastReadTime + 2 ){
+				if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ){
 					if ( arrayPos == 0 ){
 						Error( "There was no data for a long time! 0 bytes were read!", false );
 						return false;
@@ -1043,9 +1130,8 @@ internal class Program {
 
 			// Read 4 more bytes for the checksum
 
-			// Let the loop time out if something gets a bit fucky.
-			startSpan = (DateTime.UtcNow - new DateTime(1970, 1, 1)); // shortest way to represent the epoch?
-			lastReadTime = startSpan.TotalSeconds;
+			// Let the loop time out if something gets a bit fucky.			
+			lastSpan = GetSpan();
 			int expectedChecksum = 0;
 
 			Console.ForegroundColor = ConsoleColor.White;
@@ -1057,10 +1143,9 @@ internal class Program {
 				
 				while( serialPort.BytesToRead == 0 ) {
 					
-					currentSpan = ( DateTime.UtcNow - new DateTime( 1970, 1, 1 ) );
-					currentTime = currentSpan.TotalSeconds;
+					currentSpan = GetSpan();
 
-					if ( currentTime > lastReadTime + 2 ){
+					if ( ( currentSpan - lastSpan ).TotalMilliseconds > 2000 ){
 						Console.ForegroundColor = ConsoleColor.Red;
 						Console.WriteLine( "Error reading checksum byte " + i + " of 4!" );
 						break;
@@ -1068,7 +1153,7 @@ internal class Program {
 
 				}
 				
-				lastReadTime = currentTime;
+				lastSpan = GetSpan();
 
 				byte inByte = (byte)serialPort.ReadByte();
 
@@ -1105,7 +1190,7 @@ internal class Program {
 
 			if ( System.IO.File.Exists( fileName ) ){
 				
-				string newFilename = fileName + lastReadTime.ToString();
+				string newFilename = fileName + lastSpan.TotalSeconds.ToString();
 
 				Console.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n" );
 				
@@ -1391,8 +1476,13 @@ internal class Program {
 
 	}
 
-} // Main Class
+	
+	public static TimeSpan GetSpan(){
+		return (DateTime.UtcNow - new DateTime(1970, 1, 1)); // shortest way to represent the epoch?
+	}
 
+
+} // Main Class
 
 
 

@@ -69,17 +69,6 @@ public enum CommandMode {
 	[Response("OKAY")]
 	SEND_EXE,
 
-	[Command( "/oldexe" )]	
-	[NeedsInputFile]
-	[Challenge("c")]
-	[Response( "ignored" )]
-	SEND_OLD_EXE,
-
-	[Command( "/oldrom" )]	
-	[NeedsInputFile]
-	[Challenge("r")]
-	[Response( "ignored" )]
-	SEND_OLD_ROM,
 
 	[Command( "/jmp" )]
 	[Challenge("JUMP")]
@@ -132,7 +121,7 @@ public enum CommandMode {
 
 internal class Program {
 
-	const string VERSION = "v7.Matthew";
+	const string VERSION = "v8.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -190,10 +179,6 @@ internal class Program {
 		Console.Write( "    Continuous Hex Dump (to screen):\n" );
 		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
 
-		Console.Write( "    Legacy Commands:\n" );
-		Console.Write( "      Send an .EXE :  NOPS.EXE /oldexe <FILE.EXE> {0}    (PSXSerial, Unirom1-7) \n", suggestedComPort );
-		Console.Write( "      Flash a .ROM :  BLAH.ROM /oldrom <FILE.ROM> {0}    (Unirom7b Only) \n\n", suggestedComPort );
-
 		Console.Write( "    Extra switches:\n" );		
 		Console.Write( "      /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
 		Console.Write( "      /fast to enable or continue using 500k baud\n" );
@@ -207,7 +192,7 @@ internal class Program {
 	static string suggestedComPort = "COM8";
 	
 	static CommandMode argCommand = CommandMode.NOT_SET;
-
+	static UInt32 protocolVersion = 1;
 	
 
 	static UInt32 argAddr;
@@ -567,6 +552,8 @@ internal class Program {
 
 	}
 
+	private static bool didShowUpgradewarning = false;
+
 	public static bool WaitResponse( SerialPort inPort, bool verbose = true ){
 		
 		if ( argCommand == CommandMode.RESET ){
@@ -583,7 +570,7 @@ internal class Program {
 		string responseBuffer = "";
 
 		if ( verbose )
-			Console.WriteLine( "Waiting for response: " + argCommand.response() );
+			Console.WriteLine( "Waiting for response or protocol negotiation: ");
 
 		while ( true ){
 			
@@ -599,14 +586,31 @@ internal class Program {
 			if ( responseBuffer == "UNSP" ){
 				return false;
 			}
-
+			
 			if ( 
-				// regular mode
-				responseBuffer == argCommand.response()				
-				// legacy modes
-				|| ( argCommand == CommandMode.SEND_OLD_EXE && responseBuffer.Length > 0 && responseBuffer[ responseBuffer.Length -1] == 0x99 )
-				|| ( argCommand == CommandMode.SEND_OLD_ROM && responseBuffer.Length > 0 && responseBuffer[ responseBuffer.Length -1] == 0x99 )
+				!didShowUpgradewarning 
+				&& responseBuffer.Length >= 4
+				&& responseBuffer.Substring( 0, 3 ) == "OKV" 
+				&& (byte)responseBuffer[3] > (byte)'2'
 			){
+				didShowUpgradewarning = true;
+				Console.WriteLine();
+				Console.Write( "================================================================================\n" );
+				Console.Write( "   Just a heads up!\n" );	
+				Console.Write( "   This version of Unirom appears to be much newer than your version of NoPS.\n" );	
+				Console.Write( "   Time for an upgrade? github.com/JonathanDotCel/ \n" );	
+				Console.Write( "================================================================================\n" );
+			}
+
+			// upgrade to V2 with individual checksum
+			if( responseBuffer == "OKV2" && protocolVersion == 1 ){
+				Console.WriteLine( "\nUpgraded to protocol V2!" );
+				inPort.Write( "UPV2" );				
+				protocolVersion = 2;
+			}
+
+			// now whether we've upgraded protocol or not:
+			if ( responseBuffer == argCommand.response() ){
 				if ( verbose )
 					Console.WriteLine( "\nGot response: " + responseBuffer + "!" );
 				break;
@@ -805,7 +809,7 @@ internal class Program {
 		bool skipFirstSectorHeader = false;
 
 		
-		if ( argCommand == CommandMode.SEND_EXE || argCommand == CommandMode.SEND_OLD_EXE ){
+		if ( argCommand == CommandMode.SEND_EXE ){
 			
 			// An .exe with in-tact header sends the actual header over
 			// followed by some choice meta data.
@@ -819,12 +823,9 @@ internal class Program {
 			// let's not use the header-defined length, instead the actual file length minus the header
 			serialPort.Write( BitConverter.GetBytes( inFile.Length - 0x800 ), 0, 4 );
 
-			// old mode doesn't use checksum
-			if ( argCommand == CommandMode.SEND_EXE ){
-				serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
-				Console.WriteLine( "__DEBUG__Expected checksum: 0x" + checkSum.ToString("X8") );
-			}
-
+			serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
+			Console.WriteLine( "__DEBUG__Expected checksum: 0x" + checkSum.ToString("X8") );
+			
 			// We could send over the initial values for the fp and gp register, but 
 			// GP is set via LIBSN or your Startup.s/crt0 and it's never been an issue afaik
 			
@@ -848,13 +849,7 @@ internal class Program {
 
 		}
 
-		// Unirom 7b only - (no official release but floating about the forums)
-		if ( argCommand == CommandMode.SEND_OLD_ROM ){
-			
-			// challenge is handled... upload is handled
-
-		}
-
+		
 		// Unirom 8 mode - requires a response after checking that
 		// things will fit on the cart.
 		if ( argCommand == CommandMode.SEND_ROM ){
@@ -931,10 +926,7 @@ internal class Program {
 
 			int waityCakes = 0;									// Kinda extraneous, but it's interesting to watch
 			
-			// Did unirom request a checksum for the first chunk?
-			// If so it'll want them individually
-			bool requestedChecksumForFirstChunk = false;
-
+			
 			// we already sent the first one?
 			for( int i = start; i < inFile.Length; i += chunkSize ){
 				
@@ -948,8 +940,8 @@ internal class Program {
 				if ( inFile.Length - i < chunkSize )
 					chunkSize = inFile.Length -1;
 
+				// write 1 chunk worth of bytes
 				serialPort.Write( inFile, i, chunkSize );
-				
 				
 				// update the expected checksum value
 				for( int j = 0; j < chunkSize; j++ ){
@@ -966,14 +958,8 @@ internal class Program {
 
 				Console.ForegroundColor = ConsoleColor.White;
 				
-				// We'll only wait 300ms for a response
-				// (Unirom will timeout after 500)
-				// This should allow users to upgrade from older versions with
-				// a tiny bit of spam but keep the code relatively simple
-
-				bool firstPacket = ( i == start );
-
-				if ( firstPacket || (!firstPacket && requestedChecksumForFirstChunk) )
+				
+				if ( protocolVersion == 2 )
 				{
 				
 					// Format change as of 8.0.C
@@ -993,30 +979,19 @@ internal class Program {
 						}
 						while ( more.Length > 4 )
 							more.Remove( 0, 1 );
-
-						// if unirom didn't repond for 20ms, let's assume it's an older version
-						// but only for the first packet! 
-						if ( 
-							firstPacket && ( GetSpan() -startSpan ).TotalMilliseconds > 20 
-						){
-							Console.Write( "No Checksum..." );
-							break;
-						}
-
+						
 					}
 
 					// did it ask for a checksum?
 					if ( more == "CHEK" ){
 						
-						requestedChecksumForFirstChunk = true;
-
 						Console.Write( "Sending checksum..." );						
 						
 						serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
 						Thread.Sleep( 1 );
 
 						startSpan = GetSpan();
-						int fCount = 0;
+						
 						while ( more != "MORE" && more != "ERR!" ){
 							
 							// keep sending it till the psx gets it?
@@ -1056,13 +1031,6 @@ internal class Program {
 			// might have to terminate previous line
 			Console.WriteLine( "\nSend finished!\n" );
 
-			// Doesn't look like anyone misses this for older serial comms.
-			/*
-			for( int j = 0; j < 2048; j++ ) {
-				serialPort.Write( new byte[] { 255 }, 0, 1 );
-			}
-			*/
-			
 
 		} // if ( needInputFile )
 		

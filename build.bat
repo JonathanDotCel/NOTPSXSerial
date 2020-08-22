@@ -14,7 +14,7 @@ cls
 del NOTPSXSERIAL.EXE
 del NoPS.EXE
 pause
-csc NOTPSXSERIAL.cs -out:NoPS.EXE
+csc TransferLogic.cs NOTPSXSERIAL.cs  GDB.cs -out:NoPS.EXE
 
 pause
 

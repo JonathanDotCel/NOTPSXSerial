@@ -36,6 +36,15 @@
 //    - fast sio will now use odd parity
 //
 
+// 15_08_2020 - Release 9
+//    - restructuring for GDB implementation
+//    - removed the /verify command
+//    - ping/pong
+//    - faster startup
+//    - halt / cont commands
+//    - warnings for no dbg or dbg only
+// 
+
 
 #define DebugArgs
 
@@ -45,6 +54,8 @@ using System.IO;
 using System.IO.Ports;
 using System.Threading;
 using System.Linq;
+
+
 
 public enum CommandMode {
 
@@ -96,22 +107,58 @@ public enum CommandMode {
 	[NeedsSize]
 	WATCH,
 
-	[Command( "/debug" )]
-	[Challenge("DEBG")]
-	[Response("OKAY")]		
-	DEBUG,
 
 	[Command( "/reset" )]
 	[Challenge("REST")]
 	[Response("OKAY")]	
 	RESET,
 
+	[Command( "/ping" )]
+	[Challenge("PING")]
+	[Response("PONG")]	
+	PING,
+
+	// Debug mode functions
+
+	// install Unirom kernel-resident debug SIO
+	[Command( "/debug" )]
+	[Challenge("DEBG")]
+	[Response("OKAY")]		
+	DEBUG,
+
+	// also sends DEBG (above) to install kernel-resident SIO
+	[Command( "/gdb" )]
+	[Challenge("DEBG")]
+	[Response("OKAY")]
+	GDB,
+
+	[Command( "/halt" )]
+	[Challenge("HALT")]
+	[Response("HLTD")]
+	HALT,
+
+	[Command( "/cont" )]
+	[Challenge("CONT")]
+	[Response("OKAY")]
+	CONT,
+
+	[Command( "/regs" )]	
+	REGS,
+
+	[Command( "/setreg" )]	
+	[NeedsRegister]
+	[NeedsAddress]		// abused as a 32bit hexa value
+	SETREG,
+
+	/*
+	// Deprecated as of 8.0.C's self-correcting algo
 	[Command( "/verify" )]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
 	[NeedsInputFile]
 	[NeedsAddress]	
 	VERIFY,
+	*/
 		
 
 	COUNT
@@ -119,9 +166,9 @@ public enum CommandMode {
 };
 
 
-internal class Program {
+internal partial class Program {
 
-	const string VERSION = "v8.Matthew";
+	const string VERSION = "v9.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -147,8 +194,10 @@ internal class Program {
 		// On a serious note though before the rewrite the first few versions were straight decompiles
 		// of PSXSerial with minor tweaks for comic effect. Cheers to Matt/Shadow for being super chill about that.
 
-		Console.Write( "    Note: If windows is adamant that your serial device (FTDI, etc) can't do\n" );
-		Console.Write( "          115200baud then install mono and launch via 'mono nops.exe /args ..." );
+		Console.Write( "	Note: You may have to install mono and launch via 'mono nops.exe /args if...\n" );
+		Console.Write( "      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
+		Console.Write("       - You are using a Sharklink/Net Yaroze cable\n");
+		Console.Write("       - Any kinda linux\n");
 		Console.Write( "\n\n" );
 
 		if( justTheTip ) return;
@@ -187,18 +236,27 @@ internal class Program {
 
 	}
 
+	public static void Blip(){
+		Console.WriteLine( "Blip" );
+	}
+
+	// public stuff
+	public static SerialPort activeSerial;
+	public static UInt32 protocolVersion = 1;
+
+	// less public stuff
 
 	static string argComPort = "";
 	static string suggestedComPort = "COM8";
 	
 	static CommandMode argCommand = CommandMode.NOT_SET;
-	static UInt32 protocolVersion = 1;
-	
+		
 
 	static UInt32 argAddr;
 	static UInt32 argSize;
 	static bool satisfiedAddressRequirements = false;
 	static bool satisfiedSizeRequirements = false;
+	static bool satisfiedRegisterRequirements = false;
 
 	static bool needInputFile = false;
 	static bool needOutputFile = false;	
@@ -206,17 +264,20 @@ internal class Program {
 	static string argFileName;
 	static byte[] inFile;
 	static bool fastMode = false;
-	static bool ignoreChecksum = false;
+	
+	// technically not just limited to registers
+	static string argRegister = "";
+
 	// keep it globally scoped so we can process it later
 	static byte[] lastReadBytes;
 
 	static bool monitorComms = false;
 	static bool usingCachedComPort = false;
 	
-	static UInt32 checkSum = 0; // in or out
+	//static UInt32 checkSum = 0; // in or out
 	
 
-	// Quickly check that the input is vaguely sane.
+	// Ensure the input is vaguely sane.
 	// 
 	// - Make a list of args
 	// - Remove them from the list when they've been processed
@@ -307,8 +368,6 @@ internal class Program {
 		}
 
 
-
-
 		// is /m the last remaining arg?
 		if ( remainingArgs.Count == 1  && remainingArgs[0].ToLowerInvariant() == "/m" ){			
 			monitorComms = true;
@@ -352,6 +411,24 @@ internal class Program {
 					needInputFile = c.needsInputFile();
 					needOutputFile = c.needsOutputFile();
 					remainingArgs.RemoveAt( arg );
+
+					// On top of that... do we need a size? E.g. for dumping bios.
+					if ( argCommand.needsRegister() ){
+						
+						#if DebugArgs
+						Console.WriteLine( "__DEBUG__Command " + c + " requires a register " );
+						#endif
+
+						// reassign it
+						argVal = remainingArgs[ arg ].ToLowerInvariant();
+
+						// TODO: verify it's a register, I guess.
+						argRegister = argVal;
+
+						remainingArgs.RemoveAt( arg );
+						satisfiedRegisterRequirements = true;
+
+					}
 
 					// Now we've removed the /command, if there's
 					// an address after it, it will be remaningArgs[ arg ]
@@ -405,6 +482,8 @@ internal class Program {
 
 					}
 
+
+
 					break; // outer loop to check new args
 
 				}
@@ -428,6 +507,9 @@ internal class Program {
 			return Error( "Please specify a command - e.g. /r, /e /b, etc!\n\n" );
 		}
 
+		if ( !argCommand.needsRegister() )
+			satisfiedRegisterRequirements = true;
+
 		if ( !argCommand.needsAddress() )
 			satisfiedAddressRequirements = true;
 
@@ -435,11 +517,15 @@ internal class Program {
 			satisfiedSizeRequirements = true;
 
 		if( !satisfiedAddressRequirements ) {
-			return Error( "Did you specify an address? E.g. 0x23456788\n" );
+			return Error( "Did you specify an address or hex value? E.g. 0x23456788\n" );
 		}
 
 		if ( !satisfiedSizeRequirements ){
 			return Error( "Did you specify a size? E.g. 0x23456788\n" );
+		}
+
+		if ( !satisfiedRegisterRequirements ){
+			return Error( "Did you specify a register? E.g. a0" );
 		}
 		
 
@@ -528,7 +614,7 @@ internal class Program {
 
 	}
 
-	static bool Error( string inString, bool printHeader = true ) {
+	public static bool Error( string inString, bool printHeader = true ) {
 
 		if ( printHeader )
 			PrintUsage( false );
@@ -545,86 +631,15 @@ internal class Program {
 
 	}
 
-
-	public static void WriteChallenge( SerialPort inPort ){
+	// can skip the first sector on .exe files since it's 
+	// just a couple of relevant 32bit values
+	public static UInt32 CalculateChecksum( byte[] inBytes, bool skipFirstSector = false ){
 		
-		inPort.Write( argCommand.challenge() );
-
-	}
-
-	private static bool didShowUpgradewarning = false;
-
-	public static bool WaitResponse( SerialPort inPort, bool verbose = true ){
-		
-		if ( argCommand == CommandMode.RESET ){
-			// just reset
-			return true;
+		UInt32 returnVal = 0;
+		for( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ){
+			returnVal += (UInt32)inBytes[i];
 		}
-
-		// Dump the response into a buffer..
-		// (byte by byte so we can compare the challenge/response)
-		// e.g. it may start spewing data immediately after and we
-		// have to catch that.
-		// note: the attribute extensions use 40ish bytes of memory per pop
-
-		string responseBuffer = "";
-
-		if ( verbose )
-			Console.WriteLine( "Waiting for response or protocol negotiation: ");
-
-		while ( true ){
-			
-			if ( inPort.BytesToRead != 0 ){
-				// Why the fuck does readchar return an int?
-				responseBuffer += (char)inPort.ReadByte();
-			}
-			
-			if ( verbose )
-				Console.Write( "\r Response: " + responseBuffer );
-			
-			// command unsupported in debug mode
-			if ( responseBuffer == "UNSP" ){
-				return false;
-			}
-			
-			if ( 
-				!didShowUpgradewarning 
-				&& responseBuffer.Length >= 4
-				&& responseBuffer.Substring( 0, 3 ) == "OKV" 
-				&& (byte)responseBuffer[3] > (byte)'2'
-			){
-				didShowUpgradewarning = true;
-				Console.WriteLine();
-				Console.Write( "================================================================================\n" );
-				Console.Write( "   Just a heads up!\n" );	
-				Console.Write( "   This version of Unirom appears to be much newer than your version of NoPS.\n" );	
-				Console.Write( "   Time for an upgrade? github.com/JonathanDotCel/ \n" );	
-				Console.Write( "================================================================================\n" );
-			}
-
-			// upgrade to V2 with individual checksum
-			if( responseBuffer == "OKV2" && protocolVersion == 1 ){
-				Console.WriteLine( "\nUpgraded to protocol V2!" );
-				inPort.Write( "UPV2" );				
-				protocolVersion = 2;
-			}
-
-			// now whether we've upgraded protocol or not:
-			if ( responseBuffer == argCommand.response() ){
-				if ( verbose )
-					Console.WriteLine( "\nGot response: " + responseBuffer + "!" );
-				break;
-			}
-
-			// filter any noise at the start of the response
-			// seems to happen once in a while
-			if ( responseBuffer.Length > 4 )
-				responseBuffer = responseBuffer.Remove( 0, 1 );
-				
-
-		}
-
-		return true;
+		return returnVal;
 
 	}
 
@@ -636,22 +651,9 @@ internal class Program {
 			return;
 		}
 
-		
-		if ( argCommand != CommandMode.VERIFY ){
-			
-			// Just normal mode
-
-			Transfer();
-
-		} else {
-			
-			VerifyTransfer();
-
-		}
+		Transfer();
 
 	}
-
-
 
 
 	private static bool Transfer() {
@@ -659,20 +661,20 @@ internal class Program {
 		
 		PrintUsage( true );
 
-		// See the warning regarding 115200 compat on some FTDIs under windows
-		// Personally, I've had the most luck with an arduino.
 
-		
-		SerialPort serialPort = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.Two );
+		activeSerial = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.Two );
+		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
+		activeSerial.Handshake = Handshake.None;		
+		activeSerial.DtrEnable = true;
+		activeSerial.RtsEnable = true;
 		
 		if ( fastMode ){
 			
-		
-			serialPort.ReadTimeout = TIMEOUT;
-			serialPort.WriteTimeout = TIMEOUT;
+			activeSerial.ReadTimeout = TIMEOUT;
+			activeSerial.WriteTimeout = TIMEOUT;
 
 			try {
-				serialPort.Open();
+				activeSerial.Open();
 			} catch( Exception exception ) {
 
 				Console.WriteLine( "Error opening temporary serial port on " + argComPort + "!" );
@@ -683,13 +685,13 @@ internal class Program {
 			}
 
 			// The bytes "FAST" with no null terminator
-			serialPort.Write( BitConverter.GetBytes( 0x54534146 ), 0, 4 );
+			activeSerial.Write( BitConverter.GetBytes( 0x54534146 ), 0, 4 );
 			
 
 			Thread.Sleep( 100 );
 			
 
-			serialPort.Close();
+			activeSerial.Close();
 			
 			// We need to find a suitable overlap in frequencies which can be divided
 			// from the Playstation's clock and from the FTDI/clone, with some wiggle room.
@@ -705,17 +707,21 @@ internal class Program {
 			//
 			// note: psx @ 518400, pc @ 510000
 			//
-			serialPort = new SerialPort( argComPort, 510000, Parity.None, 8, StopBits.Two );
+			activeSerial = new SerialPort( argComPort, 510000, Parity.None, 8, StopBits.Two );
+			// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
+			activeSerial.Handshake = Handshake.None;
+			activeSerial.DtrEnable = true;
+			activeSerial.RtsEnable = true;
 
 		}
 
 		// Now the main serial port
 
-		serialPort.ReadTimeout = TIMEOUT;
-		serialPort.WriteTimeout = TIMEOUT;
+		activeSerial.ReadTimeout = TIMEOUT;
+		activeSerial.WriteTimeout = TIMEOUT;
 
 		try {
-			serialPort.Open();
+			activeSerial.Open();
 		} catch( Exception exception ) {
 
 			Console.WriteLine( "Error opening the serial port on " + argComPort + "!" );
@@ -729,41 +735,10 @@ internal class Program {
 
 		// just lets us skip a ton of ifs
 		if( monitorComms && argCommand == CommandMode.NOT_SET ){
-			goto doMonitor;
+			TransferLogic.DoMonitor();			
+			return true;
 		}
 
-		// pad the input file to 2048 bytes.
-		// not really necessary, but let's do it.
-		if( needInputFile ) {
-			
-			int mod = inFile.Length % 2048;
-
-			if ( mod != 0 ){
-				
-				Console.WriteLine( "Padding to 2048 bytes...\n\n" );
-
-				// memory will be freed pretty quickly, so we can leave the GC out of this.
-				int paddingRequired = 2048 - mod;
-				byte[] newArray = new byte[ inFile.Length + paddingRequired ];
-				for( int i = 0; i < newArray.Length; i++ ){
-					newArray[i] = ( i < inFile.Length ) ? inFile[i] : (byte)0;					
-				}
-				inFile = newArray;
-
-			}
-			
-			// checksum ( fancy way of saying added all the things together )
-			// start it after 2k for the .exe (as that's all we'll send)
-			// just send a 0 for verify mode so the PSX doesn't stop
-			checkSum = 0;
-			
-			if ( !ignoreChecksum ){
-				for ( int i = (argCommand == CommandMode.SEND_EXE ? 0x800 : 0); i < inFile.Length; i++ ){
-					checkSum += (UInt32)inFile[i];  // signed add?
-				}
-			}
-
-		}
 
 		if ( usingCachedComPort ){
 			
@@ -774,391 +749,60 @@ internal class Program {
 		// Clear the SIO buffer incase the last program has been spamming
 
 		Console.WriteLine( "Emptying buffer... " );
-		while ( serialPort.BytesToRead != 0 ){
-			Console.Write( "" + (char)serialPort.ReadByte() );
+		while ( activeSerial.BytesToRead != 0 ){
+			Console.Write( "" + (char)activeSerial.ReadByte() );
 		}
 		Console.WriteLine( "...done!\n\n" );
 		
 		
-		// If we're in solo monitor mode, there will be no
-		// challenge/response, let's future-proof it though
-
-		if ( !string.IsNullOrEmpty( argCommand.challenge() ) ){
-			
-			// Now send the challenge code and wait
-			Console.WriteLine( "Waiting for the PS1....\n\n" );
-
-			WriteChallenge( serialPort );
-		
-			Thread.Sleep( 500 );
-
-
-			if ( WaitResponse( serialPort ) ){
-			
-				Console.Write( "Success!" );
-
-			} else {
-			
-				return Error( "This function is not supported while UniROM is in debug mode!\n" );
-
-			}
-
-		}
-		
-
-		bool skipFirstSectorHeader = false;
-
-		
 		if ( argCommand == CommandMode.SEND_EXE ){
 			
-			// An .exe with in-tact header sends the actual header over
-			// followed by some choice meta data.
-			skipFirstSectorHeader = true;
-			serialPort.Write( inFile, 0, 2048 );
+			TransferLogic.Command_SendEXE( argAddr, inFile, CalculateChecksum( inFile, true ) );
 
-			// Write in the header		
-			serialPort.Write( inFile, 16, 4 );		// the .exe jump address
-			serialPort.Write( inFile, 24, 4 );		// the base/write address, e.g. where the linker org'd it
-			//serialPort.Write( inFile, 28, 4 );		// size
-			// let's not use the header-defined length, instead the actual file length minus the header
-			serialPort.Write( BitConverter.GetBytes( inFile.Length - 0x800 ), 0, 4 );
-
-			serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
-			Console.WriteLine( "__DEBUG__Expected checksum: 0x" + checkSum.ToString("X8") );
-			
-			// We could send over the initial values for the fp and gp register, but 
-			// GP is set via LIBSN or your Startup.s/crt0 and it's never been an issue afaik
-			
 		}
 
 		if ( argCommand == CommandMode.SEND_BIN ){
-			
-			
-			serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
-			serialPort.Write( BitConverter.GetBytes( inFile.Length ), 0, 4 );				
-			serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
 
-			// then the actual contents.
+			TransferLogic.Command_SendBin( argAddr, inFile, CalculateChecksum( inFile ) );
 
 		}
-
-		// Unirom 4 and up, enables debug features in game
-		if ( argCommand == CommandMode.DEBUG ){
-			
-			// challenge is handled... 
-
-		}
-
 		
 		// Unirom 8 mode - requires a response after checking that
 		// things will fit on the cart.
 		if ( argCommand == CommandMode.SEND_ROM ){
-						
-			serialPort.Write( BitConverter.GetBytes( inFile.Length ), 0, 4 );
-			serialPort.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
 
-			string flashResponse = "";
-
-			while ( true ){
-			
-				if ( serialPort.BytesToRead != 0 ){
-					// Why the fuck does readchar return an int?
-					flashResponse += (char)serialPort.ReadByte();
-
-				}
-			
-				Console.Write( "\r EEPROM Check: " + flashResponse );
-
-				if ( flashResponse == "FITS" ){					
-					Console.WriteLine( "\n\nRom will fit! \n Response: " + flashResponse + "!" );
-					break;
-				}
-
-				if ( flashResponse == "NOPE" ){					
-					Console.WriteLine( "\n\nThis rom is too big for the EEPROM! \n Response: " + flashResponse + "!" );
-					return false;
-				}
-
-				if ( flashResponse == "NONE" ){					
-					Console.WriteLine( "\n\nNo EEPROM detected! \n The response was: " + flashResponse + "!" );
-					return false;
-				}
-
-				if ( flashResponse == "UNKN" ){					
-					Console.WriteLine( "\n\nUnknown EEPROM detected! \n The response was: " + flashResponse + "!" );
-					return false;
-				}
-				
-
-				// filter any noise at the start of the response
-				// seems to happen once in a while
-				if ( flashResponse.Length > 4 )
-					flashResponse = flashResponse.Remove( 0, 1 );
-
-			}
-					
-		}
-
-		if ( argCommand == CommandMode.JUMP_JMP ){
-			
-			serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
+			TransferLogic.Command_SendROM(argAddr, inFile, CalculateChecksum( inFile ) );
 
 		}
 
-		if ( argCommand == CommandMode.JUMP_CALL ){
-			
-			serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
 
+		if ( argCommand == CommandMode.RESET ){
+			TransferLogic.WriteChallenge( argCommand.challenge() );
 		}
 
-		// send it over in 2kb chunks (same as CD sector size)
-		if ( needInputFile ){
-			
-			
-			// .exe files go [ header ][ meta ][ data @ write address ]
-			// .rom files go [ meta ][ data @ 0x80100000 ]
-			// .bin files go [ size ][ data @ 0xWRITEADR ]
-			
-			int start = skipFirstSectorHeader ? 2048 : 0;		// for .exes
+		// Unirom 8.0.4 and up, enables kernel-resident SIO
+		if (argCommand == CommandMode.DEBUG)
+		{
 
-			int chunkSize = 2048;								// 2048 seems the most stable
-			int numChunks = inFile.Length / chunkSize + ( inFile.Length % chunkSize == 0 ? 0 : 1 );
+			// if it returns true, we might enter /m (monitor) mode, etc
+			if (
+				!TransferLogic.ChallengeResponse( argCommand )
+			) return false;
 
-			int waityCakes = 0;									// Kinda extraneous, but it's interesting to watch
-			
-			
-			// we already sent the first one?
-			for( int i = start; i < inFile.Length; i += chunkSize ){
+		}
 				
-				retryThisChunk:
-
-				ulong chunkChecksum = 0;	
-				
-				// Are we about to go out of range?
-				// .NET doesn't care if you specify 2kb when you're only e.g. 1.7kb from the boundary
-				// but it's best to declare explicityly
-				if ( inFile.Length - i < chunkSize )
-					chunkSize = inFile.Length -1;
-
-				// write 1 chunk worth of bytes
-				serialPort.Write( inFile, i, chunkSize );
-				
-				// update the expected checksum value
-				for( int j = 0; j < chunkSize; j++ ){
-					chunkChecksum += inFile[i + j];
-				}
-
-				while( serialPort.BytesToWrite != 0 ){
-					waityCakes++;					
-				}
-
-				Console.ForegroundColor = ConsoleColor.Green;				
-				int percent = (i + 1) * 100 / ( inFile.Length );
-				Console.Write( "\r Sending chunk {0} of {1} ({2})%", (i/chunkSize)+1, numChunks, percent );
-
-				Console.ForegroundColor = ConsoleColor.White;
-				
-				
-				if ( protocolVersion == 2 )
-				{
-				
-					// Format change as of 8.0.C
-					// every 2k, we'll send back a "MORE" from Unirom
-
-					Console.Write( " ... " );
-
-					string more = "";
-
-					TimeSpan startSpan = GetSpan();
-					while ( more != "CHEK" ){
-
-						if ( serialPort.BytesToRead != 0 ){
-							// Why the fuck does readchar return an int?
-							more += (char)serialPort.ReadByte();
-
-						}
-						while ( more.Length > 4 )
-							more.Remove( 0, 1 );
-						
-					}
-
-					// did it ask for a checksum?
-					if ( more == "CHEK" ){
-						
-						Console.Write( "Sending checksum..." );						
-						
-						serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
-						Thread.Sleep( 1 );
-
-						startSpan = GetSpan();
-						
-						while ( more != "MORE" && more != "ERR!" ){
-							
-							// keep sending it till the psx gets it?
-							//serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
-							
-							if ( serialPort.BytesToRead != 0 ){								
-								char readVal = (char)serialPort.ReadByte();
-								more += readVal;
-								Console.Write( readVal );								
-							}
-							while ( more.Length > 4 ){
-								more = more.Remove( 0, 1 );								
-							}
-							
-						}
-
-						if ( more == "ERR!" ){
-							Console.WriteLine( "... Retrying\n" );
-							goto retryThisChunk;
-						}
-
-						if ( more == "MORE" ){
-							//Console.Write( "... OK\n" );							
-						}
-
-					}
-					
-					// if it didn't ask for one, crack on.
-
-
-				} // corrective transfer
-
-				Console.Write( " OK\n" );
-
-			}
-			
-			// might have to terminate previous line
-			Console.WriteLine( "\nSend finished!\n" );
-
-
-		} // if ( needInputFile )
-		
 
 		if ( argCommand == CommandMode.DUMP ){
 			
-			
-			// the handshake is done, let's tell it where to start
-			serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
-			serialPort.Write( BitConverter.GetBytes( argSize ), 0, 4 );
-
-			// now go!
-			int arrayPos = 0;			
 			lastReadBytes = new byte[ argSize ];
 
-			// Let the loop time out if something gets a bit fucky.			
-			TimeSpan lastSpan = GetSpan();
-			TimeSpan currentSpan = GetSpan();
-
-			checkSum = 0;
-
-			while ( true ){
-				
-				
-				currentSpan = GetSpan();
-
-				if( serialPort.BytesToRead != 0 ){
-				
-					lastSpan = GetSpan();
-
-					byte responseByte = (byte)serialPort.ReadByte();				// todo: why does ReadByte read an Int?
-					lastReadBytes[ arrayPos ] = ( responseByte );
-				
-					arrayPos++;
-					
-					checkSum += (UInt32)responseByte;
-
-					if ( arrayPos >= lastReadBytes.Length ){
-						break;
-					}
-					
-					if ( arrayPos  % 1000 == 0 ){
-						long percent = ( arrayPos * 100 ) / argSize;
-						Console.Write( "\r Offset {0} of {1} ({2})%\n", arrayPos, argSize, percent );
-					}
-
-				}
-
-				// if we've been without data for more than 2 seconds, something's really up				
-				if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ){
-					if ( arrayPos == 0 ){
-						Error( "There was no data for a long time! 0 bytes were read!", false );
-						return false;
-					} else {
-						Error( "There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString("X8") + ") bytes that were read!", false );
-					}
-					
-					break;
-				}
-				
-
-			}
-
-			Console.WriteLine( "Read Complete!" );
-
-			// Read 4 more bytes for the checksum
-
-			// Let the loop time out if something gets a bit fucky.			
-			lastSpan = GetSpan();
-			int expectedChecksum = 0;
-
-			Console.ForegroundColor = ConsoleColor.White;
-			Console.WriteLine( "Checksumming the checksums for checksummyness.\n" );
+			TransferLogic.Command_DumpBytes( argAddr, argSize, lastReadBytes );
 			
-			try{ 
-
-			for( int i = 0; i < 4; i++ ){
-				
-				while( serialPort.BytesToRead == 0 ) {
-					
-					currentSpan = GetSpan();
-
-					if ( ( currentSpan - lastSpan ).TotalMilliseconds > 2000 ){
-						Console.ForegroundColor = ConsoleColor.Red;
-						Console.WriteLine( "Error reading checksum byte " + i + " of 4!" );
-						break;
-					}
-
-				}
-				
-				lastSpan = GetSpan();
-
-				byte inByte = (byte)serialPort.ReadByte();
-
-				// and shift it ino the expected checksum
-				expectedChecksum |= ( inByte << ( i * 8 ) );
-
-			}
-
-			} catch ( System.TimeoutException ){
-				
-				Console.ForegroundColor = ConsoleColor.Red;
-				Error( "No checksum sent, continuing anyway!\n ", false );
-
-			}
-
-			if ( expectedChecksum != checkSum ){
-				Console.ForegroundColor = ConsoleColor.Red;
-				Error( "Checksum missmatch! Expected: " + expectedChecksum.ToString( "X8" ) + "    Calced: %x\n" + checkSum.ToString( "X8" ), false );
-				Error( " WILL ATTEMPT TO SAVE FILE ANYWAY\n", false );
-			} else {
-				Console.ForegroundColor = ConsoleColor.White;
-				Console.WriteLine( " Checksums match: " + expectedChecksum.ToString( "X8" ) + "\n" );
-			}
-
-
-			if ( serialPort.BytesToRead > 0 ){
-				Console.ForegroundColor = ConsoleColor.Red;
-				Error( "Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false );
-			}
-
-			Console.ForegroundColor = ConsoleColor.White;
-
 			string fileName = "DUMP_" + argAddr.ToString( "X8" ) + "_to_" + argSize.ToString( "X8" ) + ".bin";
 
 			if ( System.IO.File.Exists( fileName ) ){
 				
-				string newFilename = fileName + lastSpan.TotalSeconds.ToString();
+				string newFilename = fileName + GetSpan().TotalSeconds.ToString();
 
 				Console.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n" );
 				
@@ -1178,238 +822,61 @@ internal class Program {
 			}
 
 
-
 		} // DUMP
 
+		if (argCommand == CommandMode.PING)
+		{
+			TransferLogic.ChallengeResponse( argCommand );
+		}
 
+		if ( argCommand == CommandMode.GDB ){
+			
+			GDB.Init();
+
+		}
+
+		if ( argCommand == CommandMode.JUMP_JMP ){
+			TransferLogic.Command_JumpAddr( argAddr );
+		}
+
+		if ( argCommand == CommandMode.JUMP_CALL ){
+			TransferLogic.Command_CallAddr( argAddr );
+		}
+
+		if ( argCommand == CommandMode.HALT ){
+			TransferLogic.ChallengeResponse( argCommand );
+		}
+
+		if ( argCommand == CommandMode.CONT ){
+			TransferLogic.ChallengeResponse( argCommand );
+		}
+
+		if ( argCommand == CommandMode.REGS ){
+			TransferLogic.Command_DumpRegs();
+		}
+
+		if ( argCommand == CommandMode.SETREG ){
+			TransferLogic.Command_SetReg( argRegister, argAddr );
+		}
+		
 		if ( argCommand == CommandMode.WATCH ){
 			
-			int bytesRead = 0;
-			int arrayPos = 0;			
-			lastReadBytes = new byte[ argSize ];
-
-			// the handshake is done, let's tell it where to start
-			arrayPos = 0;
-			serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );			
-			serialPort.Write( BitConverter.GetBytes( argSize ), 0, 4 );
-			
-			while( true ){
-				
-				// Keep reading bytes until we've got as many back as we've asked for
-
-				if( serialPort.BytesToRead != 0 ){
-					
-					// still bothers me that it reads an int...
-					byte responseByte = (byte)serialPort.ReadByte();
-					lastReadBytes[ arrayPos ] = ( responseByte );
-				
-					bytesRead++;
-					arrayPos++;
-					
-					// filled the buffer? Print it
-
-					if ( arrayPos >= lastReadBytes.Length ){
-							
-						Console.Clear();
-						Console.Write( "Watching address range 0x" + argAddr.ToString("X8") + " to 0x" + (argAddr+argSize).ToString("X8") +  "\n" );
-						Console.Write( "Bytes read " + bytesRead + "\n\n" );
-
-						for( int i = 0; i < lastReadBytes.Length; i++ ){
-							
-							Console.Write( lastReadBytes[i].ToString( "X2") + " " );
-
-							// Such a janky way to do it, but is saves appending
-							// tons and tons of strings together
-							if ( i % 16 == 15 ){
-								
-								// print the actual char values
-
-								for( int j = i -15; j <= i; j++ ){
-									
-									Console.Write( " " + (char)lastReadBytes[j] );
-
-								}
-
-								// then draw the character data								
-								Console.Write( "\n" );
-
-							}
-							 
-						}
-
-						if ( serialPort.BytesToRead != 0 ){
-							Console.Write( "\nTerminator bytes: " );
-							while( serialPort.BytesToRead != 0 ){
-								int x = serialPort.ReadByte();
-								Console.Write( x.ToString("X2") + " " );
-							}
-							Console.Write( "\n" );
-						}
-
-
-						// slow it down a touch
-						
-						// give the PSX time to do stuff
-						Thread.Sleep( 200 );
-
-						// Just start over...						
-						// PSX will essentially be stuck in an interrupt from here
-
-						WriteChallenge( serialPort );
-						WaitResponse( serialPort, false );
-						
-						// start over
-						arrayPos = 0;
-						serialPort.Write( BitConverter.GetBytes( argAddr ), 0, 4 );						
-						serialPort.Write( BitConverter.GetBytes( argSize ), 0, 4 );
-						
-						/*
-						// remove the challenge/response from the buffer
-						for( int i = 0; i < 8; i++ ){
-							while ( serialPort.BytesToRead == 0 ){
-					
-							}
-							serialPort.ReadByte();
-						}
-						*/
-
-
-					}
-					
-				} // bytestoread
-
-			} // while true
-
+			TransferLogic.Watch( argAddr, argSize );
+			return true;
 
 		} // WATCH
 
-
-	doMonitor:
-		
-		if ( !monitorComms ){
-			
-			Console.WriteLine( "\n This is where we part ways!" );
-			serialPort.Close();
-			return true;
-
+		if ( monitorComms ){
+			TransferLogic.DoMonitor();
 		} else {
-
-			while( true ){
-				
-				if( serialPort.BytesToRead > 0 ) {
-
-					int responseByte = serialPort.ReadByte();				
-					Console.Write( (char)( responseByte ) );
-				
-				}
-
-			}
-			
+			Console.WriteLine("\n This is where we part ways!");
+			activeSerial.Close();			
 		}
 
-		// Hi! The compiler says I'm unreachable
-		
+		return true;
 
 	} // void Transfer
 
-
-	// TODO: this is so hacky
-	// E.g. it uses the args supplied to SBIN (upload bin)
-	// then tweaks the params and redownloads them.
-
-	static void VerifyTransfer(){
-				
-			// Run a bin upload then a verify
-
-			// would gum things up
-			monitorComms = false;
-			ignoreChecksum = true;
-			
-			// Switch to upload mode, same params
-			argCommand = CommandMode.SEND_BIN;
-			if ( !Transfer() ){
-				return;
-			}
-
-			// PSX is about to wait a fixed time
-			// let's do the same rather than interfering with SIO
-			Console.Write( "Waiting for PSX...\n" );
-			Thread.Sleep( 1000 );
-			
-			// Then switch back to dump mode
-			needInputFile = false;
-			argSize = (uint)inFile.Length;
-			argCommand = CommandMode.DUMP;
-			Transfer();
-
-			Console.WriteLine( "InFile: " + inFile.Length + "bytes" );
-			Console.WriteLine( "OutFile: " + lastReadBytes.Length + "bytes" );
-
-			// Now verify the dump vs the original (possible patched) bytes
-
-			int numErrors = 0;
-			for( int i = 0; i <inFile.Length; i++ ){
-				
-				if ( inFile[i] != lastReadBytes[i] ){					
-					if ( numErrors < 2000 ){
-						
-						// Do a little hex dump
-
-						Console.Write( "Error at 0x" + i.ToString( "X" ) + " (0x" + ( i + argAddr).ToString("X") + "):    (expected/actual)\n" );
-						
-						// Could use a stringbuilder... or we could keep it readable...
-						string expectedLeft = "0x" + i.ToString("X") + ": ";
-						string expectedRight = "  ";
-						string actualLeft = "0x" + i.ToString("X") + ": ";
-						string actualRight = "  ";
-
-						int lineStart = i - ( i % 16 );
-
-						for( int j = lineStart; j < lineStart + 16; j++ ){
-
-							// Highlight current or previous byte?
-							if ( i == j ){
-								expectedLeft += ">";
-								actualLeft += ">";
-							} else if ( j == i + 1 ){
-								expectedLeft += "<";
-								actualLeft += "<";
-							} else {
-								expectedLeft += " ";
-								actualLeft += " ";
-							}
-
-							// Print!
-							expectedLeft += inFile[ j ].ToString( "X2" );
-							actualLeft += lastReadBytes[ j ].ToString( "X2" );
-							expectedRight += (char)inFile[i];
-							actualRight += (char)lastReadBytes[i];
-
-						}
-						
-						Console.Write( expectedLeft );
-						Console.Write( expectedRight + "\n\n" );
-
-						Console.Write( actualLeft );
-						Console.Write( actualRight + "\n" );
-						
-
-					}
-
-					numErrors++;
-
-				}
-
-			}
-			Console.Write( "Total errors: " + numErrors + "\n" );
-			if ( numErrors > 2000 ){
-				Console.Write( "Stopped listing after 2000 errors!\n" );
-			}
-
-			Console.Write( "NOTE: Please be aware that the area of ram you've selected may be in use!\n" );
-
-
-	} //VerifyTransfer
 
 	// Older .NET so getter/setter instead of expression-bodied statement.
 	public static bool POSIXEnvironment{ get{
@@ -1495,6 +962,7 @@ public class NeedsInputFileAttribute : System.Attribute { public bool NeedsInput
 public class NeedsOutputFileAttribute : System.Attribute { public bool NeedsOutputFile() { return true; } }
 public class NeedsAddressAttribute : System.Attribute { public bool NeedsAddress() { return true; } }
 public class NeedsSizeAttribute : System.Attribute{ public bool NeedsSize(){ return true; } }
+public class NeedsRegisterAttribute : System.Attribute{ public bool NeedsRegister(){ return true; } }
 
 
 public static class CommandModeExtensions {
@@ -1574,6 +1042,15 @@ public static class CommandModeExtensions {
 		
 		NeedsSizeAttribute[] attributes =
 			(NeedsSizeAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsSizeAttribute), false );
+
+		return attributes.Length > 0;
+
+	}
+
+	public static bool needsRegister( this CommandMode inMode ){
+		
+		NeedsRegisterAttribute[] attributes =
+			(NeedsRegisterAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsRegisterAttribute), false );
 
 		return attributes.Length > 0;
 

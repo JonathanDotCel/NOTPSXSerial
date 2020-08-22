@@ -2,6 +2,7 @@
 
 
 .vs
+.idea
 desktop.ini
 *.bin*
 *.log*
@@ -10,4 +11,11 @@ desktop.ini
 test_*
 comport.txt
 
+bin\
+obj\
 
+bin
+obj
+oldnops.exe
+testdump.cmd
+testexe.cmd

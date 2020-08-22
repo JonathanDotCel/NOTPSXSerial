@@ -1,8 +1,5 @@
 using System;
 using System.IO.Ports;
-
-using System.Net.Sockets;
-using System.Net;
 using System.Threading;
 
 
@@ -53,8 +50,6 @@ public class GDB{
 
 	public const int TCB_LENGTH_BYTES = (int)GPR.COUNT * 4;
 
-	public static Socket socket;
-
     public static void Init(){
 		
 		Console.WriteLine( "Checking if Unirom is in debug mode..." );
@@ -73,28 +68,11 @@ public class GDB{
 
 		Console.WriteLine( "Monitoring sio..." );
 
-		InitSocket();
+		MonitorSIO();
 
-		MonitorSIOAndSocket();
+		
 
     }
-
-	private static void InitSocket(){
-		
-		IPHostEntry ipHostInfo = Dns.GetHostEntry( Dns.GetHostName() );
-		Console.WriteLine( "Info: " + ipHostInfo + " " + ipHostInfo.Aliases[0] + " " + ipHostInfo.AddressList[0] );
-
-		IPAddress ip = ipHostInfo.AddressList[0];
-
-		IPEndPoint localEndpoint = new IPEndPoint( ip, 3333 );
-
-		socket = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
-
-		socket.Bind( localEndpoint );
-
-		socket.Listen( 2 );
-
-	}
 
 	public static bool GetRegs(){
 		
@@ -151,47 +129,9 @@ public class GDB{
 			}
 		}
 		Console.WriteLine();
-
-		UInt32 cause = tcb.regs[ (int)GPR.caus ] >> 2;
-		
-		switch ( cause ) {
-			case 0x04:
-				Console.WriteLine("AdEL - Data Load or instr fetch (0x{0})\n", cause);
-				break;
-			case 0x05:
-				Console.WriteLine("AdES - Data Store (unaligned?) (0x{0})\n", cause);
-				break;
-			case 0x06:
-				Console.WriteLine("IBE - Bus Error on instr fetch (0x{0})\n", cause);
-				break;
-			case 0x07:
-				Console.WriteLine("DBE - Bus Error on data load/store (0x{0})\n", cause);
-				break;
-			case 0x08:
-				Console.WriteLine("SYS - Unconditional Syscall (0x{0})\n", cause);
-				break;
-			case 0x09:
-				Console.WriteLine("BP - Break! (0x{0})\n", cause);
-				break;
-			case 0x0A:
-				Console.WriteLine("RI - Reserved Instruction (0x{0})\n", cause);
-				break;
-			case 0x0B:
-				Console.WriteLine("CpU - Coprocessor unavailable (0x{0})\n", cause);
-				break;
-			case 0x0C:
-				Console.WriteLine("Ov - Arithmetic overflow (0x{0})\n", cause);
-				break;
-
-			default:
-				Console.WriteLine("Code {0}!\n", cause);
-				break;
-		}
-		
-
 	}
 
-    public static void MonitorSIOAndSocket(){
+    public static void MonitorSIO(){
         
         string responeBuffer = ":)";
 

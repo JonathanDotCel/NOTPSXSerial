@@ -100,14 +100,20 @@ public enum CommandMode {
 	[NeedsSize]
 	DUMP,
 
+	[Command( "/poke" )]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsSize]				// abused as a 2nd hexa param
+	POKE,
+
 	[Command( "/watch" )]
 	[Challenge("HEXD")]
 	[Response("OKAY")]
 	[NeedsAddress]
 	[NeedsSize]
 	WATCH,
-
-
+	
 	[Command( "/reset" )]
 	[Challenge("REST")]
 	[Response("OKAY")]	
@@ -450,7 +456,7 @@ internal partial class Program {
 
 						// try and get the address argument
 						try{
-							argAddr = ParseAddress( argCommand, argVal );
+							argAddr = ParseHexa( argCommand, argVal );
 						} catch( System.Exception ){
 							return Error( "EXCEPTION: Specify an address in the format 0x01234567" );
 						}
@@ -472,7 +478,7 @@ internal partial class Program {
 
 						// try to get the size argument
 						try{
-							argSize = ParseAddress( argCommand, argVal );
+							argSize = ParseHexa( argCommand, argVal );
 						} catch ( System.Exception ){
 							return Error( "EXCEPTION: Specify a size in the format 0x01234567" );
 						}
@@ -595,13 +601,13 @@ internal partial class Program {
 
 	} //VerifyArgs
 
-	static UInt32 ParseAddress( CommandMode inCommand, string inString ) {
+	static UInt32 ParseHexa( CommandMode inCommand, string inString ) {
 
 		string iLower = inString.ToLowerInvariant();
 		iLower = iLower.Replace( inCommand.command().ToLowerInvariant(), "" );
 
 		#if DebugArgs
-		Console.WriteLine( "Parsing address " + inString );
+		Console.WriteLine( "Parsing hexa " + inString );
 		#endif
 
 		// Whatever's left should be the address
@@ -778,6 +784,11 @@ internal partial class Program {
 
 		if ( argCommand == CommandMode.RESET ){
 			TransferLogic.WriteChallenge( argCommand.challenge() );
+		}
+
+		if ( argCommand == CommandMode.POKE ){
+			byte[] bytes = { (byte)(argSize & 0xFF) };
+			TransferLogic.Command_SendBin( argAddr, bytes, CalculateChecksum( bytes ) );
 		}
 
 		// Unirom 8.0.4 and up, enables kernel-resident SIO

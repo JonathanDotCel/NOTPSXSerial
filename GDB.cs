@@ -3,7 +3,8 @@ using System.IO.Ports;
 
 using System.Net.Sockets;
 using System.Net;
-using System.Threading;
+
+using System.Text;
 
 
 public enum GPR{
@@ -79,12 +80,103 @@ public class GDB{
 
     }
 
+	public const int socketBufferSize = 512;
+	public static byte[] socketBuffer = new byte[socketBufferSize];
+	public static StringBuilder sb = new StringBuilder();
+	public static string socketString; // oh boy, this will be nuts on the GC
+
+	public static void AcceptCallback( IAsyncResult result ){
+		
+		Console.WriteLine( "CCB" );
+
+		Socket whichSocket = (Socket)result.AsyncState;
+
+		Console.WriteLine( "CCB 2" );
+
+		Socket newSocket = socket.EndAccept( result );
+
+		Console.WriteLine( "CCB 3" );
+
+		Console.WriteLine( "Remote connection to local socket accepted: " + whichSocket.LocalEndPoint );
+		Console.WriteLine( "Remote connection to local socket accepted: " + newSocket.LocalEndPoint );
+
+		// on the new socket or it'll moan. I don't like this setup.
+		newSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), newSocket );
+
+
+	}
+
+	public static void RecieveCallback( IAsyncResult ar ){
+		
+		//Console.WriteLine( "SOCKET: RCB " + ar.AsyncState );
+
+		
+		Socket recvSocket = (Socket)ar.AsyncState;
+		
+		//Console.WriteLine( "SOCKET RCB 1 " + recvSocket );
+
+		int numBytesRead = recvSocket.EndReceive( ar );
+
+		//Console.WriteLine( "SOCKET RCB 2 " + numBytesRead );
+
+		if ( numBytesRead > 0 ){
+			
+			// copy the bytes (from the buffer specificed in BeginRecieve), into the stringbuilder
+			string thisPacket = ASCIIEncoding.ASCII.GetString( socketBuffer, 0, numBytesRead );
+			sb.Append( thisPacket );
+			
+			socketString = sb.ToString();
+			Console.WriteLine( "\rSOCKET: rec: " + thisPacket );
+
+			if ( socketString.IndexOf("<EOF>") > -1 ){
+
+				Console.WriteLine( "Read {0} bytes, done!: {1}", numBytesRead, socketString );
+
+			} else {
+				
+				// echo it back
+				//Send( recvSocket, thisPacket );
+				// also echo it over SIO
+				TransferLogic.activeSerial.Write( socketBuffer, 0, numBytesRead );
+
+				//Console.WriteLine( "SOCKET: Grabbing more data" );
+
+				recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), recvSocket );
+
+			}
+
+
+		} else {
+			Console.WriteLine( "Read 0 bytes..." );
+		}
+
+	}
+
+	public static void Send( Socket inSocket, string inData ){
+		
+		byte[] bytes = ASCIIEncoding.ASCII.GetBytes( inData );
+
+		inSocket.BeginSend( bytes, 0, bytes.Length, 0, new AsyncCallback( SendCallback ), inSocket );
+
+	}
+
+	private static void SendCallback( IAsyncResult ar ){
+		
+		Socket whichSocket = (Socket)ar.AsyncState;
+
+		int bytesSent = whichSocket.EndSend( ar );
+		Console.WriteLine( "Sent {0} bytes ", bytesSent );
+
+		//socket.Shutdown( SocketShutdown.Both );
+		//socket.Close();
+
+	}
+
 	private static void InitSocket(){
 		
-		IPHostEntry ipHostInfo = Dns.GetHostEntry( Dns.GetHostName() );
-		Console.WriteLine( "Info: " + ipHostInfo + " " + ipHostInfo.Aliases[0] + " " + ipHostInfo.AddressList[0] );
 
-		IPAddress ip = ipHostInfo.AddressList[0];
+		IPAddress ip = IPAddress.Parse( "127.0.0.1" );
+		//IPAddress ip = IPAddress.Parse( "192.168.0.3" );
 
 		IPEndPoint localEndpoint = new IPEndPoint( ip, 3333 );
 
@@ -93,6 +185,8 @@ public class GDB{
 		socket.Bind( localEndpoint );
 
 		socket.Listen( 2 );
+
+		socket.BeginAccept( new AsyncCallback( AcceptCallback ), socket );
 
 	}
 
@@ -141,7 +235,9 @@ public class GDB{
 	}
 
 	public static void DumpRegs(){
+
 		int tab = 0;
+
 		for( int i = 0; i < (int)GPR.COUNT -9; i++ ){			
 			Console.Write( "\t {0} =0x{1}", ((GPR)i).ToString().PadLeft(4), tcb.regs[ i ].ToString("X8") );
 			// this format won't change, so there's no issue hardcoding them
@@ -152,7 +248,7 @@ public class GDB{
 		}
 		Console.WriteLine();
 
-		UInt32 cause = tcb.regs[ (int)GPR.caus ] >> 2;
+		UInt32 cause = ( tcb.regs[ (int)GPR.caus ] >> 2 ) & 0xFF;
 		
 		switch ( cause ) {
 			case 0x04:
@@ -205,7 +301,7 @@ public class GDB{
                     responeBuffer = responeBuffer.Remove( 0, 1 );
                 }
 
-                Console.WriteLine( "\r ResponseBuffer: " + responeBuffer + "  Len = " + responeBuffer.Length );
+                Console.WriteLine( "\rSIO   : ResponseBuffer: " + responeBuffer + "  Len = " + responeBuffer.Length );
 
                 // PSX telling us it was halted.
                 if ( responeBuffer == "HLTD" ){

@@ -100,12 +100,26 @@ public enum CommandMode {
 	[NeedsSize]
 	DUMP,
 
-	[Command( "/poke" )]
+	[Command( "/poke8" )]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
 	[NeedsAddress]
 	[NeedsSize]				// abused as a 2nd hexa param
-	POKE,
+	POKE8,
+
+	[Command("/poke16")]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsSize]             // abused as a 2nd hexa param
+	POKE16,
+
+	[Command("/poke32")]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsSize]             // abused as a 2nd hexa param
+	POKE32,
 
 	[Command( "/watch" )]
 	[Challenge("HEXD")]
@@ -174,7 +188,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-	const string VERSION = "v9.Matthew";
+	const string VERSION = "v10.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -224,21 +238,31 @@ internal partial class Program {
 		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
 		
 		Console.Write( "    Dumpy Stuff:\n" );
-		Console.Write( "		RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
-		Console.Write( "		ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
-		Console.Write( "		ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
-		Console.Write( "		ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
-		Console.Write( "		BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000  {0}\n", suggestedComPort );
-		Console.Write( "		SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400    {0}\n\n", suggestedComPort );
+		Console.Write( "                RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
+		Console.Write("                ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
+		Console.Write("                ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
+		Console.Write("                ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
+		Console.Write("                BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000  {0}\n", suggestedComPort );
+		Console.Write("                SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400    {0}\n\n", suggestedComPort );
+
+		Console.Write("     Pokey Poke:\n");
+		Console.Write("                 8 bits: NOPS.exe /poke8 0x80100001 0x01 {0}\n", suggestedComPort);
+		Console.Write("                16 bits: NOPS.exe /poke16 0x80100002 0x0202 {0}\n", suggestedComPort);
+		Console.Write("                32 bits: NOPS.exe /poke32 0x80100004 0x04040404 {0}\n\n", suggestedComPort);
 
 		Console.Write( "    Continuous Hex Dump (to screen):\n" );
-		Console.Write( "		CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
+		Console.Write("                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
 
 		Console.Write( "    Extra switches:\n" );		
-		Console.Write( "      /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
-		Console.Write( "      /fast to enable or continue using 500k baud\n" );
-		Console.Write( "      /debug to enable experimental /bin & /dump during gameplay\n" );
+		Console.Write("                /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
+		Console.Write("                /fast to enable or continue using 500k baud\n");
+		Console.Write("                /debug to enable experimental /bin & /dump during gameplay\n");
 		Console.Write( "\n" );
+		Console.Write("    Examples:\n");
+		Console.Write("                nops /fast /rom unirom_b.rom COM14\n");
+		Console.Write("                nops /exe mything.exe /m COM14\n");
+		Console.Write("                nops /fast /poke8 0x80100000 0x04 COM14\n");
+		Console.Write("\n");
 
 	}
 
@@ -786,9 +810,22 @@ internal partial class Program {
 			TransferLogic.WriteChallenge( argCommand.challenge() );
 		}
 
-		if ( argCommand == CommandMode.POKE ){
+		if ( argCommand == CommandMode.POKE8 ){
 			byte[] bytes = { (byte)(argSize & 0xFF) };
 			TransferLogic.Command_SendBin( argAddr, bytes, CalculateChecksum( bytes ) );
+		}
+
+		if (argCommand == CommandMode.POKE16)
+		{			
+			short shorty = (byte)(argSize & 0xFFFF);
+			byte[] bytes = BitConverter.GetBytes( shorty );
+			TransferLogic.Command_SendBin(argAddr, bytes , CalculateChecksum(bytes) );
+		}
+
+		if (argCommand == CommandMode.POKE32)
+		{	
+			byte[] bytes = BitConverter.GetBytes(argSize);
+			TransferLogic.Command_SendBin(argAddr, bytes, CalculateChecksum(bytes));
 		}
 
 		// Unirom 8.0.4 and up, enables kernel-resident SIO

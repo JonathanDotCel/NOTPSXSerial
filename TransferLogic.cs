@@ -1,4 +1,8 @@
-﻿using System;
+﻿// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+using System;
 using System.Threading;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
@@ -262,6 +266,7 @@ public class TransferLogic
 
 				if (responseBuffer == "ONLY")
 				{
+					Console.ForegroundColor = ConsoleColor.Red;
 					Console.WriteLine( "\nOnly supported while Unirom is in debug mode!" );
 					return false;
 				}
@@ -497,8 +502,7 @@ public class TransferLogic
 
 		while (true)
 		{
-
-
+			
 			currentSpan = Program.GetSpan();
 
 			if (activeSerial.BytesToRead != 0)
@@ -513,15 +517,21 @@ public class TransferLogic
 
 				checkSum += (UInt32)responseByte;
 
-				if (arrayPos >= inBytes.Length)
-				{					
-					break;
+				// __TEST__
+				if (arrayPos % 2048 == 0)
+				{
+					activeSerial.Write("MORE");
 				}
 
-				if (arrayPos % 1000 == 0)
+				if (arrayPos % 1024 == 0)
 				{
 					long percent = (arrayPos * 100) / inSize;
 					Console.Write("\r Offset {0} of {1} ({2})%\n", arrayPos, inSize, percent);
+				}
+
+				if (arrayPos >= inBytes.Length)
+				{					
+					break;
 				}
 
 			}

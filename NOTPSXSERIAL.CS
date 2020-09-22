@@ -1,12 +1,10 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
 //
 // NoPS - NotPsxSerial
 // Feb 2020 - github.com/JonathanDotCel
-//
-// 
-// GPL BEER LICENSE.
-// It's the same as the GPL3, but if you fork it, you must send me a beer and leave the original headers.
-// As an addition, only add credits; never remove.
 //
 // 
 // This is the PC-side companion to Unirom8 with backwards compat for Unirom7/PSXSerial format.
@@ -44,6 +42,16 @@
 //    - halt / cont commands
 //    - warnings for no dbg or dbg only
 // 
+
+// ??_09_2020 - Release 10 - (~Unirom 8.0.C)
+//    - poke8, poke16, poke32 commands
+//    - hookread, hookwrite, hookex
+
+// 20_09_2020 - Release 11 - (~8.0.D)
+//    - poke8, poke16, poke32 commands
+//    - hookread, hookwrite, hookex
+//    - /dump now has a V2 variant
+//    Note: Some seriously incomplete GDB stuff in the works!
 
 
 #define DebugArgs
@@ -100,6 +108,8 @@ public enum CommandMode {
 	[NeedsSize]
 	DUMP,
 
+	// Poke commands
+
 	[Command( "/poke8" )]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
@@ -121,6 +131,8 @@ public enum CommandMode {
 	[NeedsSize]             // abused as a 2nd hexa param
 	POKE32,
 
+	// Peek
+
 	[Command( "/watch" )]
 	[Challenge("HEXD")]
 	[Response("OKAY")]
@@ -128,6 +140,8 @@ public enum CommandMode {
 	[NeedsSize]
 	WATCH,
 	
+	// Various
+
 	[Command( "/reset" )]
 	[Challenge("REST")]
 	[Response("OKAY")]	
@@ -170,6 +184,26 @@ public enum CommandMode {
 	[NeedsAddress]		// abused as a 32bit hexa value
 	SETREG,
 
+	// Debug hooks
+
+	[Command( "/hookread" )]
+	[NeedsAddress]
+	[Challenge("HKRD")]
+	[Response("OKAY")]
+	HOOKREAD,
+
+	[Command("/hookwrite")]
+	[NeedsAddress]
+	[Challenge("HKWR")]
+	[Response("OKAY")]
+	HOOKWRITE,
+
+	[Command("/hookex")]
+	[NeedsAddress]
+	[Challenge("HKEX")]
+	[Response("OKAY")]
+	HOOKEXEC,
+
 	/*
 	// Deprecated as of 8.0.C's self-correcting algo
 	[Command( "/verify" )]
@@ -179,7 +213,7 @@ public enum CommandMode {
 	[NeedsAddress]	
 	VERIFY,
 	*/
-		
+
 
 	COUNT
 
@@ -188,7 +222,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-	const string VERSION = "v10.Matthew";
+	const string VERSION = "v11.Matthew";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -214,10 +248,10 @@ internal partial class Program {
 		// On a serious note though before the rewrite the first few versions were straight decompiles
 		// of PSXSerial with minor tweaks for comic effect. Cheers to Matt/Shadow for being super chill about that.
 
-		Console.Write( "	Note: You may have to install mono and launch via 'mono nops.exe /args if...\n" );
-		Console.Write( "      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
-		Console.Write("       - You are using a Sharklink/Net Yaroze cable\n");
-		Console.Write("       - Any kinda linux\n");
+		Console.Write("	Note: You may have to install mono and launch via 'mono nops.exe /args if...\n" );
+		Console.Write("      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
+		Console.Write("      - You are using a Sharklink/Net Yaroze cable\n");
+		Console.Write("      - Any kinda linux\n");
 		Console.Write( "\n\n" );
 
 		if( justTheTip ) return;
@@ -238,7 +272,7 @@ internal partial class Program {
 		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
 		
 		Console.Write( "    Dumpy Stuff:\n" );
-		Console.Write( "                RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
+		Console.Write( "               RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
 		Console.Write("                ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
 		Console.Write("                ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
 		Console.Write("                ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
@@ -258,10 +292,23 @@ internal partial class Program {
 		Console.Write("                /fast to enable or continue using 500k baud\n");
 		Console.Write("                /debug to enable experimental /bin & /dump during gameplay\n");
 		Console.Write( "\n" );
+
 		Console.Write("    Examples:\n");
 		Console.Write("                nops /fast /rom unirom_b.rom COM14\n");
 		Console.Write("                nops /exe mything.exe /m COM14\n");
 		Console.Write("                nops /fast /poke8 0x80100000 0x04 COM14\n");
+		Console.Write("\n");
+
+		Console.Write("   Debug Functions:   (Must be in debug mode via L1+Square or nops /dbg)\n" );
+		Console.Write("                Halt the PSX                       : nops /halt\n");
+		Console.Write("                Continue from halt/exeception/hook : nops /cont\n");
+		Console.Write("                Show registers from last interrupt : nops /regs\n");
+		Console.Write("                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n");
+		Console.Write("                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n");
+		Console.Write("                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n");
+		Console.Write("                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n");
+		Console.Write("                * = Resume with nops /cont\n");
+
 		Console.Write("\n");
 
 	}
@@ -764,16 +811,16 @@ internal partial class Program {
 
 
 		// just lets us skip a ton of ifs
-		if( monitorComms && argCommand == CommandMode.NOT_SET ){
+		if( monitorComms && argCommand == CommandMode.NOT_SET )
+		{
 			TransferLogic.DoMonitor();			
 			return true;
 		}
 
 
-		if ( usingCachedComPort ){
-			
+		if ( usingCachedComPort )
+		{			
 			Console.WriteLine( "Using port " + argComPort + " from comport.txt\n" );
-
 		}
 		
 		// Clear the SIO buffer incase the last program has been spamming
@@ -785,32 +832,38 @@ internal partial class Program {
 		Console.WriteLine( "...done!\n\n" );
 		
 		
-		if ( argCommand == CommandMode.SEND_EXE ){
-			
+		if ( argCommand == CommandMode.SEND_EXE )
+		{			
 			TransferLogic.Command_SendEXE( argAddr, inFile, CalculateChecksum( inFile, true ) );
-
 		}
 
-		if ( argCommand == CommandMode.SEND_BIN ){
-
+		if ( argCommand == CommandMode.SEND_BIN )
+		{
 			TransferLogic.Command_SendBin( argAddr, inFile, CalculateChecksum( inFile ) );
-
 		}
 		
 		// Unirom 8 mode - requires a response after checking that
 		// things will fit on the cart.
-		if ( argCommand == CommandMode.SEND_ROM ){
-
+		if ( argCommand == CommandMode.SEND_ROM )
+		{
 			TransferLogic.Command_SendROM(argAddr, inFile, CalculateChecksum( inFile ) );
-
 		}
 
+		// Program flow
 
-		if ( argCommand == CommandMode.RESET ){
-			TransferLogic.WriteChallenge( argCommand.challenge() );
+		if (argCommand == CommandMode.JUMP_JMP)
+		{
+			TransferLogic.Command_JumpAddr(argAddr);
 		}
 
-		if ( argCommand == CommandMode.POKE8 ){
+		if (argCommand == CommandMode.JUMP_CALL)
+		{
+			TransferLogic.Command_CallAddr(argAddr);
+		}
+		
+
+		if ( argCommand == CommandMode.POKE8 )
+		{
 			byte[] bytes = { (byte)(argSize & 0xFF) };
 			TransferLogic.Command_SendBin( argAddr, bytes, CalculateChecksum( bytes ) );
 		}
@@ -828,85 +881,107 @@ internal partial class Program {
 			TransferLogic.Command_SendBin(argAddr, bytes, CalculateChecksum(bytes));
 		}
 
-		// Unirom 8.0.4 and up, enables kernel-resident SIO
-		if (argCommand == CommandMode.DEBUG)
-		{
-
-			// if it returns true, we might enter /m (monitor) mode, etc
-			if (
-				!TransferLogic.ChallengeResponse( argCommand )
-			) return false;
-
-		}
-				
-
-		if ( argCommand == CommandMode.DUMP ){
-			
-			lastReadBytes = new byte[ argSize ];
-
-			TransferLogic.Command_DumpBytes( argAddr, argSize, lastReadBytes );
-			
-			string fileName = "DUMP_" + argAddr.ToString( "X8" ) + "_to_" + argSize.ToString( "X8" ) + ".bin";
-
-			if ( System.IO.File.Exists( fileName ) ){
-				
-				string newFilename = fileName + GetSpan().TotalSeconds.ToString();
-
-				Console.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n" );
-				
-				fileName = newFilename;
-
-			}
-
-			try{
-				
-				File.WriteAllBytes( fileName, lastReadBytes );
-
-			} catch ( Exception e ) {
-				
-				Error( "Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false );
-				return false;
-				
-			}
-
-
-		} // DUMP
+		// Utility
 
 		if (argCommand == CommandMode.PING)
 		{
 			TransferLogic.ChallengeResponse( argCommand );
 		}
 
-		if ( argCommand == CommandMode.GDB ){
-			
-			GDB.Init();
+		if (argCommand == CommandMode.RESET)
+		{
+			TransferLogic.WriteChallenge(argCommand.challenge());
+		}
+
+		// Debug functions
+		// Unirom 8.0.4 and up, enables kernel-resident SIO
+
+		if (argCommand == CommandMode.DEBUG)
+		{
+
+			// if it returns true, we might enter /m (monitor) mode, etc
+			if (
+				!TransferLogic.ChallengeResponse(argCommand)
+			) return false;
 
 		}
 
-		if ( argCommand == CommandMode.JUMP_JMP ){
-			TransferLogic.Command_JumpAddr( argAddr );
-		}
 
-		if ( argCommand == CommandMode.JUMP_CALL ){
-			TransferLogic.Command_CallAddr( argAddr );
-		}
-
-		if ( argCommand == CommandMode.HALT ){
+		if ( argCommand == CommandMode.HALT )
+		{
 			TransferLogic.ChallengeResponse( argCommand );
 		}
 
-		if ( argCommand == CommandMode.CONT ){
+		if ( argCommand == CommandMode.CONT )
+		{
 			TransferLogic.ChallengeResponse( argCommand );
 		}
 
-		if ( argCommand == CommandMode.REGS ){
+		if ( argCommand == CommandMode.REGS )
+		{
 			TransferLogic.Command_DumpRegs();
 		}
 
-		if ( argCommand == CommandMode.SETREG ){
+		if ( argCommand == CommandMode.SETREG )
+		{
 			TransferLogic.Command_SetReg( argRegister, argAddr );
 		}
-		
+
+		// In the works
+
+		if (argCommand == CommandMode.GDB)
+		{
+			GDB.Init();
+		}
+
+		// Hook functions
+
+		if ( 
+			argCommand == CommandMode.HOOKREAD 
+			|| argCommand == CommandMode.HOOKWRITE 
+			|| argCommand == CommandMode.HOOKEXEC 
+		){
+			if ( TransferLogic.ChallengeResponse( argCommand ) )
+				activeSerial.Write(BitConverter.GetBytes(argAddr), 0, 4);
+		}
+
+
+		// Peek / Read functions
+
+		if (argCommand == CommandMode.DUMP)
+		{
+
+			lastReadBytes = new byte[argSize];
+
+			TransferLogic.Command_DumpBytes(argAddr, argSize, lastReadBytes);
+
+			string fileName = "DUMP_" + argAddr.ToString("X8") + "_to_" + argSize.ToString("X8") + ".bin";
+
+			if (System.IO.File.Exists(fileName))
+			{
+
+				string newFilename = fileName + GetSpan().TotalSeconds.ToString();
+
+				Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
+
+				fileName = newFilename;
+
+			}
+
+			try{
+
+				File.WriteAllBytes(fileName, lastReadBytes);
+
+			} catch (Exception e) {
+
+				Error("Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false);
+				return false;
+
+			}
+
+
+		} // DUMP
+
 		if ( argCommand == CommandMode.WATCH ){
 			
 			TransferLogic.Watch( argAddr, argSize );

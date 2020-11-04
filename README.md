@@ -28,7 +28,7 @@ Serial transfer suite for Playstation 1 / Unirom
 
 ## Basic Usage
 
-The hello world test executable was written by Matthew Read / Shadow of PSXDev.net.
+The hello world test executable was written by Shadow of PSXDev.net.
 To run it:
 * nops /exe psx_helloworld.exe COM8
 
@@ -189,7 +189,7 @@ This is in progress
 
 ## A big thanks:
       While NoPS has been re-written from the ground up for Unirom 8, before that it was
-      a decompiled version of Matthew's PSXSerial with the header changed to reflect that.
+      a decompiled version of Shadow's PSXSerial with the header changed to reflect that.
       (Or more specifically to deny that). In keeping with what I've just decided is tradition,
       we're going with the same motif.
 

@@ -53,6 +53,15 @@
 //    - /dump now has a V2 variant
 //    Note: Some seriously incomplete GDB stuff in the works!
 
+// 21_10_2020 - Spooky Release 12 - (~8.0.E)
+//   - clearer errors
+//   - read32 function
+//   - tidied up some misused vars
+//   - memory card control
+//   - condensed the custom attributes
+//   - some new custom attributes
+//   - a wee bit more code documentation
+
 
 #define DebugArgs
 
@@ -114,21 +123,21 @@ public enum CommandMode {
 	[Challenge("SBIN")]
 	[Response("OKAY")]
 	[NeedsAddress]
-	[NeedsSize]				// abused as a 2nd hexa param
+	[NeedsValue]
 	POKE8,
 
 	[Command("/poke16")]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
 	[NeedsAddress]
-	[NeedsSize]             // abused as a 2nd hexa param
+	[NeedsValue]
 	POKE16,
 
 	[Command("/poke32")]
 	[Challenge("SBIN")]
 	[Response("OKAY")]
 	[NeedsAddress]
-	[NeedsSize]             // abused as a 2nd hexa param
+	[NeedsValue]
 	POKE32,
 
 	// Peek
@@ -204,6 +213,22 @@ public enum CommandMode {
 	[Response("OKAY")]
 	HOOKEXEC,
 
+	// Memcard
+
+	[Command("/mcdown")]	
+	[NeedsCardNumber]
+	[NeedsOutputFile]
+	[Challenge("MCDN")]
+	[Response("OKAY")]
+	MCDOWN,
+
+	[Command("/mcup")]
+	[NeedsCardNumber]
+	[NeedsInputFile]
+	[Challenge("MCUP")]
+	[Response("OKAY")]
+	MCUP,
+
 	/*
 	// Deprecated as of 8.0.C's self-correcting algo
 	[Command( "/verify" )]
@@ -222,7 +247,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-	const string VERSION = "v11.Matthew";
+	const string VERSION = "v12.Nobody";
 	const int TIMEOUT = 500;
 
 	static void PrintUsage( bool justTheTip = false ) {
@@ -241,12 +266,8 @@ internal partial class Program {
 		Console.Write( "================================================================================\n" );
 		Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
 		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax & r0r0\n" );
-		Console.Write( "    Not shadow though...\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "\n" );
-
-		// On a serious note though before the rewrite the first few versions were straight decompiles
-		// of PSXSerial with minor tweaks for comic effect. Cheers to Matt/Shadow for being super chill about that.
 
 		Console.Write("	Note: You may have to install mono and launch via 'mono nops.exe /args if...\n" );
 		Console.Write("      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
@@ -268,46 +289,52 @@ internal partial class Program {
 
 		Console.Write( "      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {0}\n\n", suggestedComPort );	
 		
-		Console.Write( "      Jump addr (jr) :   NOPS.EXE /jmp 0xADDRESS0 {0}\n", suggestedComPort );
-		Console.Write( "      Call addr (jal):   NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
+		Console.Write( "      Jump addr (jr) :  NOPS.EXE /jmp 0xADDRESS0 {0}\n", suggestedComPort );
+		Console.Write( "      Call addr (jal):  NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
 		
 		Console.Write( "    Dumpy Stuff:\n" );
-		Console.Write( "               RAM  (  2m) :   NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
-		Console.Write("                ROM  (128k) :   NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
-		Console.Write("                ROM  (384k) :   NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
-		Console.Write("                ROM  (512k) :   NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
-		Console.Write("                BIOS (512k) :   NOPS.EXE /dump 0xBFC00000 0x80000  {0}\n", suggestedComPort );
-		Console.Write("                SPAD (  1k) :   NOPS.EXE /dump 0x1F800000 0x400    {0}\n\n", suggestedComPort );
+		Console.Write( "                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
+		Console.Write( "                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
+		Console.Write( "                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
+		Console.Write( "                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
+		Console.Write( "                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  {0}\n", suggestedComPort );
+		Console.Write( "                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    {0}\n\n", suggestedComPort );
 
-		Console.Write("     Pokey Poke:\n");
-		Console.Write("                 8 bits: NOPS.exe /poke8 0x80100001 0x01 {0}\n", suggestedComPort);
-		Console.Write("                16 bits: NOPS.exe /poke16 0x80100002 0x0202 {0}\n", suggestedComPort);
-		Console.Write("                32 bits: NOPS.exe /poke32 0x80100004 0x04040404 {0}\n\n", suggestedComPort);
+		Console.Write( "    Memory Cards:\n");
+		Console.Write( "               MC0->File :  NOPS.EXE /mcdown 0 filename.mcr {0}\n", suggestedComPort);
+		Console.Write( "               MC1->File :  NOPS.EXE /mcdown 1 filename.mcr {0}\n", suggestedComPort);
+		Console.Write( "               File->MC0 :  NOPS.EXE /mcup 0 filename.mcr {0}\n\n", suggestedComPort);
+
+
+		Console.Write( "    Pokey Poke:\n");
+		Console.Write( "                 8 bits :  NOPS.exe /poke8 0x80100001 0x01 {0}\n", suggestedComPort);
+		Console.Write( "                16 bits :  NOPS.exe /poke16 0x80100002 0x0202 {0}\n", suggestedComPort);
+		Console.Write( "                32 bits :  NOPS.exe /poke32 0x80100004 0x04040404 {0}\n\n", suggestedComPort);
 
 		Console.Write( "    Continuous Hex Dump (to screen):\n" );
-		Console.Write("                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
+		Console.Write( "                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
 
 		Console.Write( "    Extra switches:\n" );		
-		Console.Write("                /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
-		Console.Write("                /fast to enable or continue using 500k baud\n");
-		Console.Write("                /debug to enable experimental /bin & /dump during gameplay\n");
+		Console.Write( "                /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
+		Console.Write( "                /fast to enable or continue using 500k baud\n");
+		Console.Write( "                /debug to enable experimental /bin & /dump during gameplay\n");
 		Console.Write( "\n" );
 
-		Console.Write("    Examples:\n");
-		Console.Write("                nops /fast /rom unirom_b.rom COM14\n");
-		Console.Write("                nops /exe mything.exe /m COM14\n");
-		Console.Write("                nops /fast /poke8 0x80100000 0x04 COM14\n");
-		Console.Write("\n");
+		Console.Write( "    Examples:\n");
+		Console.Write( "                nops /fast /rom unirom_b.rom COM14\n");
+		Console.Write( "                nops /exe mything.exe /m COM14\n");
+		Console.Write( "                nops /fast /poke8 0x80100000 0x04 COM14\n");
+		Console.Write( "\n");
 
-		Console.Write("   Debug Functions:   (Must be in debug mode via L1+Square or nops /dbg)\n" );
-		Console.Write("                Halt the PSX                       : nops /halt\n");
-		Console.Write("                Continue from halt/exeception/hook : nops /cont\n");
-		Console.Write("                Show registers from last interrupt : nops /regs\n");
-		Console.Write("                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n");
-		Console.Write("                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n");
-		Console.Write("                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n");
-		Console.Write("                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n");
-		Console.Write("                * = Resume with nops /cont\n");
+		Console.Write( "   Debug Functions:   (Must be in debug mode via L1+Square or nops /dbg)\n" );
+		Console.Write( "                Halt the PSX                       : nops /halt\n");
+		Console.Write( "                Continue from halt/exeception/hook : nops /cont\n");
+		Console.Write( "                Show registers from last interrupt : nops /regs\n");
+		Console.Write( "                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n");
+		Console.Write( "                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n");
+		Console.Write( "                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n");
+		Console.Write( "                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n");
+		Console.Write( "                * = Resume with nops /cont\n");
 
 		Console.Write("\n");
 
@@ -317,27 +344,35 @@ internal partial class Program {
 		Console.WriteLine( "Blip" );
 	}
 
+	//
 	// public stuff
+	//
+
 	public static SerialPort activeSerial;
 	public static UInt32 protocolVersion = 1;
 
-	// less public stuff
+	//
+	// less public stuff	
+	//
 
+	// user-specified args
 	static string argComPort = "";
 	static string suggestedComPort = "COM8";
-	
-	static CommandMode argCommand = CommandMode.NOT_SET;
-		
-
 	static UInt32 argAddr;
 	static UInt32 argSize;
+	static UInt32 argCard;
+	static CommandMode argCommand = CommandMode.NOT_SET;
+	
+	
 	static bool satisfiedAddressRequirements = false;
 	static bool satisfiedSizeRequirements = false;
 	static bool satisfiedRegisterRequirements = false;
+	static bool satisfiedValueRequirements = false;
+	static bool satisfiedCardRequirement = false;
+	static bool satisfiedInputFileRequirements = false;
+	static bool satisfiedOutputFileRequirements = false;
 
-	static bool needInputFile = false;
-	static bool needOutputFile = false;	
-	static bool satisfiedFileRequirements = false;
+	
 	static string argFileName;
 	static byte[] inFile;
 	static bool fastMode = false;
@@ -376,6 +411,7 @@ internal partial class Program {
 		// Thank you, linq <3
 		// We'll remove args as they're processed so they're not processed twice
 		// and extra args will be left over.
+		// ( we don't want extra args left over )
 
 		List<string> remainingArgs = inArgs.ToList();
 
@@ -385,6 +421,7 @@ internal partial class Program {
 		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
 		#endif
 
+		// Remove the arg for the com port: COM* or /dev/tty*
 		for( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
 			string s = remainingArgs[ i ];
@@ -397,21 +434,7 @@ internal partial class Program {
 
 		}
 
-		// Likewise get the "/FAST" parameter out of the way
-
-		for( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
-
-			string s = remainingArgs[ i ].ToUpperInvariant();
-
-			if( s == "/FAST" ) {				
-				fastMode = true;
-				remainingArgs.RemoveAt( i );
-			}
-
-		}
-		
-
-
+		// Cache the com port, or load the cached value
 		if( argComPort =="" ) {
 			
 			try{
@@ -434,8 +457,6 @@ internal partial class Program {
 			
 		} else {
 			
-			
-
 			try{
 				File.WriteAllText( "comport.txt", argComPort );
 			} catch ( System.Exception e ){
@@ -444,8 +465,21 @@ internal partial class Program {
 
 		}
 
+		// Likewise get the "/FAST" parameter out of the way
+		for (int i = remainingArgs.Count - 1; i >= 0; i--)
+		{
 
-		// is /m the last remaining arg?
+			string s = remainingArgs[i].ToUpperInvariant();
+
+			if (s == "/FAST")
+			{
+				fastMode = true;
+				remainingArgs.RemoveAt(i);
+			}
+
+		}
+
+		// is /m(onitor) the sole remaining argument?
 		if ( remainingArgs.Count == 1  && remainingArgs[0].ToLowerInvariant() == "/m" ){			
 			monitorComms = true;
 			return true;
@@ -458,13 +492,13 @@ internal partial class Program {
 		Console.WriteLine( "__DEBUG__FAST: " + fastMode );
 		#endif
 		
-		// Specified a command arg (or severay for future-proofing)?
-
+		// Outer loop: Does anything resemble an command? /dump, /poke, etc?
+		// Specified a command arg (or several for future-proofing)?
 		for( int arg = remainingArgs.Count - 1; arg >= 0; arg-- ) {
 
-			string argVal = remainingArgs[ arg ].ToLowerInvariant();
+			string _arg = remainingArgs[ arg ].ToLowerInvariant();
 
-			if ( argVal == "/m" ){
+			if ( _arg == "/m" ){
 				
 				#if DebugArgs
 				Console.WriteLine( "__DEBUG__CommsMonitor Enabled: ");
@@ -475,43 +509,26 @@ internal partial class Program {
 				continue;
 			}
 			
+			// Inner loop: does it match any known commands?
+			// If so, check for sub params
+			// E.g. /dump <addr> <size> 
 			// first one is uninitialised... ignore it
 			for( int j = 1; j < (int)CommandMode.COUNT; j++ ) {
 
 				CommandMode c = (CommandMode)j;
 
-				if( argVal.ToLowerInvariant() == c.command() ) {
+				if( _arg.ToLowerInvariant() == c.command() ) {
 
 					// Set the current value and remove
 					// it from the list of available args
-					argCommand = c;
-					needInputFile = c.needsInputFile();
-					needOutputFile = c.needsOutputFile();
+					argCommand = c;					
 					remainingArgs.RemoveAt( arg );
-
-					// On top of that... do we need a size? E.g. for dumping bios.
-					if ( argCommand.needsRegister() ){
-						
-						#if DebugArgs
-						Console.WriteLine( "__DEBUG__Command " + c + " requires a register " );
-						#endif
-
-						// reassign it
-						argVal = remainingArgs[ arg ].ToLowerInvariant();
-
-						// TODO: verify it's a register, I guess.
-						argRegister = argVal;
-
-						remainingArgs.RemoveAt( arg );
-						satisfiedRegisterRequirements = true;
-
-					}
 
 					// Now we've removed the /command, if there's
 					// an address after it, it will be remaningArgs[ arg ]
 					
 					// found the command... do we need to find an address?
-					if( argCommand.needsAddress() ) {
+					if( argCommand.hasAttribute<NeedsAddressAttribute>() ) {
 						
 						// end of the array!
 						if( arg >= remainingArgs.Count ) {
@@ -523,11 +540,11 @@ internal partial class Program {
 						#endif
 
 						// reassign it						
-						argVal = remainingArgs[ arg ].ToLowerInvariant();
+						_arg = remainingArgs[ arg ].ToLowerInvariant();
 
 						// try and get the address argument
 						try{
-							argAddr = ParseHexa( argCommand, argVal );
+							argAddr = ParseHexa( argCommand, _arg );
 						} catch( System.Exception ){
 							return Error( "EXCEPTION: Specify an address in the format 0x01234567" );
 						}
@@ -537,19 +554,38 @@ internal partial class Program {
 
 					}
 
+					// Do we need a register?
+					if (argCommand.hasAttribute<NeedsRegisterAttribute>())
+					{
+
+						#if DebugArgs
+						Console.WriteLine("__DEBUG__Command " + c + " requires a register ");
+						#endif
+
+						// reassign it
+						_arg = remainingArgs[arg].ToLowerInvariant();
+
+						// TODO: verify it's a register, I guess.
+						argRegister = _arg;
+
+						remainingArgs.RemoveAt(arg);
+						satisfiedRegisterRequirements = true;
+
+					}
+
 					// On top of that... do we need a size? E.g. for dumping bios.
-					if ( argCommand.needsSize() ){
+					if ( argCommand.hasAttribute<NeedsSizeAttribute>() ){
 						
 						#if DebugArgs
 						Console.WriteLine( "__DEBUG__Command " + c + " requires a size parameter " );
 						#endif
 
 						// reassign it
-						argVal = remainingArgs[ arg ].ToLowerInvariant();
+						_arg = remainingArgs[ arg ].ToLowerInvariant();
 
 						// try to get the size argument
 						try{
-							argSize = ParseHexa( argCommand, argVal );
+							argSize = ParseHexa( argCommand, _arg );
 						} catch ( System.Exception ){
 							return Error( "EXCEPTION: Specify a size in the format 0x01234567" );
 						}
@@ -558,6 +594,58 @@ internal partial class Program {
 						satisfiedSizeRequirements = true;
 
 					}
+
+					// Do we need a value? 1 - 4 bytes
+					if (argCommand.hasAttribute<NeedsValueAttribute>())
+					{
+
+						#if DebugArgs
+						Console.WriteLine("__DEBUG__Command " + c + " requires a value parameter ");
+						#endif
+
+						// reassign it
+						_arg = remainingArgs[arg].ToLowerInvariant();
+
+						// try to get the size argument
+						try
+						{
+							argSize = ParseHexa(argCommand, _arg);							
+						}
+						catch (System.Exception)
+						{
+							return Error("EXCEPTION: Specify a 1, 2 or 4 byte hex value");
+						}
+
+						remainingArgs.RemoveAt(arg);
+						satisfiedValueRequirements = true;
+
+					}
+
+					// Do we need a memcard number
+					if (argCommand.hasAttribute<NeedsCardNumberAttribute>())
+					{
+
+						#if DebugArgs
+						Console.WriteLine("__DEBUG__Command " + c + " requires a memcard parameter ");
+						#endif
+
+						// reassign it
+						_arg = remainingArgs[arg].ToLowerInvariant();
+
+						argCard = UInt32.Parse(_arg);
+						/*
+						if ( _arg != "0" && _arg != "1" ){
+							return Error( "EXCEPTION: memory card should be 0 or 1!" );
+						} else {
+							argCard = UInt32.Parse( _arg );
+						}
+						*/
+
+						remainingArgs.RemoveAt(arg);
+						satisfiedCardRequirement = true;
+
+					}
+
 
 
 
@@ -575,77 +663,70 @@ internal partial class Program {
 		Console.WriteLine( "__DEBUG__COM: " + argComPort );
 		Console.WriteLine( "__DEBUG__COMMAND: " + argCommand );
 		Console.WriteLine( "__DEBUG__ADDR: " + argAddr.ToString("X8") );
-		Console.WriteLine( "__DEBUG__NEEDSADDR: " + argCommand.needsAddress() );
-		Console.WriteLine( "__DEBUG__NEEDSINPUT: " + argCommand.needsInputFile() );
-		Console.WriteLine( "__DEBUG__NEEDSOUTPUT: " + argCommand.needsOutputFile() );
+		//Console.WriteLine( "__DEBUG__NEEDSADDR: " + argCommand.needsAddress() );
+		//Console.WriteLine( "__DEBUG__NEEDSINPUT: " + argCommand.needsInputFile() );
+		//Console.WriteLine( "__DEBUG__NEEDSOUTPUT: " + argCommand.needsOutputFile() );
 		#endif
 				
 		if( argCommand == CommandMode.NOT_SET ) {
 			return Error( "Please specify a command - e.g. /r, /e /b, etc!\n\n" );
 		}
 
-		if ( !argCommand.needsRegister() )
-			satisfiedRegisterRequirements = true;
-
-		if ( !argCommand.needsAddress() )
-			satisfiedAddressRequirements = true;
-
-		if ( !argCommand.needsSize() )
-			satisfiedSizeRequirements = true;
-
-		if( !satisfiedAddressRequirements ) {
-			return Error( "Did you specify an address or hex value? E.g. 0x23456788\n" );
-		}
-
-		if ( !satisfiedSizeRequirements ){
-			return Error( "Did you specify a size? E.g. 0x23456788\n" );
-		}
-
-		if ( !satisfiedRegisterRequirements ){
-			return Error( "Did you specify a register? E.g. a0" );
-		}
-		
 
 		// We've parsed the arguments, the addresses and the COM port
 		// Finish up by finding the file, if necessary
-
-		if( !needInputFile && !needOutputFile ) {
-
-			satisfiedFileRequirements = true;
-
-		} else {
-
+		if (argCommand.hasAttribute<NeedsInputFileAttribute>()){
+			
 			// One of the args specifies a file?
-			for( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
+			for (int i = remainingArgs.Count - 1; i >= 0; i--){
 
-				string fName = remainingArgs[ i ];
+				string fName = remainingArgs[i];
+				argFileName = fName;
 
-				if( needInputFile ) {
-					
-					argFileName = fName;
-
-					try {
-						inFile = File.ReadAllBytes( fName );
-					} catch( System.Exception e ) {
-
-						return Error( "Couldn't open input file " + fName + " Exception: " + e );
-
-					}
-
-					satisfiedFileRequirements = true;
-					remainingArgs.RemoveAt( i );
-
+				try{
+					inFile = File.ReadAllBytes(fName);
+				} catch (System.Exception e) {
+					return Error("Couldn't open input file " + fName + " Exception: " + e);
 				}
-				
+
+				satisfiedInputFileRequirements = true;
+				remainingArgs.RemoveAt(i);
+
 			}
 
 		}
-		
-		if( !satisfiedFileRequirements ) {
 
-			return Error( "Specify a filename!" );
+
+		if (argCommand.hasAttribute<NeedsOutputFileAttribute>()){
+
+			// One of the args specifies a file?
+			for (int i = remainingArgs.Count - 1; i >= 0; i--)
+			{
+				argFileName = remainingArgs[i];
+				remainingArgs.RemoveAt(i);
+				satisfiedOutputFileRequirements = true;
+			}
 
 		}
+
+		if ( !argCommand.hasAttribute<NeedsRegisterAttribute>() ) satisfiedRegisterRequirements = true;
+		if ( !argCommand.hasAttribute<NeedsAddressAttribute>() ) satisfiedAddressRequirements = true;
+		if ( !argCommand.hasAttribute<NeedsSizeAttribute>() )	satisfiedSizeRequirements = true;
+		if ( !argCommand.hasAttribute<NeedsValueAttribute>() ) satisfiedValueRequirements = true;
+		if ( !argCommand.hasAttribute<NeedsCardNumberAttribute>() ) satisfiedCardRequirement = true;
+		if ( !argCommand.hasAttribute<NeedsInputFileAttribute>() ) satisfiedInputFileRequirements = true;
+		if ( !argCommand.hasAttribute<NeedsOutputFileAttribute>() ) satisfiedOutputFileRequirements = true;
+		
+
+		if ( !satisfiedAddressRequirements )    return Error("Did you specify an address or hex value? E.g. 0x23456788\n");
+		if ( !satisfiedSizeRequirements )       return Error("Did you specify a size? E.g. 0x23456788\n");
+		if ( !satisfiedRegisterRequirements )   return Error("Did you specify a register? E.g. a0");
+		if ( !satisfiedValueRequirements )      return Error("Specify a 1-4 byte value in the format 0x01");
+		if ( !satisfiedCardRequirement )        return Error("Specify memory card 0 or 1!");
+		if ( !satisfiedInputFileRequirements )  return Error("Specify an input file!");
+		if ( !satisfiedOutputFileRequirements ) return Error("Specify a filename to write to!");
+
+
 
 		#if DebugArgs
 		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
@@ -723,17 +804,18 @@ internal partial class Program {
 
 	private static void Main( string[] args ) {
 		
-		
+		// Verify all the required args are present and parsed properly
 		if ( !VerifyArgs( args ) ){
 			return;
 		}
 
-		Transfer();
+		// Do stuff about it.
+		DoStuff();
 
 	}
 
 
-	private static bool Transfer() {
+	private static bool DoStuff() {
 		
 		
 		PrintUsage( true );
@@ -945,6 +1027,65 @@ internal partial class Program {
 				activeSerial.Write(BitConverter.GetBytes(argAddr), 0, 4);
 		}
 
+		// MCUP / MCDOWN
+
+		if (argCommand == CommandMode.MCDOWN)
+		{
+			TransferLogic.ChallengeResponse(argCommand);
+
+			// send the card number
+			activeSerial.Write( BitConverter.GetBytes( argCard ), 0, 4 );
+
+			Console.WriteLine( "Reading card to ram..." );
+
+			// it'll send this when it's done dumping to ram
+			if ( !TransferLogic.WaitResponse( "MCRD", false ) ){
+				return Error( "Please see screen or SIO for error!" );
+			}
+
+			Console.WriteLine("Ready, reading....");
+
+			UInt32 addr = TransferLogic.read32();
+			Console.WriteLine("Data is 0x" + addr.ToString("x"));
+
+			UInt32 size = TransferLogic.read32();
+			Console.WriteLine("Size is 0x" + size.ToString("x"));
+
+
+			Console.WriteLine( "Dumping..." );
+
+			lastReadBytes = new byte[size];
+			TransferLogic.Command_DumpBytes( addr, size, lastReadBytes );
+
+			string fileName = argFileName;
+
+			if (System.IO.File.Exists(fileName))
+			{
+
+				string newFilename = argFileName + GetSpan().TotalSeconds.ToString();
+
+				Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
+
+				fileName = newFilename;
+
+			}
+
+			try{
+
+				File.WriteAllBytes(fileName, lastReadBytes);
+
+			} catch (Exception e) {
+
+				Error("Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false);
+				return false;
+
+			}
+
+			Console.WriteLine( "File written to: " + fileName );
+			Console.WriteLine( "It is raw .mcd format used by PCSX-redux, no$psx, etc");
+
+
+		}
 
 		// Peek / Read functions
 
@@ -1086,6 +1227,8 @@ public class NeedsOutputFileAttribute : System.Attribute { public bool NeedsOutp
 public class NeedsAddressAttribute : System.Attribute { public bool NeedsAddress() { return true; } }
 public class NeedsSizeAttribute : System.Attribute{ public bool NeedsSize(){ return true; } }
 public class NeedsRegisterAttribute : System.Attribute{ public bool NeedsRegister(){ return true; } }
+public class NeedsValueAttribute : System.Attribute{ public bool NeedsValue(){ return true; } }
+public class NeedsCardNumberAttribute : System.Attribute{ public bool NeedsCardNumber(){ return true; } }
 
 
 public static class CommandModeExtensions {
@@ -1131,51 +1274,14 @@ public static class CommandModeExtensions {
 		}
 
 	}
-
-	// single-line returns would be a little unreadable...
-	// could merge these into a single function, but honestly, it would absolutely kill accesability
-
-	public static bool needsInputFile( this CommandMode inMode ) {
-
-		NeedsInputFileAttribute[] attributes =
-			(NeedsInputFileAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsInputFileAttribute ), false );
-
-		return attributes.Length > 0;
-	}
-
-	public static bool needsOutputFile( this CommandMode inMode ) {
-
-		NeedsOutputFileAttribute[] attributes =
-			(NeedsOutputFileAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsOutputFileAttribute ), false );
-
-		return attributes.Length > 0;
-
-	}
-
-	public static bool needsAddress( this CommandMode inMode ) {
-
-		NeedsAddressAttribute[] attributes =
-			(NeedsAddressAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsAddressAttribute ), false );
-
-		return attributes.Length > 0;
-
-	}
-
-	public static bool needsSize( this CommandMode inMode ){
 		
-		NeedsSizeAttribute[] attributes =
-			(NeedsSizeAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsSizeAttribute), false );
-
-		return attributes.Length > 0;
-
-	}
-
-	public static bool needsRegister( this CommandMode inMode ){
+	public static bool hasAttribute<T>( this CommandMode inMode ) where T: class{
 		
-		NeedsRegisterAttribute[] attributes =
-			(NeedsRegisterAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( NeedsRegisterAttribute), false );
-
-		return attributes.Length > 0;
+		object[] attribs = inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( true );
+		for( int i = 0; i < attribs.Length; i++ ){
+			if ( attribs[i].GetType() == typeof(T) ) return true;
+		}
+		return false;
 
 	}
 

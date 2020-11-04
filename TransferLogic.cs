@@ -11,8 +11,17 @@ public class TransferLogic
 {
 
 	public static SerialPort activeSerial => Program.activeSerial;
-	
 
+	public static UInt32 read32(){
+
+		UInt32 val = (UInt32)activeSerial.ReadByte();
+		val += ((UInt32) activeSerial.ReadByte() << 8 );
+		val += ((UInt32) activeSerial.ReadByte() << 16);
+		val += ((UInt32) activeSerial.ReadByte() << 24);
+
+		return val;
+
+	}
 
 	// In a pinch, Unirom will gloss over a null checksum. Don't though.
 	public static bool Command_SendBin( UInt32 inAddr, byte[] inBytes, UInt32 inChecksum ){
@@ -261,6 +270,11 @@ public class TransferLogic
 				if (responseBuffer == "UNSP")
 				{
 					Console.WriteLine( "\nNot supported while Unirom is in debug mode!" );
+					return false;
+				}
+
+				if ( responseBuffer == "HECK" ){
+					Console.WriteLine("\nCouldn't read the memory card!");
 					return false;
 				}
 

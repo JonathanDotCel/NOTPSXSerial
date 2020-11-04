@@ -35,7 +35,7 @@ public class TransferLogic
 
 		// then the actual contents.
 
-		return WriteBytes( inAddr, inBytes, false );
+		return WriteBytes( inBytes, false );
 
 	}
 
@@ -96,7 +96,7 @@ public class TransferLogic
 
 		Console.WriteLine( "left the loop" );
 
-		return WriteBytes( inAddr, inBytes, false );
+		return WriteBytes( inBytes, false );
 
 	}
 
@@ -144,7 +144,7 @@ public class TransferLogic
 		// We could send over the initial values for the fp and gp register, but 
 		// GP is set via LIBSN or your Startup.s/crt0 and it's never been an issue afaik
 
-		return WriteBytes( inAddr, inBytes, true);
+		return WriteBytes( inBytes, true);
 
 	}
 
@@ -354,7 +354,7 @@ public class TransferLogic
 
 	// HEY!
 	// Remember to tell the PSX to expect bytes first... BIN, ROM, EXE, etc
-	public static bool WriteBytes( UInt32 inAddr, byte[] inBytes, bool skipFirstSector ){
+	public static bool WriteBytes( byte[] inBytes, bool skipFirstSector ){
 
 
 		// .exe files go [ header ][ meta ][ data @ write address ]

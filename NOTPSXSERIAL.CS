@@ -1029,6 +1029,28 @@ internal partial class Program {
 
 		// MCUP / MCDOWN
 
+		// TODO: move to transferlogic
+		if ( argCommand == CommandMode.MCUP ){
+
+			TransferLogic.ChallengeResponse(argCommand);
+
+			Console.WriteLine("Uploading card data...");
+
+			// send the card number
+			activeSerial.Write(BitConverter.GetBytes(argCard), 0, 4);
+			// file size in bytes, let unirom handle it
+			activeSerial.Write(BitConverter.GetBytes( inFile.Length ), 0, 4);
+			activeSerial.Write( BitConverter.GetBytes( CalculateChecksum(inFile) ), 0, 4 );
+
+			if ( TransferLogic.WriteBytes(inFile, false) ){
+				Console.WriteLine( "File uploaded, check your screen..." );
+			} else {
+				return Error( "Couldn't upload to unirom - no write attempt will be made", false );
+			}
+
+		}
+
+		// TODO: move to transferlogic
 		if (argCommand == CommandMode.MCDOWN)
 		{
 			TransferLogic.ChallengeResponse(argCommand);

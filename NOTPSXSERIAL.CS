@@ -190,7 +190,7 @@ public enum CommandMode {
 
 	[Command( "/setreg" )]	
 	[NeedsRegister]
-	[NeedsAddress]		// abused as a 32bit hexa value
+	[NeedsValue]		// abused as a 32bit hexa value
 	SETREG,
 
 	// Debug hooks
@@ -360,6 +360,7 @@ internal partial class Program {
 	static string suggestedComPort = "COM8";
 	static UInt32 argAddr;
 	static UInt32 argSize;
+	static UInt32 argValue;
 	static UInt32 argCard;
 	static CommandMode argCommand = CommandMode.NOT_SET;
 	
@@ -375,7 +376,8 @@ internal partial class Program {
 	
 	static string argFileName;
 	static byte[] inFile;
-	static bool fastMode = false;
+	static bool enterFastMode = false;
+	static bool enterSlowMode = false;
 	
 	// technically not just limited to registers
 	static string argRegister = "";
@@ -465,49 +467,45 @@ internal partial class Program {
 
 		}
 
-		// Likewise get the "/FAST" parameter out of the way
-		for (int i = remainingArgs.Count - 1; i >= 0; i--)
-		{
 
-			string s = remainingArgs[i].ToUpperInvariant();
-
-			if (s == "/FAST")
-			{
-				fastMode = true;
+		// Are we using secondary args only? e.g. /fast /m
+		// in this case, there's no point processing the rest of the input
+		bool allArgsAreSecondary = true;		
+		for( int i = remainingArgs.Count -1; i >= 0; i-- ){
+			string lower = remainingArgs[i].ToLowerInvariant();
+			if ( lower == "/m" ){
+				monitorComms = true;
+				remainingArgs.RemoveAt( i );
+			} else if ( lower == "/fast" ){
+				enterFastMode = true;
 				remainingArgs.RemoveAt(i);
+			} else if ( lower == "/slow" ){
+				enterSlowMode = true;
+				remainingArgs.RemoveAt(i);
+			} else {
+				allArgsAreSecondary = false;
 			}
-
-		}
-
-		// is /m(onitor) the sole remaining argument?
-		if ( remainingArgs.Count == 1  && remainingArgs[0].ToLowerInvariant() == "/m" ){			
-			monitorComms = true;
-			return true;
 		}
 
 
-		#if DebugArgs
-		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-		Console.WriteLine( "__DEBUG__COM: " + argComPort );
-		Console.WriteLine( "__DEBUG__FAST: " + fastMode );
-		#endif
-		
+#if DebugArgs
+		Console.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count);
+		Console.WriteLine("__DEBUG__COM: " + argComPort);
+		Console.WriteLine("__DEBUG__FAST: " + enterFastMode);
+		Console.WriteLine("__DEBUG__FAST: " + enterSlowMode);
+#endif
+
+
+		if ( allArgsAreSecondary ) return true;
+
+
+
 		// Outer loop: Does anything resemble an command? /dump, /poke, etc?
 		// Specified a command arg (or several for future-proofing)?
-		for( int arg = remainingArgs.Count - 1; arg >= 0; arg-- ) {
+		for ( int arg = remainingArgs.Count - 1; arg >= 0; arg-- ) {
 
+			
 			string _arg = remainingArgs[ arg ].ToLowerInvariant();
-
-			if ( _arg == "/m" ){
-				
-				#if DebugArgs
-				Console.WriteLine( "__DEBUG__CommsMonitor Enabled: ");
-				#endif
-
-				monitorComms = true;
-				remainingArgs.RemoveAt( arg );
-				continue;
-			}
 			
 			// Inner loop: does it match any known commands?
 			// If so, check for sub params
@@ -607,12 +605,9 @@ internal partial class Program {
 						_arg = remainingArgs[arg].ToLowerInvariant();
 
 						// try to get the size argument
-						try
-						{
-							argSize = ParseHexa(argCommand, _arg);							
-						}
-						catch (System.Exception)
-						{
+						try{
+							argValue = ParseHexa(argCommand, _arg);							
+						} catch (System.Exception){
 							return Error("EXCEPTION: Specify a 1, 2 or 4 byte hex value");
 						}
 
@@ -646,9 +641,6 @@ internal partial class Program {
 
 					}
 
-
-
-
 					break; // outer loop to check new args
 
 				}
@@ -663,12 +655,10 @@ internal partial class Program {
 		Console.WriteLine( "__DEBUG__COM: " + argComPort );
 		Console.WriteLine( "__DEBUG__COMMAND: " + argCommand );
 		Console.WriteLine( "__DEBUG__ADDR: " + argAddr.ToString("X8") );
-		//Console.WriteLine( "__DEBUG__NEEDSADDR: " + argCommand.needsAddress() );
-		//Console.WriteLine( "__DEBUG__NEEDSINPUT: " + argCommand.needsInputFile() );
-		//Console.WriteLine( "__DEBUG__NEEDSOUTPUT: " + argCommand.needsOutputFile() );
+		Console.WriteLine("__DEBUG__VALUE: " + argValue.ToString("X8"));		
 		#endif
-				
-		if( argCommand == CommandMode.NOT_SET ) {
+
+		if ( argCommand == CommandMode.NOT_SET ) {
 			return Error( "Please specify a command - e.g. /r, /e /b, etc!\n\n" );
 		}
 
@@ -802,7 +792,7 @@ internal partial class Program {
 	}
 
 
-	private static void Main( string[] args ) {
+	private static void Main( string[] args ){
 		
 		// Verify all the required args are present and parsed properly
 		if ( !VerifyArgs( args ) ){
@@ -815,81 +805,83 @@ internal partial class Program {
 	}
 
 
+	public enum SIOSPEED { SLOW, FAST }
+
+	private static bool NewSIO( SIOSPEED inSpeed ){
+
+		if ( activeSerial != null ) activeSerial.Close();
+
+		// We need to find a suitable overlap in frequencies which can be divided
+		// from the Playstation's clock and from the FTDI/clone, with some wiggle room.
+		//
+		// PSX/libs uses whole integer divisions of 2073600 for anything over 115200
+		// giving us 518400 close to the half-megabyte mark.
+		//		
+		// Most FTDI/clones seem to operate in 2xinteger divisions of 48mhz
+		// giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/2)
+		//
+		// 5210000 (and even 518400) is a little fast, but the lower end
+		// of things (510000 to 518300) seems pretty stable.
+		//
+		// note: psx @ 518400, pc @ 510000
+		//
+		int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
+		activeSerial = new SerialPort(argComPort, baud, Parity.None, 8, StopBits.Two);
+		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
+		activeSerial.Handshake = Handshake.None;
+		activeSerial.DtrEnable = true;
+		activeSerial.RtsEnable = true;
+		activeSerial.ReadTimeout = TIMEOUT;
+		activeSerial.WriteTimeout = TIMEOUT;
+
+		try{
+			activeSerial.Open();
+		} catch( System.Exception exception ){
+			Console.WriteLine("Error opening temporary serial port on " + argComPort + " speed=" + inSpeed + "!");
+			Console.WriteLine( exception.Message );
+			return false;
+		}
+
+		return true;
+
+	}
+
+
+
 	private static bool DoStuff() {
 		
 		
 		PrintUsage( true );
 
-
-		activeSerial = new SerialPort( argComPort, 115200, Parity.None, 8, StopBits.Two );
-		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
-		activeSerial.Handshake = Handshake.None;		
-		activeSerial.DtrEnable = true;
-		activeSerial.RtsEnable = true;
 		
-		if ( fastMode ){
+		if ( enterFastMode ){
 			
-			activeSerial.ReadTimeout = TIMEOUT;
-			activeSerial.WriteTimeout = TIMEOUT;
-
-			try {
-				activeSerial.Open();
-			} catch( Exception exception ) {
-
-				Console.WriteLine( "Error opening temporary serial port on " + argComPort + "!" );
-				Console.WriteLine( exception.Message );
-
-				return false;
-
-			}
-
+			// start in normal mode and send a "FAST" command
+			// unirom doesn't have to respond, so if it's already in fast mode, no biggie
+			if ( !NewSIO( SIOSPEED.SLOW ) ) return false;
 			// The bytes "FAST" with no null terminator
-			activeSerial.Write( BitConverter.GetBytes( 0x54534146 ), 0, 4 );
-			
+			activeSerial.Write(BitConverter.GetBytes(0x54534146), 0, 4);
+			Thread.Sleep(100);
+			// Switch to fast
+			if ( !NewSIO( SIOSPEED.FAST ) ) return false;
 
+		} else
+
+		if ( enterSlowMode ){
+			// going to assume Unirom's in fast mode.. so start there and negotiate back down
+			if ( !NewSIO( SIOSPEED.FAST ) ) return false;
+			// The bytes "FAST" with no null terminator
+			activeSerial.Write(BitConverter.GetBytes(0x574F4C53), 0, 4);
 			Thread.Sleep( 100 );
-			
+			// Now switch back
+			if (!NewSIO(SIOSPEED.SLOW)) return false;
 
-			activeSerial.Close();
-			
-			// We need to find a suitable overlap in frequencies which can be divided
-			// from the Playstation's clock and from the FTDI/clone, with some wiggle room.
-			//
-			// PSX/libs uses whole integer divisions of 2073600 for anything over 115200
-			// giving us 518400 close to the half-megabyte mark.
-			//		
-			// Most FTDI/clones seem to operate in 2xinteger divisions of 48mhz
-			// giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/2)
-			//
-			// 5210000 (and even 518400) is a little fast, but the lower end
-			// of things (510000 to 518300) seems pretty stable.
-			//
-			// note: psx @ 518400, pc @ 510000
-			//
-			activeSerial = new SerialPort( argComPort, 510000, Parity.None, 8, StopBits.Two );
-			// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
-			activeSerial.Handshake = Handshake.None;
-			activeSerial.DtrEnable = true;
-			activeSerial.RtsEnable = true;
+		} else {
+
+			if ( !NewSIO( SIOSPEED.SLOW ) ) return false;	
 
 		}
 
-		// Now the main serial port
-
-		activeSerial.ReadTimeout = TIMEOUT;
-		activeSerial.WriteTimeout = TIMEOUT;
-
-		try {
-			activeSerial.Open();
-		} catch( Exception exception ) {
-
-			Console.WriteLine( "Error opening the serial port on " + argComPort + "!" );
-			Console.WriteLine( exception.Message );
-
-			return false;
-
-		}
-			
 
 
 		// just lets us skip a ton of ifs
@@ -946,20 +938,20 @@ internal partial class Program {
 
 		if ( argCommand == CommandMode.POKE8 )
 		{
-			byte[] bytes = { (byte)(argSize & 0xFF) };
+			byte[] bytes = { (byte)(argValue & 0xFF) };
 			TransferLogic.Command_SendBin( argAddr, bytes, CalculateChecksum( bytes ) );
 		}
 
 		if (argCommand == CommandMode.POKE16)
 		{			
-			short shorty = (byte)(argSize & 0xFFFF);
+			short shorty = (byte)(argValue & 0xFFFF);
 			byte[] bytes = BitConverter.GetBytes( shorty );
 			TransferLogic.Command_SendBin(argAddr, bytes , CalculateChecksum(bytes) );
 		}
 
 		if (argCommand == CommandMode.POKE32)
 		{	
-			byte[] bytes = BitConverter.GetBytes(argSize);
+			byte[] bytes = BitConverter.GetBytes(argValue);
 			TransferLogic.Command_SendBin(argAddr, bytes, CalculateChecksum(bytes));
 		}
 
@@ -1006,7 +998,10 @@ internal partial class Program {
 
 		if ( argCommand == CommandMode.SETREG )
 		{
-			TransferLogic.Command_SetReg( argRegister, argAddr );
+			if ( !TransferLogic.Command_SetReg( argRegister, argValue ) ){
+				return Error( "Couldn't set reg " + argRegister + " to " + argValue, false );
+			}
+				
 		}
 
 		// In the works

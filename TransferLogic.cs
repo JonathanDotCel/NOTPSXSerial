@@ -149,7 +149,7 @@ public class TransferLogic
 	}
 
 
-	public static bool  Command_JumpAddr( UInt32 inAddr ){
+	public static bool Command_JumpAddr( UInt32 inAddr ){
 
 		if ( !ChallengeResponse( CommandMode.JUMP_JMP ) )
 			return false;
@@ -197,19 +197,21 @@ public class TransferLogic
 
 	public static bool Command_SetReg( string inReg, UInt32 inValue ){
 		
-		// so so jank, but fuckit, resolution in 4 lines
-		for( int i = 0; i < (int)GPR.COUNT; i++ ){
-			if ( inReg.ToLowerInvariant() == ((GPR)i).ToString().ToLowerInvariant() ){
+		// Find the index of the string value and call that specific method
+		for ( int i = 0; i < (int)GPR.COUNT; i++ ){
+			if ( inReg.ToLowerInvariant() == ((GPR)i).ToString().ToLowerInvariant() ){				
 				return Command_SetReg( (GPR)i, inValue );
 			}
 		}
+
+		Console.WriteLine( "Unknown register: " + inReg );
 		return false;
 
 	}
 
 	public static bool Command_SetReg( GPR inReg, UInt32 inValue ){
 		
-		Console.WriteLine( "Getting a copy of current registers..." );
+		Console.WriteLine( "---- Getting a copy of current registers ----" );
 
 		if ( !GDB.GetRegs() ){
 			Console.WriteLine( "Couldn't get regs" );
@@ -218,14 +220,13 @@ public class TransferLogic
 
 		GDB.tcb.regs[ (int)inReg ] = inValue;
 
-		Console.WriteLine( "Done, writing regs back" );
-
+		Console.WriteLine( "---- Done, writing regs back ----" );
+		
 		return GDB.SetRegs();
 		
 	}
 
-	public static void WriteChallenge(string inChallenge)
-	{
+	public static void WriteChallenge(string inChallenge){
 
 		activeSerial.Write(inChallenge);
 
@@ -233,8 +234,7 @@ public class TransferLogic
 
 	private static bool didShowUpgradewarning = false;
 
-	public static bool WaitResponse(string inResponse, bool verbose = true)
-	{
+	public static bool WaitResponse(string inResponse, bool verbose = true) {
 
 		Program.protocolVersion = 1;
 

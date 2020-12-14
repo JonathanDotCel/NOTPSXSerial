@@ -6,6 +6,14 @@ Feb 2020 - github.com/JonathanDotCel
 
 Serial transfer suite for Playstation 1 / Unirom
 
+# Features
+
+    * Kernel-resident debugging
+    Debug running games on a retail console
+
+    * Cart/EEPROM flasher
+    Back up or administer your cheat carts!
+
 
 ## Upgrading to UniROM:
     

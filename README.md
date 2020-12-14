@@ -12,8 +12,22 @@ Serial transfer suite for Playstation 1 / Unirom
     Debug running games on a retail console
 
     * Cart/EEPROM flasher
-    Back up or administer your cheat carts!
+    Back up and reflash cheat carts
 
+    * .EXE or raw binary upload
+    Run homebrew utilities or upload assets for development
+    
+    * Memorycard tools
+    Backup or rewrite whole memory cards to raw (emulator) format
+    
+    * Peeks n Pokes
+    Peek or poke running games/homebrew like cheat codes
+    
+    * Mem dumps
+    Grab a copy of RAM, cart EEPROM, BIOS, etc
+
+    * In progress: GDB TCP->SIO bridge!
+    Step through your code in the editor, etc
 
 ## Upgrading to UniROM:
     

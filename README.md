@@ -188,27 +188,6 @@ This is in progress
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## A big thanks:
       While NoPS has been re-written from the ground up for Unirom 8, before that it was
       a decompiled version of Shadow's PSXSerial with the header changed to reflect that.

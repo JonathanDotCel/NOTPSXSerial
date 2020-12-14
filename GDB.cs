@@ -2,6 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+//
+// GDB TCP->SIO bridge for Unirom 8
+//
+// NOTE!
+//
+// While all of the basic debug functionality is present, the GDB
+// bridge is still very much a work in progress!
+//
+
 
 using System;
 using System.IO.Ports;
@@ -35,7 +44,7 @@ public enum GPR{
     unknown6,    unknown7,
     unknown9,
 
-    COUNT // C# only
+    COUNT // C# only, not present on the PSX struct
 
 }
 
@@ -199,7 +208,7 @@ public class GDB{
 		
 		// read the pointer to TCB[0]
 		byte[] ptrBuffer = new byte[4];
-		if ( !TransferLogic.Command_DumpBytes( 0x80000110, 4, ptrBuffer ) ){
+		if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ){
 			return false;
 		}
 
@@ -208,7 +217,7 @@ public class GDB{
 		Console.WriteLine( "TCB PTR " + tcbPtr.ToString("X") );
 
 		byte[] tcbBytes = new byte[TCB_LENGTH_BYTES];
-		if ( !TransferLogic.Command_DumpBytes( tcbPtr, (int)GPR.COUNT *4, tcbBytes ) ){
+		if ( !TransferLogic.ReadBytes( tcbPtr, (int)GPR.COUNT *4, tcbBytes ) ){
 			return false;
 		}
 		
@@ -222,7 +231,7 @@ public class GDB{
 		
 		// read the pointer to TCB[0]
 		byte[] ptrBuffer = new byte[4];
-		if ( !TransferLogic.Command_DumpBytes( 0x80000110, 4, ptrBuffer ) ){
+		if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ){
 			return false;
 		}
 
@@ -233,7 +242,7 @@ public class GDB{
 		byte[] tcbBytes = new byte[TCB_LENGTH_BYTES];
 		Buffer.BlockCopy( tcb.regs, 0, tcbBytes, 0, TCB_LENGTH_BYTES );
 
-		TransferLogic.Command_SendBin( tcbPtr, tcbBytes, Program.CalculateChecksum( tcbBytes ) );
+		TransferLogic.Command_SendBin( tcbPtr, tcbBytes );
 				
 		return true;
 

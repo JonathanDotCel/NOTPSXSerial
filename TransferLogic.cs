@@ -2,8 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+//
+// Start over in NOTPSXSERIAL.CS to get your bearings
+//
+
 using System;
 using System.Threading;
+using System.IO;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
 
@@ -12,6 +17,10 @@ public class TransferLogic
 
 	public static SerialPort activeSerial => Program.activeSerial;
 
+	/// <summary>
+	/// Read a 32 bit unsigned int from the serial connection
+	/// (Takes care of endianness)
+	/// </summary>	
 	public static UInt32 read32(){
 
 		UInt32 val = (UInt32)activeSerial.ReadByte();
@@ -23,15 +32,22 @@ public class TransferLogic
 
 	}
 
-	// In a pinch, Unirom will gloss over a null checksum. Don't though.
-	public static bool Command_SendBin( UInt32 inAddr, byte[] inBytes, UInt32 inChecksum ){
+	/// <summary>
+	/// Upload bytes to the specified address
+	/// does verify contents
+	/// does not execute or act upon the data
+	/// </summary>	
+	public static bool Command_SendBin( UInt32 inAddr, byte[] inBytes ){
+
+		UInt32 checkSum = CalculateChecksum(inBytes);
 
 		if (!ChallengeResponse( CommandMode.SEND_BIN ) )
 			return false;
 
 		activeSerial.Write(BitConverter.GetBytes( inAddr ), 0, 4);
 		activeSerial.Write(BitConverter.GetBytes( inBytes.Length ), 0, 4);
-		activeSerial.Write(BitConverter.GetBytes( inChecksum ), 0, 4);
+		// In a pinch, Unirom will gloss over a null checksum. Don't though.
+		activeSerial.Write(BitConverter.GetBytes( checkSum ), 0, 4);
 
 		// then the actual contents.
 
@@ -39,13 +55,18 @@ public class TransferLogic
 
 	}
 
-	public static bool Command_SendROM( UInt32 inAddr, byte[] inBytes, UInt32 inChecksum ){
+	/// <summary>
+	/// Upload a ROM and attempt to flash to EEPROM
+	/// </summary>	
+	public static bool Command_SendROM( UInt32 inAddr, byte[] inBytes ){
+
+		UInt32 checkSum = CalculateChecksum(inBytes);
 
 		if ( !ChallengeResponse( CommandMode.SEND_ROM ) )
 			return false;
 
 		activeSerial.Write(BitConverter.GetBytes(inBytes.Length), 0, 4);
-		activeSerial.Write(BitConverter.GetBytes(inChecksum), 0, 4);
+		activeSerial.Write(BitConverter.GetBytes(checkSum), 0, 4);
 
 		string flashResponse = "";
 
@@ -94,15 +115,24 @@ public class TransferLogic
 
 		}
 
-		Console.WriteLine( "left the loop" );
+		Console.WriteLine( "Checks passed; sending ROM!" );
 
 		return WriteBytes( inBytes, false );
 
 	}
 
-	
-	public static bool Command_SendEXE( UInt32 inAddr, byte[] inBytes, UInt32 inChecksum ){
+	/// <summary>
+	/// Uploads an .exe to its final execution address
+	/// and launches it. May or may not clear .bss depending on
+	/// your Unirom Version.
+	/// Note: does not upload the header or checksum that area
+	/// </summary>
+	/// <param name="inAddr">Make sure it's correct</param>
+	/// <param name="inBytes">Raw bytes minus the header</param>	
+	public static bool Command_SendEXE( UInt32 inAddr, byte[] inBytes ){
 		
+		UInt32 checkSum = CalculateChecksum(inBytes, true);
+
 		int mod = inBytes.Length % 2048;
 
 		// Pad .PS-EXE files up to the 2k sector boundary
@@ -138,8 +168,8 @@ public class TransferLogic
 												// let's not use the header-defined length, instead the actual file length minus the header
 		activeSerial.Write(BitConverter.GetBytes(inBytes.Length - 0x800), 0, 4);
 
-		activeSerial.Write(BitConverter.GetBytes(inChecksum), 0, 4);
-		Console.WriteLine("__DEBUG__Expected checksum: 0x" + inChecksum.ToString("X8"));
+		activeSerial.Write(BitConverter.GetBytes(checkSum), 0, 4);
+		Console.WriteLine("__DEBUG__Expected checksum: 0x" + checkSum.ToString("X8"));
 
 		// We could send over the initial values for the fp and gp register, but 
 		// GP is set via LIBSN or your Startup.s/crt0 and it's never been an issue afaik
@@ -149,6 +179,10 @@ public class TransferLogic
 	}
 
 
+	/// <summary>
+	/// Jump immediately to the given address without
+	/// touching the stack or $ra
+	/// </summary>	
 	public static bool Command_JumpAddr( UInt32 inAddr ){
 
 		if ( !ChallengeResponse( CommandMode.JUMP_JMP ) )
@@ -160,6 +194,11 @@ public class TransferLogic
 
 	}
 
+	/// <summary>
+	/// Call an address with the possibility of returning
+	/// Note! This may or may not be in a critical section
+	/// depending on whether you're using the kernel-resident SIO debugger!
+	/// </summary>	
 	public static bool Command_CallAddr( UInt32 inAddr ){
 		
 		if ( !ChallengeResponse( CommandMode.JUMP_CALL ) )
@@ -171,18 +210,172 @@ public class TransferLogic
 
 	}
 
+
+	//
+	// Memcard Functions
+	//
+
+	/// <summary>
+	/// Writes an entire memcard's contents
+	/// </summary>
+	/// <param name="inCard">0/1</param>	
+	public static bool Command_MemcardUpload( UInt32 inCard, byte[] inFile ){
+
+		if ( !TransferLogic.ChallengeResponse( CommandMode.MCUP ) ){
+			return Program.Error( "No response from Unirom. Are you using 8.0.E or higher?" );
+		}
+
+		Console.WriteLine("Uploading card data...");
+
+		// send the card number
+		activeSerial.Write( BitConverter.GetBytes(inCard), 0, 4 );
+		// file size in bytes, let unirom handle it
+		activeSerial.Write( BitConverter.GetBytes( inFile.Length), 0, 4 );
+		activeSerial.Write( BitConverter.GetBytes( CalculateChecksum(inFile) ), 0, 4);
+
+		if (TransferLogic.WriteBytes(inFile, false))
+		{
+			Console.WriteLine("File uploaded, check your screen...");			
+		}
+		else
+		{
+			return Program.Error("Couldn't upload to unirom - no write attempt will be made", false);
+		}
+
+		return true;
+
+	}
+
+	/// <summary>
+	/// Reads and dumps a memcard to disc
+	/// </summary>
+	/// <param name="inCard">0/1</param>	
+	public static bool Command_MemcardDownload( UInt32 inCard, string fileName ){
+
+		if ( !TransferLogic.ChallengeResponse(CommandMode.MCDOWN) ){
+			return Program.Error( "No response from Unirom. Are you using 8.0.E or higher?" );
+		}
+
+		// send the card number
+		activeSerial.Write(BitConverter.GetBytes(inCard), 0, 4);
+
+		Console.WriteLine("Reading card to ram...");
+
+		// it'll send this when it's done dumping to ram
+		if (!TransferLogic.WaitResponse("MCRD", false))
+		{
+			return Program.Error("Please see screen or SIO for error!");
+		}
+
+		Console.WriteLine("Ready, reading....");
+
+		UInt32 addr = TransferLogic.read32();
+		Console.WriteLine("Data is 0x" + addr.ToString("x"));
+
+		UInt32 size = TransferLogic.read32();
+		Console.WriteLine("Size is 0x" + size.ToString("x"));
+
+
+		Console.WriteLine("Dumping...");
+
+		byte[] lastReadBytes = new byte[size];
+		TransferLogic.ReadBytes(addr, size, lastReadBytes);
+
+		
+		if (System.IO.File.Exists(fileName))
+		{
+			string newFilename = fileName + Program.GetSpan().TotalSeconds.ToString();
+
+			Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
+
+			fileName = newFilename;
+		}
+
+		try
+		{
+			File.WriteAllBytes(fileName, lastReadBytes);
+		}
+		catch (Exception e)
+		{
+			return Program.Error("Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false);			
+		}
+
+		Console.WriteLine("File written to: " + fileName);
+		Console.WriteLine("It is raw .mcd format used by PCSX-redux, no$psx, etc");
+		return true;
+
+	}
+
+	//
+	// Dump
+	//
+
+	/// <summary>
+	/// Dump's a RAM/ROM region to disc, auto-named
+	/// </summary>	
+	public static bool Command_Dump( UInt32 inAddr, UInt32 inSize ){
+
+		byte[] lastReadBytes = new byte[inSize];
+
+		if ( !ReadBytes( inAddr, inSize, lastReadBytes) ){
+			return Program.Error( "Couldn't ready bytes from Unirom!" );
+		}
+
+		string fileName = "DUMP_" + inAddr.ToString("X8") + "_to_" + inSize.ToString("X8") + ".bin";
+
+		if (System.IO.File.Exists(fileName))
+		{
+
+			string newFilename = fileName + GetSpan().TotalSeconds.ToString();
+
+			Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
+
+			fileName = newFilename;
+
+		}
+
+		try
+		{
+
+			File.WriteAllBytes(fileName, lastReadBytes);
+
+		}
+		catch (Exception e)
+		{
+
+			Error("Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false);
+			return false;
+
+		}
+
+	}
+
+	//
+	// Debug
+	//
+
+	/// <summary>
+	/// Halt the system by entering a SIO-wait loop in an interrupt/critical section
+	/// </summary>	
 	public static bool Command_Halt(){
 		
 		return ChallengeResponse( CommandMode.HALT );
 
 	}
 
+	/// <summary>
+	/// UnHalt
+	/// </summary>	
 	public static bool Command_CONT(){
 		
 		return ChallengeResponse( CommandMode.CONT );
 
 	}
 	
+	/// <summary>
+	/// Dumps the stored registers which are saved
+	/// as an interrupt triggers. $K0 is lost.
+	/// </summary>	
 	public static bool Command_DumpRegs(){
 		
 		if ( GDB.GetRegs() ){
@@ -195,6 +388,10 @@ public class TransferLogic
 		
 	}
 
+	/// <summary>
+	/// Sets a register value
+	/// Note: this will be applied as you /cont
+	/// </summary>	
 	public static bool Command_SetReg( string inReg, UInt32 inValue ){
 		
 		// Find the index of the string value and call that specific method
@@ -209,6 +406,9 @@ public class TransferLogic
 
 	}
 
+	/// <summary>
+	///  As above but typed
+	/// </summary>	
 	public static bool Command_SetReg( GPR inReg, UInt32 inValue ){
 		
 		Console.WriteLine( "---- Getting a copy of current registers ----" );
@@ -226,6 +426,7 @@ public class TransferLogic
 		
 	}
 
+	// Ping? Pong!
 	public static void WriteChallenge(string inChallenge){
 
 		activeSerial.Write(inChallenge);
@@ -234,6 +435,10 @@ public class TransferLogic
 
 	private static bool didShowUpgradewarning = false;
 
+	/// <summary>
+	/// Wait for a response to see if this version of
+	/// Unirom supports the V2 protocol
+	/// </summary>	
 	public static bool WaitResponse(string inResponse, bool verbose = true) {
 
 		Program.protocolVersion = 1;
@@ -254,8 +459,7 @@ public class TransferLogic
 			
 			if (activeSerial.BytesToRead != 0)
 			{
-
-				// Why the fuck does readchar return an int?
+								
 				responseBuffer += (char)activeSerial.ReadByte();
 
 				// filter any noise at the start of the response
@@ -329,10 +533,10 @@ public class TransferLogic
 	}
 
 
-
-	// If we're in solo monitor mode, there will be no
-	// challenge/response, let's future-proof it though
-	
+	/// <summary>
+	/// Deceptively small function, but one of the most important
+	/// This is the one that sends e.g. "/poke" and  checks that Unirom is paying attention
+	/// </summary>	
 	public static bool ChallengeResponse( CommandMode inMode ){
 		return ChallengeResponse( inMode.challenge(), inMode.response() );
 	}
@@ -354,6 +558,8 @@ public class TransferLogic
 
 	// HEY!
 	// Remember to tell the PSX to expect bytes first... BIN, ROM, EXE, etc
+	// as this will attempt to use the V2 protocol rather than just spamming 
+	// bytes into the void
 	public static bool WriteBytes( byte[] inBytes, bool skipFirstSector ){
 
 
@@ -421,7 +627,7 @@ public class TransferLogic
 
 					if (activeSerial.BytesToRead != 0)
 					{
-						// Why the fuck does readchar return an int?
+						
 						more += (char)activeSerial.ReadByte();
 
 					}
@@ -490,10 +696,11 @@ public class TransferLogic
 	} // WriteBytes
 
 
-
-	// TODO: __TEST__
 	// C people: remember the byte[] is a pointer....
-	public static bool Command_DumpBytes(UInt32 inAddr, UInt32 inSize, byte[] inBytes )
+	/// <summary>
+	/// Reads an array of bytes from the serial connection
+	/// </summary>		
+	public static bool ReadBytes(UInt32 inAddr, UInt32 inSize, byte[] inBytes )
 	{
 		
 		if ( !ChallengeResponse( CommandMode.DUMP ) ){
@@ -531,7 +738,6 @@ public class TransferLogic
 
 				checkSum += (UInt32)responseByte;
 
-				// __TEST__
 				if (arrayPos % 2048 == 0)
 				{
 					activeSerial.Write("MORE");
@@ -646,6 +852,11 @@ public class TransferLogic
 
 
 	#pragma warning disable CS0162
+
+	/// <summary>
+	/// Semi-supported: 
+	/// Constantly reads from the address specified and dumps it to screen
+	/// </summary>	
 	public static bool Watch( UInt32 inAddr, UInt32 inSize ){
 
 		if ( !ChallengeResponse( CommandMode.WATCH ) ) 
@@ -746,7 +957,12 @@ public class TransferLogic
 	}
 	#pragma warning restore CS0162
 
-	// Endless loop
+
+	/// <summary>
+	/// Leaves the serial connection open
+	/// Will attempt to detect /HALT notifications from Unirom
+	/// and catch crash/exception events
+	/// </summary>
 	public static void DoMonitor(){
 
 		// a rolling buffer of the last 4 things recieved
@@ -796,5 +1012,21 @@ public class TransferLogic
 
 	}
 
+
+	/// <summary>
+	/// Returns a (weak) checksum for the given bytes
+	/// </summary>	
+	/// <param name="skipFirstSector">Skip the first 0x800 header sector on an .exe as it won't be sent over SIO</param>	
+	public static UInt32 CalculateChecksum(byte[] inBytes, bool skipFirstSector = false)
+	{
+
+		UInt32 returnVal = 0;
+		for (int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++)
+		{
+			returnVal += (UInt32)inBytes[i];
+		}
+		return returnVal;
+
+	}
 
 }

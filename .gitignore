@@ -8,6 +8,7 @@ desktop.ini
 *.log*
 *exclude*
 *.psx
+*.mcr
 test_*
 comport.txt
 

@@ -21,7 +21,7 @@ Serial transfer suite for Playstation 1 / Unirom
     Backup or rewrite whole memory cards to raw (emulator) format
     
     * Peeks n Pokes
-    Peek or poke running games/homebrew like cheat codes
+    Peek or poke running games/homebrew (incl cheat codes)
     
     * Mem dumps
     Grab a copy of RAM, cart EEPROM, BIOS, etc

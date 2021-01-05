@@ -11,15 +11,11 @@
 // bridge is still very much a work in progress!
 //
 
-
 using System;
-using System.IO.Ports;
-
-using System.Net.Sockets;
-using System.Net;
-
 using System.Text;
-
+using System.IO.Ports;
+using System.Net;
+using System.Net.Sockets;
 
 public enum GPR{
     

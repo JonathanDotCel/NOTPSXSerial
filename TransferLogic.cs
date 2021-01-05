@@ -2,15 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//
-// Start over in NOTPSXSERIAL.CS to get your bearings
-//
-
 using System;
 using System.Threading;
 using System.IO;
 using System.IO.Ports;
-using System.Runtime.InteropServices;
+using static Utils;
 
 public class TransferLogic
 {
@@ -222,7 +218,7 @@ public class TransferLogic
 	public static bool Command_MemcardUpload( UInt32 inCard, byte[] inFile ){
 
 		if ( !TransferLogic.ChallengeResponse( CommandMode.MCUP ) ){
-			return Program.Error( "No response from Unirom. Are you using 8.0.E or higher?" );
+			return Error( "No response from Unirom. Are you using 8.0.E or higher?" );
 		}
 
 		Console.WriteLine("Uploading card data...");
@@ -239,7 +235,7 @@ public class TransferLogic
 		}
 		else
 		{
-			return Program.Error("Couldn't upload to unirom - no write attempt will be made", false);
+			return Error("Couldn't upload to unirom - no write attempt will be made", false);
 		}
 
 		return true;
@@ -253,7 +249,7 @@ public class TransferLogic
 	public static bool Command_MemcardDownload( UInt32 inCard, string fileName ){
 
 		if ( !TransferLogic.ChallengeResponse(CommandMode.MCDOWN) ){
-			return Program.Error( "No response from Unirom. Are you using 8.0.E or higher?" );
+			return Error( "No response from Unirom. Are you using 8.0.E or higher?" );
 		}
 
 		// send the card number
@@ -264,7 +260,7 @@ public class TransferLogic
 		// it'll send this when it's done dumping to ram
 		if (!TransferLogic.WaitResponse("MCRD", false))
 		{
-			return Program.Error("Please see screen or SIO for error!");
+			return Error("Please see screen or SIO for error!");
 		}
 
 		Console.WriteLine("Ready, reading....");
@@ -284,7 +280,7 @@ public class TransferLogic
 		
 		if (System.IO.File.Exists(fileName))
 		{
-			string newFilename = fileName + Program.GetSpan().TotalSeconds.ToString();
+			string newFilename = fileName + GetSpan().TotalSeconds.ToString();
 
 			Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
 
@@ -297,7 +293,7 @@ public class TransferLogic
 		}
 		catch (Exception e)
 		{
-			return Program.Error("Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false);			
+			return Error("Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false);			
 		}
 
 		Console.WriteLine("File written to: " + fileName);
@@ -318,7 +314,7 @@ public class TransferLogic
 		byte[] lastReadBytes = new byte[inSize];
 
 		if ( !ReadBytes( inAddr, inSize, lastReadBytes) ){
-			return Program.Error( "Couldn't ready bytes from Unirom!" );
+			return Error( "Couldn't ready bytes from Unirom!" );
 		}
 
 		string fileName = "DUMP_" + inAddr.ToString("X8") + "_to_" + inSize.ToString("X8") + ".bin";
@@ -347,6 +343,8 @@ public class TransferLogic
 			return false;
 
 		}
+
+        return true;
 
 	}
 
@@ -608,7 +606,7 @@ public class TransferLogic
 			int percent = (i + 1) * 100 / (inBytes.Length);
 			Console.Write("\r Sending chunk {0} of {1} ({2})%", (i / chunkSize) + 1, numChunks, percent);
 
-			Console.ForegroundColor = ConsoleColor.White;
+			SetDefaultColour();
 
 
 			if ( Program.protocolVersion == 2)
@@ -621,7 +619,7 @@ public class TransferLogic
 
 				string more = "";
 
-				TimeSpan startSpan = Program.GetSpan();
+				TimeSpan startSpan = GetSpan();
 				while (more != "CHEK")
 				{
 
@@ -645,7 +643,7 @@ public class TransferLogic
 					activeSerial.Write(BitConverter.GetBytes(chunkChecksum), 0, 4);
 					Thread.Sleep(1);
 
-					startSpan = Program.GetSpan();
+					startSpan = GetSpan();
 
 					while (more != "MORE" && more != "ERR!")
 					{
@@ -716,20 +714,20 @@ public class TransferLogic
 		//lastReadBytes = new byte[inSize];
 
 		// Let the loop time out if something gets a bit fucky.			
-		TimeSpan lastSpan = Program.GetSpan();
-		TimeSpan currentSpan = Program.GetSpan();
+		TimeSpan lastSpan = GetSpan();
+		TimeSpan currentSpan = GetSpan();
 
 		UInt32 checkSum = 0;
 
 		while (true)
 		{
 			
-			currentSpan = Program.GetSpan();
+			currentSpan = GetSpan();
 
 			if (activeSerial.BytesToRead != 0)
 			{
 
-				lastSpan = Program.GetSpan();
+				lastSpan = GetSpan();
 
 				byte responseByte = (byte)activeSerial.ReadByte();
 				inBytes[arrayPos] = (responseByte);
@@ -761,12 +759,12 @@ public class TransferLogic
 			{
 				if (arrayPos == 0)
 				{
-					Program.Error("There was no data for a long time! 0 bytes were read!", false);
+					Error("There was no data for a long time! 0 bytes were read!", false);
 					return false;
 				}
 				else
 				{
-					Program.Error("There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString("X8") + ") bytes that were read!", false);
+					Error("There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString("X8") + ") bytes that were read!", false);
 				}
 
 				return false;
@@ -780,10 +778,10 @@ public class TransferLogic
 		// Read 4 more bytes for the checksum
 
 		// Let the loop time out if something gets a bit fucky.			
-		lastSpan = Program.GetSpan();
+		lastSpan = GetSpan();
 		int expectedChecksum = 0;
 
-		Console.ForegroundColor = ConsoleColor.White;
+		SetDefaultColour();
 		Console.WriteLine("Checksumming the checksums for checksummyness.\n");
 
 		try
@@ -795,7 +793,7 @@ public class TransferLogic
 				while (activeSerial.BytesToRead == 0)
 				{
 
-					currentSpan = Program.GetSpan();
+					currentSpan = GetSpan();
 
 					if ((currentSpan - lastSpan).TotalMilliseconds > 2000)
 					{
@@ -806,7 +804,7 @@ public class TransferLogic
 
 				}
 
-				lastSpan = Program.GetSpan();
+				lastSpan = GetSpan();
 
 				byte inByte = (byte)activeSerial.ReadByte();
 
@@ -820,20 +818,20 @@ public class TransferLogic
 		{
 
 			Console.ForegroundColor = ConsoleColor.Red;
-			Program.Error("No checksum sent, continuing anyway!\n ", false);
+			Error("No checksum sent, continuing anyway!\n ", false);
 
 		}
 
 		if (expectedChecksum != checkSum)
 		{
 			Console.ForegroundColor = ConsoleColor.Red;
-			Program.Error("Checksum missmatch! Expected: " + expectedChecksum.ToString("X8") + "    Calced: %x\n" + checkSum.ToString("X8"), false);
-			Program.Error(" WILL ATTEMPT TO CONTINUE\n", false);
+			Error("Checksum missmatch! Expected: " + expectedChecksum.ToString("X8") + "    Calced: %x\n" + checkSum.ToString("X8"), false);
+			Error(" WILL ATTEMPT TO CONTINUE\n", false);
 			return false;
 		}
 		else
 		{
-			Console.ForegroundColor = ConsoleColor.White;
+			SetDefaultColour();
 			Console.WriteLine(" Checksums match: " + expectedChecksum.ToString("X8") + "\n");			
 		}
 
@@ -841,10 +839,10 @@ public class TransferLogic
 		if (activeSerial.BytesToRead > 0)
 		{
 			Console.ForegroundColor = ConsoleColor.Red;
-			Program.Error("Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false);
+			Error("Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false);
 		}
 
-		Console.ForegroundColor = ConsoleColor.White;
+		SetDefaultColour();
 
 		return true;
 

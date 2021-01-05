@@ -62,6 +62,12 @@
 //   - some new custom attributes
 //   - a wee bit more code documentation
 
+// 05_01_2021 - Near near new nops
+//  - Made things more mac/unix friendly
+//  - Proper macos detection + scripts
+//  - lowercased NoPS.EXE for everyone's sanity
+//  - moved some things to the utils class
+//
 
 #define DebugArgs
 
@@ -71,6 +77,7 @@ using System.IO;
 using System.IO.Ports;
 using System.Threading;
 using System.Linq;
+using static Utils;
 
 public enum CommandMode {
 
@@ -252,7 +259,7 @@ internal partial class Program {
 	const string VERSION = "v12 (8.0.E)";
 	const int TIMEOUT = 500;
 
-	static void PrintUsage( bool justTheTip = false ) {
+	public static void PrintUsage( bool justTheTip = false ) {
 
 		#if !DebugArgs
 		if( !justTheTip ){
@@ -260,7 +267,7 @@ internal partial class Program {
 		}
 		#endif
 
-		Console.ForegroundColor = ConsoleColor.White;
+		SetDefaultColour();
 
 		// assuming 80 columns
 
@@ -279,9 +286,9 @@ internal partial class Program {
 
 		if( justTheTip ) return;
 
-		if ( POSIXEnvironment )
-			suggestedComPort = "/dev/ttyUSB0";
-
+        // COM8, /dev/tty*, /dev/cu.usbserial*, etc
+        suggestedComPort = SampleCOMPortForEnvironment;
+		
 		Console.Write( "    Usage: NOPS.EXE [/args] FILENAME COMPORT" );
 		Console.Write( "\n\n" );
 
@@ -441,11 +448,12 @@ internal partial class Program {
 			}
 
 			if ( argComPort == "" ){
-				if( POSIXEnvironment ) {
-					return Error( "\nERROR! Please specify a device - e.g. /dev/ttyUSB0\n" );
-				} else {
-					return Error( "\nERROR! Please specify a COM port - e.g. COM8\n" );
-				}
+
+                if ( !ValidPort( argComPort ) ){
+                    // I think the GC can manage the hit on this one :)
+                    return Error( "\nERROR! Please specify a device or COM port in the format: " + SampleCOMPortForEnvironment + "\ngot: " + argCommand ); 
+                }
+
 			} else {
 				usingCachedComPort = true;
 			}
@@ -738,47 +746,7 @@ internal partial class Program {
 	} //VerifyArgs
 
 
-	/// <summary>
-	/// Grabs a hex value from standard input
-	/// </summary>		
-	static UInt32 ParseHexa( CommandMode inCommand, string inString ) {
 
-		string iLower = inString.ToLowerInvariant();
-		iLower = iLower.Replace( inCommand.command().ToLowerInvariant(), "" );
-
-		#if DebugArgs
-		Console.WriteLine( "Parsing hexa " + inString );
-		#endif
-
-		// Whatever's left should be the address
-		UInt32 outAddr = (uint)Convert.ToInt32( iLower, 16 );
-
-		Console.Write( " - Parsed hexa: 0x" + outAddr.ToString( "X8" ) + "\n" );
-
-		return outAddr;
-
-	}
-
-	/// <summary>
-	/// Red console text + returns false.
-	/// </summary>	
-	/// <returns>returns false so you can do return Error("blah");</returns>
-	public static bool Error( string inString, bool printHeader = true ) {
-
-		if ( printHeader )
-			PrintUsage( false );
-		
-		Console.ForegroundColor = ConsoleColor.Red;
-		Console.Write( "\n\n" );
-		Console.Write( "ERROR! " + inString + " \n \n " );
-
-		// Leaves the user with a green console.
-		// Because we can. Shh, don't tell them till they get it right.
-		Console.ForegroundColor = ConsoleColor.Green;
-
-		return false;
-
-	}
 
 
 	// Quite satisfyingly small
@@ -1085,50 +1053,59 @@ internal partial class Program {
 
 	} // void Transfer
 
+    
+    /// <summary>
+    /// A sample (for the help menu) of how the port should be written
+    /// on this specific operating system.
+    /// </summary>
+    // Older .NET so using getter/setter instead of expression-bodied statements.
+    public static string SampleCOMPortForEnvironment{ get{
 
-	// Older .NET so getter/setter instead of expression-bodied statement.
-	public static bool POSIXEnvironment{ get{
-		
-		// 128 being mono's "Unix" ID in older versions.
+        switch( realPlatform ){
 
-		return (
-			Environment.OSVersion.Platform == PlatformID.MacOSX 
-			|| Environment.OSVersion.Platform == PlatformID.Unix
-			|| Environment.OSVersion.Platform == (PlatformID)128
-		);
+            // windows/defaults
+            default: 
+                return "COM8";
+            // most mac drivers seem to default to this
+            case PlatformID.MacOSX: 
+                //return "/dev/cu.usbserial-********";            
+                return "(/dev/cu.usbserial-******** or /dev/tty.SLAB_USBtoUART";
+            // mono's (old) unofficial "Unix" ID
+            case (PlatformID)128: 
+            case PlatformID.Unix:
+                return "/dev/ttyUSB0";
+        }
 
-	} }
+    }}
 
 
 	/// <summary>
-	/// Verify that the port argument is potentially valid
+	/// Verify that the port argument is (potentially) valid
 	/// </summary>
 	/// <param name="inPort">COM5, /dev/ttyUSB0, etc</param>
-	/// <returns></returns>
+	/// <returns>Does itlook potentially valid?</returns>
 	public static bool ValidPort( string inPort ){
 		
-		if ( POSIXEnvironment ){
-		
-			// Some kinda POSIXy environment
-			// Allow any tty device as *nix users could be using all sorts of pipes n redirects
+        switch( realPlatform ){
 
-			return inPort.StartsWith( "/dev/tty" );
-		
-		} else {
-		
-			// A windowsy sort of affair
+            // A windowsy sort of affair
+            default: 
+                return inPort.ToUpperInvariant().StartsWith( "COM" );
+            
+            // Mac
+            case PlatformID.MacOSX:                 
+                return inPort.ToLowerInvariant().StartsWith( "/dev/cu." ) | inPort.ToLowerInvariant().StartsWith( "/dev/tty" );   
 
-			return inPort.ToUpperInvariant().StartsWith( "COM" );
-			
-		}
-	
-
+            // Some kinda POSIXy environment
+            // Allow any tty device as *nix users could be using all sorts of pipes n redirects
+            case (PlatformID)128: 
+            case PlatformID.Unix:
+                return inPort.ToLowerInvariant().StartsWith( "/dev/tty" );
+            
+        }
+        
 	}
 
-	
-	public static TimeSpan GetSpan(){
-		return (DateTime.UtcNow - new DateTime(1970, 1, 1)); // shortest way to represent the epoch?
-	}
 
 
 } // Main Class

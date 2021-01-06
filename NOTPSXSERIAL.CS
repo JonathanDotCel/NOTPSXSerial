@@ -1094,7 +1094,7 @@ internal partial class Program {
             
             // Mac
             case PlatformID.MacOSX:                 
-                return inPort.ToLowerInvariant().StartsWith( "/dev/cu." ) | inPort.ToLowerInvariant().StartsWith( "/dev/tty" );   
+                return inPort.ToLowerInvariant().StartsWith( "/dev/cu" ) | inPort.ToLowerInvariant().StartsWith( "/dev/tty" );   
 
             // Some kinda POSIXy environment
             // Allow any tty device as *nix users could be using all sorts of pipes n redirects

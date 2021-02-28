@@ -988,9 +988,10 @@ public class TransferLogic
 					while ( true ){
 						
 						Console.WriteLine( "\nThe PSX may have crashed, enter debug mode? (y/n)" );
+                        Console.WriteLine( "(Also starts a listen server on port 3333." );
 						ConsoleKeyInfo c = Console.ReadKey();
 						if ( c.KeyChar == 'y' || c.KeyChar == 'Y' ){
-							GDB.Init();
+							GDB.Init( 3333 );
 							return;
 						}
 						if ( c.KeyChar == 'n' || c.KeyChar == 'N' ){

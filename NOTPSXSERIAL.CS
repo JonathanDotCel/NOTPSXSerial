@@ -69,6 +69,11 @@
 //  - moved some things to the utils class
 //
 
+// 00_03_2020 - Release 14 - (~8.0.E)
+//   - Distinction between /gdb and /bridge
+//   
+
+
 #define DebugArgs
 
 using System;
@@ -178,8 +183,16 @@ public enum CommandMode {
 	[Response("OKAY")]		
 	DEBUG,
 
-	// also sends DEBG (above) to install kernel-resident SIO
+	// UART-TCP bridge
+	[Command( "/bridge" )]
+    [NeedsPort]
+	[Challenge("NONE")]
+	[Response("OKAY")]
+	BRIDGE,
+
+	// combines /debug and /bridge
 	[Command( "/gdb" )]
+    [NeedsPort]
 	[Challenge("DEBG")]
 	[Response("OKAY")]
 	GDB,
@@ -367,6 +380,8 @@ internal partial class Program {
 	static UInt32 argSize;
 	static UInt32 argValue;
 	static UInt32 argCard;
+    static UInt32 argPort;
+    static string argIP;
 	static CommandMode argCommand = CommandMode.NOT_SET;
 	static string argFileName;
 	static string argRegister = "";
@@ -381,7 +396,8 @@ internal partial class Program {
 	static bool satisfiedCardRequirement = false;
 	static bool satisfiedInputFileRequirements = false;
 	static bool satisfiedOutputFileRequirements = false;
-	
+	static bool satisfiedIPRequirements = false;
+    static bool satisfiedPortRequirements = false;
 
 	// Misc
 	static byte[] inFile;
@@ -616,6 +632,40 @@ internal partial class Program {
 
 					}
 
+                    if ( argCommand.hasAttribute<NeedsIPAttribute>() ){
+
+                        #if DebugArgs
+                        Console.WriteLine( "__DEBUG__Command " + c + " requires an IP/host parameter!" );
+                        #endif
+
+                        //param = remainingArgs[paramIndex].ToLowerInvariant();
+                        argIP = param;
+                        remainingArgs.RemoveAt( paramIndex );
+                        satisfiedIPRequirements = true;
+
+                    }
+
+                    if ( argCommand.hasAttribute<NeedsPortAttribute>() ){
+
+                        #if DebugArgs
+                        Console.WriteLine( "__DEBUG__Command " + c + " requires a local/remote port!" );
+                        #endif
+
+                        if ( remainingArgs.Count == 0 ){
+                            return Error( "Need to specify a local TCP/IP port!" );
+                        }
+                        
+                        param = remainingArgs[paramIndex].ToLowerInvariant();
+
+                        if ( !UInt32.TryParse( param, out argPort ) ){
+                            return Error( "EXCEPTION: Couldn't parse a valid port number from \"" + param + "\"" );
+                        }
+
+                        remainingArgs.RemoveAt( paramIndex );
+                        satisfiedPortRequirements = true;
+
+                    }
+
 					// Do we need a memcard number
 					if (argCommand.hasAttribute<NeedsCardNumberAttribute>())
 					{
@@ -709,6 +759,8 @@ internal partial class Program {
 		if ( !argCommand.hasAttribute<NeedsCardNumberAttribute>() ) satisfiedCardRequirement = true;
 		if ( !argCommand.hasAttribute<NeedsInputFileAttribute>() ) satisfiedInputFileRequirements = true;
 		if ( !argCommand.hasAttribute<NeedsOutputFileAttribute>() ) satisfiedOutputFileRequirements = true;
+        if ( !argCommand.hasAttribute<NeedsIPAttribute>() ) satisfiedIPRequirements = true;
+        if ( !argCommand.hasAttribute<NeedsPortAttribute>() ) satisfiedPortRequirements = true;
 		
 		// Missed something...
 		if ( !satisfiedAddressRequirements )    return Error("Did you specify an address or hex value? E.g. 0x23456788\n");
@@ -718,6 +770,8 @@ internal partial class Program {
 		if ( !satisfiedCardRequirement )        return Error("Specify memory card 0 or 1!");
 		if ( !satisfiedInputFileRequirements )  return Error("Specify an input file!");
 		if ( !satisfiedOutputFileRequirements ) return Error("Specify a filename to write to!");
+        if ( !satisfiedIPRequirements )         return Error("Specify a remote host/ip!" );
+        if ( !satisfiedPortRequirements )       return Error("Specify a local or remote port!" );
 
 
 		#if DebugArgs
@@ -1034,8 +1088,13 @@ internal partial class Program {
 		//
 
 		if (argCommand == CommandMode.GDB)
-		{
-			GDB.Init();
+		{            
+			GDB.DebugInit( argPort );
+		}
+
+		if (argCommand == CommandMode.BRIDGE)
+		{            
+			GDB.Init( argPort );
 		}
 
 		//
@@ -1069,7 +1128,8 @@ internal partial class Program {
             // most mac drivers seem to default to this
             case PlatformID.MacOSX: 
                 //return "/dev/cu.usbserial-********";            
-                return "(/dev/cu.usbserial-******** or /dev/tty.SLAB_USBtoUART";
+                //return "(/dev/cu.usbserial-******** or /dev/tty.SLAB_USBtoUART";
+                return "(/dev/cu.usb* or /dev/tty.SLAB_USBtoUART";
             // mono's (old) unofficial "Unix" ID
             case (PlatformID)128: 
             case PlatformID.Unix:
@@ -1156,7 +1216,8 @@ public class NeedsSizeAttribute : System.Attribute{ public bool NeedsSize(){ ret
 public class NeedsRegisterAttribute : System.Attribute{ public bool NeedsRegister(){ return true; } }
 public class NeedsValueAttribute : System.Attribute{ public bool NeedsValue(){ return true; } }
 public class NeedsCardNumberAttribute : System.Attribute{ public bool NeedsCardNumber(){ return true; } }
-
+public class NeedsPortAttribute : System.Attribute{ public bool NeedsPort(){ return true; } }
+public class NeedsIPAttribute : System.Attribute{ public bool NeedsIP(){ return true; } }
 
 public static class CommandModeExtensions {
 

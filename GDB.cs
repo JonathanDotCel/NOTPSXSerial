@@ -66,8 +66,9 @@ public class GDB{
 
 	public static Socket socket;
 
-    public static void Init(){
-		
+
+    public static void DebugInit( UInt32 localPort ){
+
 		Console.WriteLine( "Checking if Unirom is in debug mode..." );
 
 		// if it returns true, we might enter /m (monitor) mode, etc
@@ -84,9 +85,18 @@ public class GDB{
 
 		Console.WriteLine( "Monitoring sio..." );
 
-		InitSocket();
+        Console.WriteLine( "********************** WARNING ***************************" );
+        Console.WriteLine( "THE TCP BRIDGE DOES NOT CURRENTLY ACCEPT COMMANDS FROM GDB" );
+        Console.WriteLine( "********************** ******* ***************************" );
+        
+        Init( localPort );
 
-		MonitorSIOAndSocket();
+    }
+
+    public static void Init( UInt32 localPort ){
+		
+		InitListenServer( localPort );
+		MonitorBridge();
 
     }
 
@@ -97,16 +107,9 @@ public class GDB{
 
 	public static void AcceptCallback( IAsyncResult result ){
 		
-		Console.WriteLine( "CCB" );
-
 		Socket whichSocket = (Socket)result.AsyncState;
-
-		Console.WriteLine( "CCB 2" );
-
 		Socket newSocket = socket.EndAccept( result );
-
-		Console.WriteLine( "CCB 3" );
-
+        
 		Console.WriteLine( "Remote connection to local socket accepted: " + whichSocket.LocalEndPoint );
 		Console.WriteLine( "Remote connection to local socket accepted: " + newSocket.LocalEndPoint );
 
@@ -116,7 +119,7 @@ public class GDB{
 
 	}
 
-	public static void RecieveCallback( IAsyncResult ar ){
+	private static void RecieveCallback( IAsyncResult ar ){
 		
 		//Console.WriteLine( "SOCKET: RCB " + ar.AsyncState );
 
@@ -162,7 +165,7 @@ public class GDB{
 
 	}
 
-	public static void Send( Socket inSocket, string inData ){
+	private static void Send( Socket inSocket, string inData ){
 		
 		byte[] bytes = ASCIIEncoding.ASCII.GetBytes( inData );
 
@@ -182,13 +185,14 @@ public class GDB{
 
 	}
 
-	private static void InitSocket(){
+	private static void InitListenServer( UInt32 inPort ){
 		
-
+        
 		IPAddress ip = IPAddress.Parse( "127.0.0.1" );
-		//IPAddress ip = IPAddress.Parse( "192.168.0.3" );
 
-		IPEndPoint localEndpoint = new IPEndPoint( ip, 3333 );
+        Console.WriteLine( "Opening a listen server on " + ip + ":" + inPort );
+		
+		IPEndPoint localEndpoint = new IPEndPoint( ip, (int)inPort );
 
 		socket = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
 
@@ -297,7 +301,7 @@ public class GDB{
 
 	}
 
-    public static void MonitorSIOAndSocket(){
+    public static void MonitorBridge(){
         
         string responeBuffer = ":)";
 

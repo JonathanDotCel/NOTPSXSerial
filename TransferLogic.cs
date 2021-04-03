@@ -6,6 +6,7 @@ using System;
 using System.Threading;
 using System.IO;
 using System.IO.Ports;
+using System.Text;
 using static Utils;
 
 public class TransferLogic
@@ -56,6 +57,26 @@ public class TransferLogic
 	/// </summary>	
 	public static bool Command_SendROM( UInt32 inAddr, byte[] inBytes ){
 
+        if ( inBytes.Length >= 15 ){
+
+            string license1 = Encoding.ASCII.GetString( inBytes, 0x04, 11 );
+            string license2 = Encoding.ASCII.GetString( inBytes, 0x84, 11 );
+
+            bool safe = (license1 == "Licensed by") || (license2 == "Licensed by");
+
+            if ( !safe ){
+
+                Console.WriteLine( "Hey hey hey hey! This doesn't look like a ROM. Maybe an .exe?" );
+                Console.WriteLine( "Are you sure you want to flash this?" );
+                ConsoleKeyInfo c = Console.ReadKey();
+                if ( c.KeyChar.ToString().ToLowerInvariant() != "y" ){
+                    return false;
+                }
+
+            }
+            
+        }
+        
 		UInt32 checkSum = CalculateChecksum(inBytes);
 
 		if ( !ChallengeResponse( CommandMode.SEND_ROM ) )

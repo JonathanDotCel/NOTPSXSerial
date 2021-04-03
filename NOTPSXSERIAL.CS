@@ -1104,7 +1104,7 @@ internal partial class Program {
 		if ( monitorComms ){
 			TransferLogic.DoMonitor();
 		} else {
-			Console.WriteLine("\n This is where we part ways!");
+			Console.WriteLine("\n Bye!");
 			activeSerial.Close();			
 		}
 

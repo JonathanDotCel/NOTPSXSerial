@@ -981,8 +981,13 @@ public class TransferLogic
 	/// Leaves the serial connection open
 	/// Will attempt to detect /HALT notifications from Unirom
 	/// and catch crash/exception events
-	/// </summary>
+	/// </summary>    
 	public static void DoMonitor(){
+
+        // Note:
+        // Mono hasn't implemented the activeSerial.ReceivedBytesThreshold methods yet
+        // so we can't really use events. Instead the max we'll wait is 1ms to enter the
+        // tight inner loop. Should be fine if you're not filling a ~2kb buffer in 1ms
 
 		// a rolling buffer of the last 4 things recieved
 		string lastMonitorBytes = "";
@@ -990,7 +995,7 @@ public class TransferLogic
 		while (true)
 		{
 
-			if (activeSerial.BytesToRead > 0)
+			while (activeSerial.BytesToRead > 0)
 			{
 
 				// echo things to the screen
@@ -1000,6 +1005,7 @@ public class TransferLogic
 				
 				// check if the PSX has crashed
 
+                // TODO: use a more appropriate data collection, lol
 				lastMonitorBytes += (char)responseByte;
 				while ( lastMonitorBytes.Length > 4 )
 					lastMonitorBytes = lastMonitorBytes.Remove( 0, 1 );
@@ -1011,11 +1017,10 @@ public class TransferLogic
 						Console.WriteLine( "\nThe PSX may have crashed, enter debug mode? (y/n)" );
                         Console.WriteLine( "(Also starts a listen server on port 3333." );
 						ConsoleKeyInfo c = Console.ReadKey();
-						if ( c.KeyChar == 'y' || c.KeyChar == 'Y' ){
+						if ( c.KeyChar.ToString().ToLowerInvariant() == "y" ){                            
 							GDB.Init( 3333 );
 							return;
-						}
-						if ( c.KeyChar == 'n' || c.KeyChar == 'N' ){
+						} else {						
 							Console.WriteLine( "\nReturned to monitor mode." );
 							break;
 						}
@@ -1026,6 +1031,8 @@ public class TransferLogic
 				}
 
 			}
+            
+            Thread.Sleep( 1 );
 
 		}
 

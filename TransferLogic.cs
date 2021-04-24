@@ -1014,11 +1014,13 @@ public class TransferLogic
 					
 					while ( true ){
 						
-						Console.WriteLine( "\nThe PSX may have crashed, enter debug mode? (y/n)" );
-                        Console.WriteLine( "(Also starts a listen server on port 3333." );
+						Console.WriteLine( "\nThe PSX may have crashed, enter debug mode? (y/n)" );                        
+                        Console.WriteLine( "(Also starts a TCP/SIO bridge on port 3333." );
 						ConsoleKeyInfo c = Console.ReadKey();
 						if ( c.KeyChar.ToString().ToLowerInvariant() == "y" ){                            
-							GDB.Init( 3333 );
+                            GDB.GetRegs();
+                            GDB.DumpRegs();
+							GDB.Init( 3333 );                            
 							return;
 						} else {						
 							Console.WriteLine( "\nReturned to monitor mode." );

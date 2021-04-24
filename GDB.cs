@@ -96,7 +96,7 @@ public class GDB{
     public static void Init( UInt32 localPort ){
 		
 		InitListenServer( localPort );
-		MonitorBridge();
+		MonitorSerialToSocket();
 
     }
 
@@ -105,13 +105,17 @@ public class GDB{
 	public static StringBuilder sb = new StringBuilder();
 	public static string socketString; // oh boy, this will be nuts on the GC
 
+    public static Socket replySocket;
+
 	public static void AcceptCallback( IAsyncResult result ){
 		
 		Socket whichSocket = (Socket)result.AsyncState;
 		Socket newSocket = socket.EndAccept( result );
         
-		Console.WriteLine( "Remote connection to local socket accepted: " + whichSocket.LocalEndPoint );
+		//Console.WriteLine( "Remote connection to local socket accepted: " + whichSocket.LocalEndPoint );
 		Console.WriteLine( "Remote connection to local socket accepted: " + newSocket.LocalEndPoint );
+
+        replySocket = newSocket;
 
 		// on the new socket or it'll moan. I don't like this setup.
 		newSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), newSocket );
@@ -139,7 +143,7 @@ public class GDB{
 			sb.Append( thisPacket );
 			
 			socketString = sb.ToString();
-			Console.WriteLine( "\rSOCKET: rec: " + thisPacket );
+			//Console.WriteLine( "\rSOCKET: rec: " + thisPacket );
 
 			if ( socketString.IndexOf("<EOF>") > -1 ){
 
@@ -301,31 +305,43 @@ public class GDB{
 
 	}
 
-    public static void MonitorBridge(){
+    // Sockets are sent over serial as and when data arrives
+    // This function polls the sio and sends it back because
+    // mono hasn't implemented sio callbacks.
+    public static void MonitorSerialToSocket(){
         
-        string responeBuffer = ":)";
+        // 10kb buffer?
+        byte[] responseBytes = new byte[2048 * 10];
+        int bytesInBuffer = 0;
 
         while( true ){
 
-            if ( serial.BytesToRead != 0 ){
+            while ( serial.BytesToRead != 0 && bytesInBuffer < responseBytes.Length ){
             
-                responeBuffer += (char)serial.ReadByte();
-
-                if ( responeBuffer.Length > 4 ){
-                    responeBuffer = responeBuffer.Remove( 0, 1 );
-                }
-
-                Console.WriteLine( "\rSIO   : ResponseBuffer: " + responeBuffer + "  Len = " + responeBuffer.Length );
-
+                byte val = (byte)serial.ReadByte();
+                
+                responseBytes[bytesInBuffer++] = (byte)val;
+                
+                // TODO: keep tabs on this for GDB mode but not Bridge mode
+                /*
                 // PSX telling us it was halted.
-                if ( responeBuffer == "HLTD" ){
-					responeBuffer = "";
+                if ( responseAsString == "HLTD" ){
+					responseAsString = "";
                     Console.WriteLine( "PSX was halted" );
                 }
-
+                */
             }
 
-        }
+            if ( bytesInBuffer > 0 ){
+                // send it baaahk
+                if ( replySocket != null ){
+                    replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None );
+                    bytesInBuffer = 0;
+                }
+            }
+
+        } // while
+        
 
     }
 

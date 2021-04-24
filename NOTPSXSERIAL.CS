@@ -269,7 +269,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-	const string VERSION = "v12 (8.0.E)";
+	const string VERSION = "v12 (8.0.F)";
 	const int TIMEOUT = 500;
 
 	public static void PrintUsage( bool justTheTip = false ) {

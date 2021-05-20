@@ -208,6 +208,7 @@
     <Compile Include="GDB.cs" />
     <Compile Include="NOTPSXSERIAL.CS" />
     <Compile Include="TransferLogic.cs" />
+    <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include=".git\objects\info\" />

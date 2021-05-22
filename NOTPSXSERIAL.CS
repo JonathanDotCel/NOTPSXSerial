@@ -294,7 +294,8 @@ internal partial class Program {
 		Console.Write( "\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
-		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax & r0r0\n" );
+		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, r0r0\n" );
+		Console.Write( "            Skitchin, danhans42, Schnappy & Nicolas Noble\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "\n" );
 

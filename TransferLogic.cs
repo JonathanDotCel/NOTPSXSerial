@@ -1232,6 +1232,8 @@ public class TransferLogic
 			return false;
 		}
 
+		Thread.Sleep( 200 );
+
 		byte[] buffer = new byte[ 0x80200000 - 0x80010000 ]; // just shy of 2MB
 
 		for( int i = 0; i < buffer.Length / 4 ; i++ ){

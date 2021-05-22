@@ -251,6 +251,10 @@ public enum CommandMode {
 	[Response("OKAY")]
 	MCUP,
 
+	[Command("/wipemem")]
+	[NeedsValue]
+	WIPEMEM,
+
 	/*
 	// Deprecated as of 8.0.C's self-correcting algo
 	[Command( "/verify" )]
@@ -1058,7 +1062,11 @@ internal partial class Program {
 
 			if ( !TransferLogic.Command_MemcardUpload( argCard, inFile ) ) return false;
 		}
+		
+		if ( argCommand == CommandMode.WIPEMEM ){
 
+			if ( !TransferLogic.Command_WipeMem( argValue ) ) return false;
+		}
 		
 		if (argCommand == CommandMode.MCDOWN)
 		{			

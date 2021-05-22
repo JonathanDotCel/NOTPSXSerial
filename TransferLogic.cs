@@ -180,7 +180,7 @@ public class TransferLogic
 
 			// Some segs have the .elf magic number
 			Console.ForegroundColor = HasElfHeader( seg.GetFileContents() ) ? ConsoleColor.Red : oldColor;
-
+			
 			Console.WriteLine( "Segment " + i );
 			Console.WriteLine( $"  Offset   : 0x{seg.Offset.ToString("X")}");
 			Console.WriteLine( $"  Size     : 0x{seg.Size.ToString("X")}  (0x{seg.FileSize.ToString("X")})" );
@@ -241,6 +241,8 @@ public class TransferLogic
 			if ( !result ){
 				return Error( $"Error uploading elf segment {i} of {elfy.Segments.Count} to addr {ss.PhysicalAddress}" );
 			}
+
+			Thread.Sleep( 200 );
 						
 		}
 
@@ -1213,6 +1215,35 @@ public class TransferLogic
 
 	}
 
+	/// <summary>
+	/// Puts Unirom into /debug mode and wipes everything from the end of the kernel
+	/// to the stack, where it will crash.
+	//  0x80010000 -> 0x801FFF??
+	/// </summary>
+	/// <param name="wipeValue">32 bit value to fill ram with</param>
+	/// <returns></returns>
+	public static bool Command_WipeMem( UInt32 wipeValue ){
+
+		// if it returns true, we might enter /m (monitor) mode, etc
+		if (
+			!TransferLogic.ChallengeResponse( CommandMode.DEBUG )
+		) {
+			Console.WriteLine( "Couldn't determine if Unirom is in debug mode." );
+			return false;
+		}
+
+		byte[] buffer = new byte[ 0x80200000 - 0x80010000 ]; // just shy of 2MB
+
+		for( int i = 0; i < buffer.Length / 4 ; i++ ){
+			BitConverter.GetBytes( wipeValue ).CopyTo( buffer, i *4 );
+		}
+
+		Command_SendBin( 0x80010000, buffer );
+
+		// It won't return.
+		return true;
+
+	}
 
 	/// <summary>
 	/// Returns a (weak) checksum for the given bytes

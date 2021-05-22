@@ -8,6 +8,11 @@ using System.IO;
 using System.IO.Ports;
 using System.Text;
 using static Utils;
+#if USE_ELFSHARP
+using ELFSharp.ELF;
+using ELFSharp.ELF.Sections;
+using ELFSharp.ELF.Segments;
+#endif
 
 public class TransferLogic
 {
@@ -138,16 +143,205 @@ public class TransferLogic
 
 	}
 
+
+#if USE_ELFSHARP
+
 	/// <summary>
-	/// Uploads an .exe to its final execution address
-	/// and launches it. May or may not clear .bss depending on
-	/// your Unirom Version.
-	/// Note: does not upload the header or checksum that area
+	/// Dumps the Sections and Segments from an .ELF loaded via ElfSharp
+	/// </summary>
+	/// <param name="inElf"></param>
+	public static void DumpElfInfo( IELF inElf ){
+
+		ConsoleColor oldColor = Console.ForegroundColor;
+
+		Console.WriteLine( "\nNum ELF sections: " + inElf.Sections.Count );
+
+		for( int i = 0; i < inElf.Sections.Count; i++ ){
+
+			Section<UInt32> sect = (inElf.Sections[i] as Section<UInt32>);
+
+			Console.ForegroundColor = (sect.Size == 0)? ConsoleColor.Red : oldColor;
+
+			Console.WriteLine( $"Section {i}: {sect.Name}" );			
+			Console.WriteLine( $"  Addr: 0x{sect.LoadAddress.ToString("X")}" );
+			Console.WriteLine( $"  Size: 0x{sect.Size.ToString( "X" )} (0x{sect.EntrySize.ToString("X")})" );
+			Console.WriteLine( $"  Flags: {sect.Flags}" );
+			
+			//byte[] b = sect.GetContents();
+			//File.WriteAllBytes( "sect_" + sect.Name, b );
+
+		}
+
+		Console.WriteLine( "\nNum ELF segments: " + inElf.Segments.Count );
+
+		for ( int i = 0; i < inElf.Segments.Count; i++ ) {
+
+			Segment<UInt32> seg = inElf.Segments[i] as Segment<UInt32>;
+
+			// Some segs have the .elf magic number
+			Console.ForegroundColor = HasElfHeader( seg.GetFileContents() ) ? ConsoleColor.Red : oldColor;
+			
+			Console.WriteLine( "Segment " + i );
+			Console.WriteLine( $"  Offset   : 0x{seg.Offset.ToString("X")}");
+			Console.WriteLine( $"  Size     : 0x{seg.Size.ToString("X")}  (0x{seg.FileSize.ToString("X")})" );
+			Console.WriteLine( $"  PhysAddr : 0x{seg.PhysicalAddress.ToString("X")} for 0x{seg.Address.ToString("X")}" );			
+			Console.WriteLine( $"  Flags    : " + seg.Flags );
+			Console.WriteLine( $"  Type     : " + seg.Type );
+
+			//byte[] b = seg.GetFileContents();
+			//File.WriteAllBytes( "seg_" + i, b );
+
+		}
+
+		Console.ForegroundColor = oldColor;
+
+	}
+
+
+	/// <summary>
+	///  Convert a .ELF to an .EXE
+	/// </summary>	
+	public static byte[] ELF2EXE( byte[] inBytes ){
+
+		// Is it actually an elf tho?
+		// Maybe it's a sneaky pixie.
+		if ( !HasElfHeader( inBytes ) ){
+			Error( "This file doesn't have a valid .ELF header!" );
+			return null;
+		}
+
+		MemoryStream mStream = new MemoryStream( inBytes );
+		IELF elfy = ELFReader.Load( mStream, true );
+
+		DumpElfInfo( elfy );
+		
+		// TODO: allow for larger RAM mods?		
+		UInt32 ramLength = 0x80200000 - 0x80000000;
+
+		// Let's build an .exe!
+		UInt32 seekPos = 0;
+		byte[] outBytes = new byte[ramLength];
+
+		// Start with the header section:
+
+		for( int i = 0; i < elfy.Sections.Count; i++ ){
+
+			Section<UInt32> sect = elfy.Sections[i] as Section<UInt32>;
+
+			// Assume it's the header, since the 'PS-EXE' ASCII isn't guaranteed
+			if ( sect.Size == 0x800 ){
+
+				sect.GetContents().CopyTo( outBytes, seekPos );
+				seekPos += sect.Size;
+				break;
+
+			}
+
+		}
+
+		if ( seekPos == 0 ){			
+			Error( "Couldn't find a PS-EXE header!" );
+			return null;
+		}
+
+		Segment<UInt32> lastAddedSegment = null;
+
+		// Add the relevant segments:
+
+		for( int i = 0; i < elfy.Segments.Count; i++ ){
+
+			Segment<UInt32> ss = elfy.Segments[ i ] as Segment<UInt32>;
+
+			// Usually 0x00010000 lower than the .exe starts
+			// E.g. would nuke the full kernel area for a program at 0x80010000			
+			bool segmentHasElfHeader = HasElfHeader( ss.GetFileContents() );
+
+			Console.WriteLine( "\nSending Segment " + i );
+			Console.WriteLine( $"  Offset   : 0x{ss.Offset.ToString( "X" )}  Size  : 0x{ss.Size.ToString( "X" )}" );
+			Console.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString( "X" )} for 0x{ss.Address.ToString( "X" )}" );
+			Console.WriteLine( $"  ElfHddr  : {segmentHasElfHeader}" );
+					
+			if ( segmentHasElfHeader || ss.Size == 0 ) {
+				Console.WriteLine( "Skipping..." );
+				continue;
+			}
+
+			if ( lastAddedSegment == null ){
+				// First segment always goes right on the end of the header
+			} else {
+				// Else we'll judge the next segment start based on the disance between
+				// their physAddrs. So if there's a gap, it doesn't matter.
+				// E.g. when nextSeg.Start is bigger than (lastSeg.Start + lastSeg.Length)
+				seekPos += (ss.PhysicalAddress - lastAddedSegment.PhysicalAddress);
+			}
+
+			ss.GetFileContents().CopyTo( outBytes, seekPos );
+			lastAddedSegment = ss;
+
+		}
+
+		if ( lastAddedSegment == null ){			
+			Error( "Couldn't find any segments to send!" );
+			return null;
+		}
+
+		UInt32 fileLength = seekPos + lastAddedSegment.Size;
+
+		// Trim the array to use only as long as the .exe requires.
+		Array.Resize<byte>( ref outBytes, (int)fileLength );
+
+		return outBytes;
+
+	}
+
+
+#endif  // ELFSHARP
+
+	/// <summary>
+	/// Does the byte array have the 0x7F 'E' 'L' 'F' header?
+	/// The header could be for the entire file, or for individual segs
+	/// </summary>
+	/// <param name="inBytes"></param>
+	/// <returns></returns>	
+	public static bool HasElfHeader( byte[] inBytes ) {
+
+		if ( inBytes.Length < 4 )
+			return false;
+
+		UInt32 magicNumber = BitConverter.ToUInt32( inBytes, 0 );
+		return (magicNumber == 0x464C457F);
+
+	}
+
+	/// <summary>
+	/// Uploads an .exe to the address specified in the header.
+	/// Uploads an .elf as .bin segments and executes based on the header section.
+	/// 
+	/// Note: the full header is never uploaded
+	/// Note: Unirom may or may not clear .bss depending on version
+	/// 
 	/// </summary>
 	/// <param name="inAddr">Make sure it's correct</param>
 	/// <param name="inBytes">Raw bytes minus the header</param>	
-	public static bool Command_SendEXE( UInt32 inAddr, byte[] inBytes ){
+	public static bool Command_SendEXE( byte[] inBytes ){
 		
+		if ( HasElfHeader( inBytes ) ){
+		
+#if !USE_ELFSHARP
+			return Error( "Error: .ELF format not supported!" );
+#else
+			Console.WriteLine( "Detected .ELF file format..." );
+			
+			byte[] check = ELF2EXE( inBytes );
+			if (  check == null || check.Length == 0 ){
+				return Error( "Couldn't convert this file to an .exe for sending!" );				
+			}
+
+			inBytes = check;
+#endif
+
+		}
+
 		UInt32 checkSum = CalculateChecksum(inBytes, true);
 
 		int mod = inBytes.Length % 2048;
@@ -1041,6 +1235,37 @@ public class TransferLogic
 
 	}
 
+	/// <summary>
+	/// Puts Unirom into /debug mode and wipes everything from the end of the kernel
+	/// to the stack, where it will crash.
+	//  0x80010000 -> 0x801FFF??
+	/// </summary>
+	/// <param name="wipeValue">32 bit value to fill ram with</param>
+	/// <returns></returns>
+	public static bool Command_WipeMem( UInt32 wipeAddress, UInt32 wipeValue ){
+
+		// if it returns true, we might enter /m (monitor) mode, etc
+		if (
+			!TransferLogic.ChallengeResponse( CommandMode.DEBUG )
+		) {
+			Console.WriteLine( "Couldn't determine if Unirom is in debug mode." );
+			return false;
+		}
+
+		Thread.Sleep( 200 );
+
+		byte[] buffer = new byte[ 0x80200000 - wipeAddress ]; // just shy of 2MB
+
+		for( int i = 0; i < buffer.Length / 4 ; i++ ){
+			BitConverter.GetBytes( wipeValue ).CopyTo( buffer, i *4 );
+		}
+
+		Command_SendBin( wipeAddress, buffer );
+
+		// It won't return.
+		return true;
+
+	}
 
 	/// <summary>
 	/// Returns a (weak) checksum for the given bytes

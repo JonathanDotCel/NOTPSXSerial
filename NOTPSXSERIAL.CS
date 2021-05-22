@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
+// Additionally, the ELFSharp binary is licensed under the terms
+// of the LLVM Release license. See ELFSharp_license.txt
 //
 // NoPS - NotPsxSerial
 // Feb 2020 - github.com/JonathanDotCel
@@ -251,6 +253,11 @@ public enum CommandMode {
 	[Response("OKAY")]
 	MCUP,
 
+	[Command("/wipemem")]
+	[NeedsValue]
+	[NeedsAddress]
+	WIPEMEM,
+
 	/*
 	// Deprecated as of 8.0.C's self-correcting algo
 	[Command( "/verify" )]
@@ -287,7 +294,8 @@ internal partial class Program {
 		Console.Write( "\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
-		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax & r0r0\n" );
+		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, r0r0\n" );
+		Console.Write( "            Skitchin, danhans42, Schnappy & Nicolas Noble\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "\n" );
 
@@ -947,7 +955,7 @@ internal partial class Program {
 
 		if ( argCommand == CommandMode.SEND_EXE )
 		{			
-			TransferLogic.Command_SendEXE(argAddr, inFile);
+			TransferLogic.Command_SendEXE(inFile);
 		}
 
 		if ( argCommand == CommandMode.SEND_BIN )
@@ -1058,7 +1066,11 @@ internal partial class Program {
 
 			if ( !TransferLogic.Command_MemcardUpload( argCard, inFile ) ) return false;
 		}
+		
+		if ( argCommand == CommandMode.WIPEMEM ){
 
+			if ( !TransferLogic.Command_WipeMem( argAddr, argValue ) ) return false;
+		}
 		
 		if (argCommand == CommandMode.MCDOWN)
 		{			

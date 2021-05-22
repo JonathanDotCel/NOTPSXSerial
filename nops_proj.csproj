@@ -180,6 +180,7 @@
     <None Include=".vs\VSWorkspaceState.json" />
     <None Include="app.config" />
     <None Include="build.bat" />
+    <None Include="build.sh" />
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>

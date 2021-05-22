@@ -297,8 +297,12 @@ public class TransferLogic
 
 #endif  // ELFSHARP
 
-	// Does the byte array have the standard 0x7F 'E' 'L' 'F' header?
-	// This could be the entire file, or just one of the segments.
+	/// <summary>
+	/// Does the byte array have the 0x7F 'E' 'L' 'F' header?
+	/// The header could be for the entire file, or for individual segs
+	/// </summary>
+	/// <param name="inBytes"></param>
+	/// <returns></returns>	
 	public static bool HasElfHeader( byte[] inBytes ) {
 
 		if ( inBytes.Length < 4 )

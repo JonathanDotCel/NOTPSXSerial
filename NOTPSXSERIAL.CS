@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //
+// Additionally, the ELFSharp binary is licensed under the terms
+// of the LLVM Release license. See ELFSharp_license.txt
 //
 // NoPS - NotPsxSerial
 // Feb 2020 - github.com/JonathanDotCel

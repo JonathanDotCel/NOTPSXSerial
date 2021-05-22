@@ -237,13 +237,13 @@ public class TransferLogic
 				continue;
 			}
 
+			Thread.Sleep( 200 );
+
 			bool result = Command_SendBin( ss.PhysicalAddress, ss.GetMemoryContents() );
 			if ( !result ){
 				return Error( $"Error uploading elf segment {i} of {elfy.Segments.Count} to addr {ss.PhysicalAddress}" );
 			}
-
-			Thread.Sleep( 200 );
-						
+			
 		}
 
 		// Now have a flip through the sections
@@ -1222,7 +1222,7 @@ public class TransferLogic
 	/// </summary>
 	/// <param name="wipeValue">32 bit value to fill ram with</param>
 	/// <returns></returns>
-	public static bool Command_WipeMem( UInt32 wipeValue ){
+	public static bool Command_WipeMem( UInt32 wipeAddress, UInt32 wipeValue ){
 
 		// if it returns true, we might enter /m (monitor) mode, etc
 		if (
@@ -1234,13 +1234,13 @@ public class TransferLogic
 
 		Thread.Sleep( 200 );
 
-		byte[] buffer = new byte[ 0x80200000 - 0x80010000 ]; // just shy of 2MB
+		byte[] buffer = new byte[ 0x80200000 - wipeAddress ]; // just shy of 2MB
 
 		for( int i = 0; i < buffer.Length / 4 ; i++ ){
 			BitConverter.GetBytes( wipeValue ).CopyTo( buffer, i *4 );
 		}
 
-		Command_SendBin( 0x80010000, buffer );
+		Command_SendBin( wipeAddress, buffer );
 
 		// It won't return.
 		return true;

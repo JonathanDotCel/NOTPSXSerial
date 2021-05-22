@@ -253,6 +253,7 @@ public enum CommandMode {
 
 	[Command("/wipemem")]
 	[NeedsValue]
+	[NeedsAddress]
 	WIPEMEM,
 
 	/*
@@ -1065,7 +1066,7 @@ internal partial class Program {
 		
 		if ( argCommand == CommandMode.WIPEMEM ){
 
-			if ( !TransferLogic.Command_WipeMem( argValue ) ) return false;
+			if ( !TransferLogic.Command_WipeMem( argAddr, argValue ) ) return false;
 		}
 		
 		if (argCommand == CommandMode.MCDOWN)

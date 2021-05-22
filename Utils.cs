@@ -22,7 +22,7 @@ public class Utils{
         #endif
 
         // Whatever's left should be the address
-        UInt32 outAddr = (uint)Convert.ToInt32( iLower, 16 );
+        UInt32 outAddr = (UInt32)Convert.ToInt32( iLower, 16 );
 
         Console.Write( " - Parsed hexa: 0x" + outAddr.ToString( "X8" ) + "\n" );
 

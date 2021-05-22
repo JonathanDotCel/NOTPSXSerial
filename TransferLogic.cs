@@ -176,7 +176,7 @@ public class TransferLogic
 
 		for ( int i = 0; i < inElf.Segments.Count; i++ ) {
 
-			Segment<uint> seg = inElf.Segments[i] as Segment<uint>;
+			Segment<UInt32> seg = inElf.Segments[i] as Segment<UInt32>;
 
 			// Some segs have the .elf magic number
 			Console.ForegroundColor = HasElfHeader( seg.GetFileContents() ) ? ConsoleColor.Red : oldColor;
@@ -220,7 +220,7 @@ public class TransferLogic
 		
 		for ( int i = 0; i < elfy.Segments.Count; i++ ) {
 
-			Segment<uint> ss = elfy.Segments[i] as Segment<uint>;
+			Segment<UInt32> ss = elfy.Segments[i] as Segment<UInt32>;
 
 			bool segmentHasElfHeader = HasElfHeader( ss.GetFileContents() );
 

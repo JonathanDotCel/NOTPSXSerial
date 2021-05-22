@@ -5,14 +5,18 @@
 .idea
 .vscode
 
+Thumbs.db
 .DS_Store
 desktop.ini
 
 *.bin*
 *.log*
 *exclude*
+
 *.psx
 *.mcr
+*.elf
+
 test_*
 comport.txt
 
@@ -21,6 +25,8 @@ obj\
 
 bin
 obj
+*.pdb
+
 oldnops.exe
 testdump.cmd
 testexe.cmd

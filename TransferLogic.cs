@@ -199,16 +199,15 @@ public class TransferLogic
 
 
 	/// <summary>
-	/// Send a raw .ELF files piece by piece to the Playstation.
-	/// </summary>
-	/// <param name="inBytes">The raw .elf file</param>
-	/// <returns></returns>
-	public static bool Command_SendELF( byte[] inBytes ){
+	///  Convert a .ELF to an .EXE
+	/// </summary>	
+	public static byte[] ELF2EXE( byte[] inBytes ){
 
 		// Is it actually an elf tho?
 		// Maybe it's a sneaky pixie.
 		if ( !HasElfHeader( inBytes ) ){
-			return Error( "This file doesn't have a valid .ELF header!" );
+			Error( "This file doesn't have a valid .ELF header!" );
+			return null;
 		}
 
 		MemoryStream mStream = new MemoryStream( inBytes );
@@ -216,74 +215,82 @@ public class TransferLogic
 
 		DumpElfInfo( elfy );
 		
-		// Read through the segments for the ones we want.
-		
-		for ( int i = 0; i < elfy.Segments.Count; i++ ) {
+		// TODO: allow for larger RAM mods?		
+		UInt32 ramLength = 0x80200000 - 0x80000000;
 
-			Segment<UInt32> ss = elfy.Segments[i] as Segment<UInt32>;
+		// Let's build an .exe!
+		UInt32 seekPos = 0;
+		byte[] outBytes = new byte[ramLength];
 
+		// Start with the header section:
+
+		for( int i = 0; i < elfy.Sections.Count; i++ ){
+
+			Section<UInt32> sect = elfy.Sections[i] as Section<UInt32>;
+
+			// Assume it's the header, since the 'PS-EXE' ASCII isn't guaranteed
+			if ( sect.Size == 0x800 ){
+
+				sect.GetContents().CopyTo( outBytes, seekPos );
+				seekPos += sect.Size;
+				break;
+
+			}
+
+		}
+
+		if ( seekPos == 0 ){			
+			Error( "Couldn't find a PS-EXE header!" );
+			return null;
+		}
+
+		Segment<UInt32> lastAddedSegment = null;
+
+		// Add the relevant segments:
+
+		for( int i = 0; i < elfy.Segments.Count; i++ ){
+
+			Segment<UInt32> ss = elfy.Segments[ i ] as Segment<UInt32>;
+
+			// Usually 0x00010000 lower than the .exe starts
+			// E.g. would nuke the full kernel area for a program at 0x80010000			
 			bool segmentHasElfHeader = HasElfHeader( ss.GetFileContents() );
 
 			Console.WriteLine( "\nSending Segment " + i );
-			Console.WriteLine( $"  Offset   : 0x{ss.Offset.ToString("X")}  Size  : 0x{ss.Size.ToString("X")}" );			
-			Console.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString("X")} for 0x{ss.Address.ToString("X")}" );
+			Console.WriteLine( $"  Offset   : 0x{ss.Offset.ToString( "X" )}  Size  : 0x{ss.Size.ToString( "X" )}" );
+			Console.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString( "X" )} for 0x{ss.Address.ToString( "X" )}" );
 			Console.WriteLine( $"  ElfHddr  : {segmentHasElfHeader}" );
-			
-			// Usually 0x00010000 lower than the .exe starts
-			// E.g. would nuke the full kernel area for a program at 0x80010000
-			// Not good.						
-			if ( segmentHasElfHeader ){
+					
+			if ( segmentHasElfHeader || ss.Size == 0 ) {
 				Console.WriteLine( "Skipping..." );
 				continue;
 			}
 
-			Thread.Sleep( 200 );
-
-			bool result = Command_SendBin( ss.PhysicalAddress, ss.GetMemoryContents() );
-			if ( !result ){
-				return Error( $"Error uploading elf segment {i} of {elfy.Segments.Count} to addr {ss.PhysicalAddress}" );
-			}
-			
-		}
-
-		// Now have a flip through the sections
-		// Ideally we'd want a PSX EXE header, as you'd find in a .exe		
-
-		for ( int i = 0; i < elfy.Sections.Count; i++ ) {
-
-			Section<UInt32> sect = (elfy.Sections[ i ] as Section<UInt32>);
-
-			// There's sometimes a wee empty section sitting there at the start...
-			if ( sect.Size == 0 ) continue;
-
-			// If we find something 0x800 in length near the start, it's probs the PSX EXE header
-			if ( sect.Size == 0x800 ){
-
-				byte[] header = sect.GetContents();
-				UInt32 callAddr = BitConverter.ToUInt32( header, 16 );
-				Console.WriteLine( "Executing from PSX EXE header in section " + i );
-				Console.WriteLine( "  Exec addr: 0x" + callAddr.ToString("X") );
-
-				return Command_CallAddr( callAddr );
-
+			if ( lastAddedSegment == null ){
+				// First segment always goes right on the end of the header
+			} else {
+				// Else we'll judge the next segment start based on the disance between
+				// their physAddrs. So if there's a gap, it doesn't matter.
+				// E.g. when nextSeg.Start is bigger than (lastSeg.Start + lastSeg.Length)
+				seekPos += (ss.PhysicalAddress - lastAddedSegment.PhysicalAddress);
 			}
 
-			// If we can't find a header, let's take a gamble on the first .text section.
-			if ( elfy.Sections[ i ].Name.ToLowerInvariant() == ".text" ) {
-
-				UInt32 loadAddr = sect.LoadAddress;
-				Console.WriteLine( "Executing from the first .text section at index " + i );
-				Console.WriteLine( "  Exec addr: 0x" + loadAddr.ToString("X") );
-
-				return Command_CallAddr( loadAddr );
-
-			}
+			ss.GetFileContents().CopyTo( outBytes, seekPos );
+			lastAddedSegment = ss;
 
 		}
 
-		Console.WriteLine( "Warning: could not determine the entry point; skipping!" );
+		if ( lastAddedSegment == null ){			
+			Error( "Couldn't find any segments to send!" );
+			return null;
+		}
 
-		return true;
+		UInt32 fileLength = seekPos + lastAddedSegment.Size;
+
+		// Trim the array to use only as long as the .exe requires.
+		Array.Resize<byte>( ref outBytes, (int)fileLength );
+
+		return outBytes;
 
 	}
 
@@ -293,6 +300,9 @@ public class TransferLogic
 	// Does the byte array have the standard 0x7F 'E' 'L' 'F' header?
 	// This could be the entire file, or just one of the segments.
 	public static bool HasElfHeader( byte[] inBytes ) {
+
+		if ( inBytes.Length < 4 )
+			return false;
 
 		UInt32 magicNumber = BitConverter.ToUInt32( inBytes, 0 );
 		return (magicNumber == 0x464C457F);
@@ -317,7 +327,13 @@ public class TransferLogic
 			return Error( "Error: .ELF format not supported!" );
 #else
 			Console.WriteLine( "Detected .ELF file format..." );
-			return Command_SendELF( inBytes );			
+			
+			byte[] check = ELF2EXE( inBytes );
+			if (  check == null || check.Length == 0 ){
+				return Error( "Couldn't convert this file to an .exe for sending!" );				
+			}
+
+			inBytes = check;
 #endif
 
 		}

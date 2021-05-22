@@ -955,7 +955,7 @@ internal partial class Program {
 
 		if ( argCommand == CommandMode.SEND_EXE )
 		{			
-			TransferLogic.Command_SendEXE(argAddr, inFile);
+			TransferLogic.Command_SendEXE(inFile);
 		}
 
 		if ( argCommand == CommandMode.SEND_BIN )

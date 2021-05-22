@@ -323,7 +323,7 @@ public class TransferLogic
 	/// </summary>
 	/// <param name="inAddr">Make sure it's correct</param>
 	/// <param name="inBytes">Raw bytes minus the header</param>	
-	public static bool Command_SendEXE( UInt32 inAddr, byte[] inBytes ){
+	public static bool Command_SendEXE( byte[] inBytes ){
 		
 		if ( HasElfHeader( inBytes ) ){
 		

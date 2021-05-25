@@ -16,6 +16,7 @@ using System.Text;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 public enum GPR{
     
@@ -305,40 +306,110 @@ public class GDB{
 
 	}
 
-    // Sockets are sent over serial as and when data arrives
-    // This function polls the sio and sends it back because
-    // mono hasn't implemented sio callbacks.
+	/// <summary>
+	/// Multi purpose monitor
+	/// 
+	/// 1: regular SIO monitor to view printfs, etc
+	/// 2: detects halt messages and dumps regs
+	/// 3: handles PCDrv stuff
+	/// 4: handles *one half* of the SIO<->TCP bridge because mono hasn't implemented SIO callbacks.
+	/// * e.g. TCP->SIO is handled via callback, SIO->TCP is handled here.
+	/// 
+	/// </summary>
+
+	// TODO: move somewhere appropriate
     public static void MonitorSerialToSocket(){
         
+		const int ESCAPECHAR = 0x00;		
+		// Old mode (unescaped): when this reads HLTD, kdebug has halted the playstation.
+		char[] last4ResponseChars = new char[]{ 'x', 'x', 'x', 'x' };
+
         // 10kb buffer?
         byte[] responseBytes = new byte[2048 * 10];
         int bytesInBuffer = 0;
 
-        while( true ){
+		bool lastByteWasEscaped = false;
 
-            while ( serial.BytesToRead != 0 && bytesInBuffer < responseBytes.Length ){
+		while ( true ){
+
+			
+            while ( serial.BytesToRead > 0 && bytesInBuffer < responseBytes.Length ){
             
-                byte val = (byte)serial.ReadByte();
-                
-                responseBytes[bytesInBuffer++] = (byte)val;
-                
-                // TODO: keep tabs on this for GDB mode but not Bridge mode
-                /*
-                // PSX telling us it was halted.
-                if ( responseAsString == "HLTD" ){
-					responseAsString = "";
-                    Console.WriteLine( "PSX was halted" );
-                }
-                */
-            }
+                int thisByte = (byte)serial.ReadByte();								
+				bool thisByteIsEscapeChar = ( thisByte  == ESCAPECHAR );
 
-            if ( bytesInBuffer > 0 ){
+				//Console.WriteLine( $"Got val {thisByte.ToString( "X" )} escaped={thisByteIsEscapeChar} lastWasEscapeChar={lastByteWasEscaped}" );
+
+				// The byte before this one was an escape sequence...				
+				if ( lastByteWasEscaped ){
+
+					// 2x escape cars = just print that char
+					if ( thisByteIsEscapeChar ) {
+
+						// a properly escaped doublet can go in the buffer.
+						responseBytes[ bytesInBuffer++ ] = ESCAPECHAR;
+						Console.Write( (char)thisByte );
+
+					} else {
+
+						if ( thisByte == 'p' ) {
+
+							PCDrv.ReadCommand();
+
+						}
+
+
+					}
+
+					// whether we're printing an escaped char or acting on
+					// a sequence, reset things back to normal.
+					lastByteWasEscaped = false;
+					continue; // next inner loop
+
+				}
+
+				// Any non-escape char: print it, dump it, send it, etc
+				if ( !thisByteIsEscapeChar ) {
+
+					responseBytes[ bytesInBuffer++ ] = (byte)thisByte;
+					Console.Write( (char)thisByte );
+
+					// TODO: remove this unescaped method after a few versions
+					// Clunky way to do it, but there's no unboxing or reallocation
+					last4ResponseChars[ 0] = last4ResponseChars[1];
+					last4ResponseChars[1] = last4ResponseChars[2];
+					last4ResponseChars[2] = last4ResponseChars[3];
+					last4ResponseChars[3] = (char)thisByte;
+					if ( 
+						last4ResponseChars[0] == 'H' && last4ResponseChars[1] == 'L'
+						&& last4ResponseChars[2] == 'T' && last4ResponseChars[3] == 'D'
+					){
+						Console.WriteLine( "PSX may have halted (<8.0.I)!" );
+						GDB.GetRegs();
+						GDB.DumpRegs();
+
+					}
+
+				}
+				
+				lastByteWasEscaped = thisByteIsEscapeChar;			
+
+			} // bytestoread > 0
+
+			
+			// Send the buffer back in a big chunk if we're not waiting
+			// on an escaped byte resolving			
+			if ( bytesInBuffer > 0 && !lastByteWasEscaped ){
                 // send it baaahk
                 if ( replySocket != null ){
-                    replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None );
-                    bytesInBuffer = 0;
+                    replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None );                    
                 }
-            }
+				bytesInBuffer = 0;
+			}
+			
+			
+			// Yield the thread
+			Thread.Sleep(1);
 
         } // while
         

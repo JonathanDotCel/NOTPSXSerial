@@ -773,7 +773,7 @@ public class TransferLogic
 	// Remember to tell the PSX to expect bytes first... BIN, ROM, EXE, etc
 	// as this will attempt to use the V2 protocol rather than just spamming 
 	// bytes into the void
-	public static bool WriteBytes( byte[] inBytes, bool skipFirstSector ){
+	public static bool WriteBytes( byte[] inBytes, bool skipFirstSector, bool forceProtocolV2 = false ){
 
 
 		// .exe files go [ header ][ meta ][ data @ write address ]
@@ -824,7 +824,7 @@ public class TransferLogic
 			SetDefaultColour();
 
 
-			if ( Program.protocolVersion == 2)
+			if ( Program.protocolVersion == 2 || forceProtocolV2 )
 			{
 
 				// Format change as of 8.0.C
@@ -832,25 +832,25 @@ public class TransferLogic
 
 				Console.Write(" ... ");
 
-				string more = "";
+				string cmdBuffer = "";
 
 				TimeSpan startSpan = GetSpan();
-				while (more != "CHEK")
+				while (cmdBuffer != "CHEK")
 				{
 
 					if (activeSerial.BytesToRead != 0)
 					{
 						
-						more += (char)activeSerial.ReadByte();
+						cmdBuffer += (char)activeSerial.ReadByte();
 
 					}
-					while (more.Length > 4)
-						more.Remove(0, 1);
+					while (cmdBuffer.Length > 4)
+						cmdBuffer.Remove(0, 1);
 
 				}
 
 				// did it ask for a checksum?
-				if (more == "CHEK")
+				if (cmdBuffer == "CHEK")
 				{
 
 					Console.Write("Sending checksum...");
@@ -860,34 +860,31 @@ public class TransferLogic
 
 					startSpan = GetSpan();
 
-					while (more != "MORE" && more != "ERR!")
+					while (cmdBuffer != "MORE" && cmdBuffer != "ERR!")
 					{
-
-						// keep sending it till the psx gets it?
-						//serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
 
 						if (activeSerial.BytesToRead != 0)
 						{
 							char readVal = (char)activeSerial.ReadByte();
-							more += readVal;
+							cmdBuffer += readVal;
 							Console.Write(readVal);
 						}
-						while (more.Length > 4)
+						while (cmdBuffer.Length > 4)
 						{
-							more = more.Remove(0, 1);
+							cmdBuffer = cmdBuffer.Remove(0, 1);
 						}
 
 					}
 
-					if (more == "ERR!")
+					if (cmdBuffer == "ERR!")
 					{
 						Console.WriteLine("... Retrying\n");
 						goto retryThisChunk;
 					}
 
-					if (more == "MORE")
+					if (cmdBuffer == "MORE")
 					{
-						//Console.Write( "... OK\n" );							
+						//Console.Write( "... OK\n" );
 					}
 
 				}
@@ -897,7 +894,7 @@ public class TransferLogic
 
 			} // corrective transfer
 
-			Console.Write(" OK\n");
+			Console.Write(" DONE\n");
 
 		}
 
@@ -1170,7 +1167,7 @@ public class TransferLogic
 	}
 	#pragma warning restore CS0162
 
-
+	/*
 	/// <summary>
 	/// Leaves the serial connection open
 	/// Will attempt to detect /HALT notifications from Unirom
@@ -1234,6 +1231,7 @@ public class TransferLogic
 
 
 	}
+	*/
 
 	/// <summary>
 	/// Puts Unirom into /debug mode and wipes everything from the end of the kernel

@@ -10,7 +10,7 @@ class PCDrv {
 
 	public enum PCDrvCodes{ unknown, PCINIT_101 = 0x101, PCCREAT_102 = 0x102, PCOPEN_103 = 0x103, PCCLOSE_104 = 0x104, PCREAD_105 = 0x105, PCWRITE_106 = 0x106, PCSEEK_107 = 0x107 };
 
-	public enum PCFileMode{ WRITEONLY, READWRITE, READONLY };
+	public enum PCFileMode{ READONLY, WRITEONLY, READWRITE };
 
 	/// <summary>
 	/// Grab the filename over sio

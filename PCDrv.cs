@@ -369,21 +369,30 @@ class PCDrv {
 			// unirom sends extra params to save kernel
 			// space by grouping similar commands together,
 			// so 'memaddr' is for debugging only.
+
+			// PCRead() takes (handle, buff*, len )
+			// but interally passes it to _SN_Read as
+			// ( 0, handle, len, buff* ), essentially
+			// shuffling regs A0,A1,A2 into A1,A3,A2.
+			// or just ( handle, len, buff* ).  lol.
+
 			UInt32 handle = TransferLogic.read32();
 			int inLength = (int)TransferLogic.read32();
-			UInt32 memaddr = TransferLogic.read32();
+			UInt32 memaddr = TransferLogic.read32();        // not used, debugging only
 
-			//Console.WriteLine( $"PCRead( {handle}, len={inLength}, dbg={memaddr.ToString("X")} )" );
+			//Console.WriteLine( $"PCRead( {handle}, len={inLength}, dbg=0x{memaddr.ToString("X")} )" );
 
 			PCFile pcFile = GetOpenFile( handle );
 
-			Console.WriteLine( $"PCRead( {handle}, len={inLength} ); fileName={pcFile.fileName} MemAddr={memaddr.ToString("X")}, File={pcFile}" );
+			Console.WriteLine( $"PCRead( {handle}, len=0x{inLength.ToString("X")} ); MemAddr=0x{memaddr.ToString("X")}, File={pcFile}" );
 
 			if ( pcFile == null ){
 				Console.WriteLine( $"No file with handle 0x{handle.ToString("X")}, returning!" );
 				serial.Write( "NOPE" );	// v0
 				// don't need to send v1
 				return false;
+			} else {
+				Console.WriteLine( "Reading file " + pcFile.fileName );
 			}
 
 			long streamLength = 0;
@@ -429,12 +438,16 @@ class PCDrv {
 		if ( funcCode == PCDrvCodes.PCWRITE_106 ){
 
 			serial.Write( "OKAY" );
-			// unirom sends extra params to save kernel
-			// space by grouping similar commands together,
-			// so 'memaddr' is for debugging only.
+
+			// PCWrite() takes (handle, buff*, len )
+			// but interally passes it to _SN_Write as
+			// ( 0, handle, len, buff* ), essentially
+			// shuffling regs A0,A1,A2 into A1,A3,A2.
+			// or just ( handle, len, buff* ).  lol.
+
 			UInt32 handle = TransferLogic.read32();
 			int inLength = (int)TransferLogic.read32();
-			UInt32 memaddr = TransferLogic.read32();
+			UInt32 memaddr = TransferLogic.read32();        // not used, debugging only
 
 			PCFile pcFile = GetOpenFile( handle );
 						

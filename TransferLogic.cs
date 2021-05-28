@@ -906,20 +906,28 @@ public class TransferLogic
 	} // WriteBytes
 
 
+
 	// C people: remember the byte[] is a pointer....
 	/// <summary>
 	/// Reads an array of bytes from the serial connection
 	/// </summary>		
 	public static bool ReadBytes(UInt32 inAddr, UInt32 inSize, byte[] inBytes )
 	{
-		
-		if ( !ChallengeResponse( CommandMode.DUMP ) ){
+
+		if ( !ChallengeResponse( CommandMode.DUMP ) ) {
 			return false;
 		}
 
 		// the handshake is done, let's tell it where to start
-		activeSerial.Write(BitConverter.GetBytes(inAddr), 0, 4);
-		activeSerial.Write(BitConverter.GetBytes(inSize), 0, 4);
+		activeSerial.Write( BitConverter.GetBytes( inAddr ), 0, 4 );
+		activeSerial.Write( BitConverter.GetBytes( inSize ), 0, 4 );
+
+		return ReadBytes_Raw( inSize, inBytes );
+
+	} // DUMP
+
+	public static bool ReadBytes_Raw( UInt32 inSize, byte[] inBytes ){
+
 
 		// now go!
 		int arrayPos = 0;
@@ -931,52 +939,43 @@ public class TransferLogic
 
 		UInt32 checkSum = 0;
 
-		while (true)
-		{
-			
+		while ( true ) {
+
 			currentSpan = GetSpan();
 
-			if (activeSerial.BytesToRead != 0)
-			{
+			if ( activeSerial.BytesToRead != 0 ) {
 
 				lastSpan = GetSpan();
 
 				byte responseByte = (byte)activeSerial.ReadByte();
-				inBytes[arrayPos] = (responseByte);
+				inBytes[ arrayPos ] = (responseByte);
 
 				arrayPos++;
 
 				checkSum += (UInt32)responseByte;
 
-				if (arrayPos % 2048 == 0)
-				{
-					activeSerial.Write("MORE");
+				if ( arrayPos % 2048 == 0 ) {
+					activeSerial.Write( "MORE" );
 				}
 
-				if (arrayPos % 1024 == 0)
-				{
+				if ( arrayPos % 1024 == 0 ) {
 					long percent = (arrayPos * 100) / inSize;
-					Console.Write("\r Offset {0} of {1} ({2})%\n", arrayPos, inSize, percent);
+					Console.Write( "\r Offset {0} of {1} ({2})%\n", arrayPos, inSize, percent );
 				}
 
-				if (arrayPos >= inBytes.Length)
-				{					
+				if ( arrayPos >= inBytes.Length ) {
 					break;
 				}
 
 			}
 
 			// if we've been without data for more than 2 seconds, something's really up				
-			if ((currentSpan - lastSpan).TotalMilliseconds > 2000)
-			{
-				if (arrayPos == 0)
-				{
-					Error("There was no data for a long time! 0 bytes were read!", false);
+			if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ) {
+				if ( arrayPos == 0 ) {
+					Error( "There was no data for a long time! 0 bytes were read!", false );
 					return false;
-				}
-				else
-				{
-					Error("There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString("X8") + ") bytes that were read!", false);
+				} else {
+					Error( "There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString( "X8" ) + ") bytes that were read!", false );
 				}
 
 				return false;
@@ -985,7 +984,7 @@ public class TransferLogic
 
 		}
 
-		Console.WriteLine("Read Complete!");
+		Console.WriteLine( "Read Complete!" );
 
 		// Read 4 more bytes for the checksum
 
@@ -994,23 +993,19 @@ public class TransferLogic
 		int expectedChecksum = 0;
 
 		SetDefaultColour();
-		Console.WriteLine("Checksumming the checksums for checksummyness.\n");
+		Console.WriteLine( "Checksumming the checksums for checksummyness.\n" );
 
-		try
-		{
+		try {
 
-			for (int i = 0; i < 4; i++)
-			{
+			for ( int i = 0; i < 4; i++ ) {
 
-				while (activeSerial.BytesToRead == 0)
-				{
+				while ( activeSerial.BytesToRead == 0 ) {
 
 					currentSpan = GetSpan();
 
-					if ((currentSpan - lastSpan).TotalMilliseconds > 2000)
-					{
+					if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ) {
 						Console.ForegroundColor = ConsoleColor.Red;
-						Console.WriteLine("Error reading checksum byte " + i + " of 4!");
+						Console.WriteLine( "Error reading checksum byte " + i + " of 4!" );
 						break;
 					}
 
@@ -1025,43 +1020,37 @@ public class TransferLogic
 
 			}
 
-		}
-		catch (System.TimeoutException)
-		{
+		} catch ( System.TimeoutException ) {
 
 			Console.ForegroundColor = ConsoleColor.Red;
-			Error("No checksum sent, continuing anyway!\n ", false);
+			Error( "No checksum sent, continuing anyway!\n ", false );
 
 		}
 
-		if (expectedChecksum != checkSum)
-		{
+		if ( expectedChecksum != checkSum ) {
 			Console.ForegroundColor = ConsoleColor.Red;
-			Error("Checksum missmatch! Expected: " + expectedChecksum.ToString("X8") + "    Calced: %x\n" + checkSum.ToString("X8"), false);
-			Error(" WILL ATTEMPT TO CONTINUE\n", false);
+			Error( "Checksum missmatch! Expected: " + expectedChecksum.ToString( "X8" ) + "    Calced: %x\n" + checkSum.ToString( "X8" ), false );
+			Error( " WILL ATTEMPT TO CONTINUE\n", false );
 			return false;
-		}
-		else
-		{
+		} else {
 			SetDefaultColour();
-			Console.WriteLine(" Checksums match: " + expectedChecksum.ToString("X8") + "\n");			
+			Console.WriteLine( " Checksums match: " + expectedChecksum.ToString( "X8" ) + "\n" );
 		}
 
 
-		if (activeSerial.BytesToRead > 0)
-		{
+		if ( activeSerial.BytesToRead > 0 ) {
 			Console.ForegroundColor = ConsoleColor.Red;
-			Error("Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false);
+			Error( "Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false );
 		}
 
 		SetDefaultColour();
 
 		return true;
 
-	} // DUMP
+	}
 
 
-	#pragma warning disable CS0162
+#pragma warning disable CS0162
 
 	/// <summary>
 	/// Semi-supported: 

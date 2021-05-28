@@ -337,15 +337,16 @@ class PCDrv {
 
 				if ( f == null ) {
 					Console.WriteLine( "No such file... great success!" );
+					serial.Write( "OKAY" ); // v0
+					serial.Write( BitConverter.GetBytes( 0 ), 0, 4 );   // v1
+					return true;
 				} else {
-					Console.WriteLine( $"Closing file {f.fileName} with handle {f.handle}..." );					
+					Console.WriteLine( $"Closing file {f.fileName} with handle {f.handle}..." );
+					serial.Write( "OKAY" ); // v0
+					serial.Write( BitConverter.GetBytes( f.handle ), 0, 4 );   // v1																			   // let the garbage collector deal with it
+					ClosePCFile( f.handle );
+					return true;
 				}
-				serial.Write( "OKAY" ); // v0
-				serial.Write( BitConverter.GetBytes( f.handle ), 0, 4 );   // v1
-
-				// let the garbage collector deal with it
-				ClosePCFile( f.handle );
-				return true;
 
 			} catch ( Exception e ){
 				Console.WriteLine( "Error closing file..." + e );

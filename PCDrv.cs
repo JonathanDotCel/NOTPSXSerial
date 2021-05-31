@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
@@ -509,10 +510,13 @@ class PCDrv {
 
 			PCFile pcFile = GetOpenFile( handle );
 
-			Console.WriteLine( $"PCSeek file {handle} to {seekPos}, type={seekOrigin}, fileName={pcFile.fileStream}" );
+			string fileName = pcFile != null ? pcFile.fileName : "";
+			Console.WriteLine( $"PCSeek file {handle} to {seekPos}, type={seekOrigin}, fileName={fileName}" );
 
 			if ( pcFile == null ){
-				throw new Exception( "There is no file with handle 0x" + handle.ToString("X") );
+				Console.WriteLine( "Error: There is no file with handle 0x" + handle.ToString("X") );
+				serial.Write( "NOPE" );
+				return false;
 			}
 
 			// Let's actually open the file and seek it to see if we bump into any issues

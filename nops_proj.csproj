@@ -186,6 +186,7 @@
   <ItemGroup>
     <Compile Include="GDB.cs" />
     <Compile Include="NOTPSXSERIAL.CS" />
+    <Compile Include="PCDrv.cs" />
     <Compile Include="TransferLogic.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>

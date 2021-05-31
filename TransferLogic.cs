@@ -773,7 +773,7 @@ public class TransferLogic
 	// Remember to tell the PSX to expect bytes first... BIN, ROM, EXE, etc
 	// as this will attempt to use the V2 protocol rather than just spamming 
 	// bytes into the void
-	public static bool WriteBytes( byte[] inBytes, bool skipFirstSector ){
+	public static bool WriteBytes( byte[] inBytes, bool skipFirstSector, bool forceProtocolV2 = false ){
 
 
 		// .exe files go [ header ][ meta ][ data @ write address ]
@@ -824,7 +824,7 @@ public class TransferLogic
 			SetDefaultColour();
 
 
-			if ( Program.protocolVersion == 2)
+			if ( Program.protocolVersion == 2 || forceProtocolV2 )
 			{
 
 				// Format change as of 8.0.C
@@ -832,25 +832,25 @@ public class TransferLogic
 
 				Console.Write(" ... ");
 
-				string more = "";
+				string cmdBuffer = "";
 
 				TimeSpan startSpan = GetSpan();
-				while (more != "CHEK")
+				while (cmdBuffer != "CHEK")
 				{
 
 					if (activeSerial.BytesToRead != 0)
 					{
 						
-						more += (char)activeSerial.ReadByte();
+						cmdBuffer += (char)activeSerial.ReadByte();
 
 					}
-					while (more.Length > 4)
-						more.Remove(0, 1);
+					while (cmdBuffer.Length > 4)
+						cmdBuffer.Remove(0, 1);
 
 				}
 
 				// did it ask for a checksum?
-				if (more == "CHEK")
+				if (cmdBuffer == "CHEK")
 				{
 
 					Console.Write("Sending checksum...");
@@ -860,34 +860,31 @@ public class TransferLogic
 
 					startSpan = GetSpan();
 
-					while (more != "MORE" && more != "ERR!")
+					while (cmdBuffer != "MORE" && cmdBuffer != "ERR!")
 					{
-
-						// keep sending it till the psx gets it?
-						//serialPort.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
 
 						if (activeSerial.BytesToRead != 0)
 						{
 							char readVal = (char)activeSerial.ReadByte();
-							more += readVal;
+							cmdBuffer += readVal;
 							Console.Write(readVal);
 						}
-						while (more.Length > 4)
+						while (cmdBuffer.Length > 4)
 						{
-							more = more.Remove(0, 1);
+							cmdBuffer = cmdBuffer.Remove(0, 1);
 						}
 
 					}
 
-					if (more == "ERR!")
+					if (cmdBuffer == "ERR!")
 					{
 						Console.WriteLine("... Retrying\n");
 						goto retryThisChunk;
 					}
 
-					if (more == "MORE")
+					if (cmdBuffer == "MORE")
 					{
-						//Console.Write( "... OK\n" );							
+						//Console.Write( "... OK\n" );
 					}
 
 				}
@@ -897,7 +894,7 @@ public class TransferLogic
 
 			} // corrective transfer
 
-			Console.Write(" OK\n");
+			Console.Write(" DONE\n");
 
 		}
 
@@ -909,20 +906,28 @@ public class TransferLogic
 	} // WriteBytes
 
 
+
 	// C people: remember the byte[] is a pointer....
 	/// <summary>
 	/// Reads an array of bytes from the serial connection
 	/// </summary>		
 	public static bool ReadBytes(UInt32 inAddr, UInt32 inSize, byte[] inBytes )
 	{
-		
-		if ( !ChallengeResponse( CommandMode.DUMP ) ){
+
+		if ( !ChallengeResponse( CommandMode.DUMP ) ) {
 			return false;
 		}
 
 		// the handshake is done, let's tell it where to start
-		activeSerial.Write(BitConverter.GetBytes(inAddr), 0, 4);
-		activeSerial.Write(BitConverter.GetBytes(inSize), 0, 4);
+		activeSerial.Write( BitConverter.GetBytes( inAddr ), 0, 4 );
+		activeSerial.Write( BitConverter.GetBytes( inSize ), 0, 4 );
+
+		return ReadBytes_Raw( inSize, inBytes );
+
+	} // DUMP
+
+	public static bool ReadBytes_Raw( UInt32 inSize, byte[] inBytes ){
+
 
 		// now go!
 		int arrayPos = 0;
@@ -934,52 +939,43 @@ public class TransferLogic
 
 		UInt32 checkSum = 0;
 
-		while (true)
-		{
-			
+		while ( true ) {
+
 			currentSpan = GetSpan();
 
-			if (activeSerial.BytesToRead != 0)
-			{
+			if ( activeSerial.BytesToRead != 0 ) {
 
 				lastSpan = GetSpan();
 
 				byte responseByte = (byte)activeSerial.ReadByte();
-				inBytes[arrayPos] = (responseByte);
+				inBytes[ arrayPos ] = (responseByte);
 
 				arrayPos++;
 
 				checkSum += (UInt32)responseByte;
 
-				if (arrayPos % 2048 == 0)
-				{
-					activeSerial.Write("MORE");
+				if ( arrayPos % 2048 == 0 ) {
+					activeSerial.Write( "MORE" );
 				}
 
-				if (arrayPos % 1024 == 0)
-				{
+				if ( arrayPos % 1024 == 0 ) {
 					long percent = (arrayPos * 100) / inSize;
-					Console.Write("\r Offset {0} of {1} ({2})%\n", arrayPos, inSize, percent);
+					Console.Write( "\r Offset {0} of {1} ({2})%\n", arrayPos, inSize, percent );
 				}
 
-				if (arrayPos >= inBytes.Length)
-				{					
+				if ( arrayPos >= inBytes.Length ) {
 					break;
 				}
 
 			}
 
 			// if we've been without data for more than 2 seconds, something's really up				
-			if ((currentSpan - lastSpan).TotalMilliseconds > 2000)
-			{
-				if (arrayPos == 0)
-				{
-					Error("There was no data for a long time! 0 bytes were read!", false);
+			if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ) {
+				if ( arrayPos == 0 ) {
+					Error( "There was no data for a long time! 0 bytes were read!", false );
 					return false;
-				}
-				else
-				{
-					Error("There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString("X8") + ") bytes that were read!", false);
+				} else {
+					Error( "There was no data for a long time! Will try to dump the " + arrayPos + " (" + arrayPos.ToString( "X8" ) + ") bytes that were read!", false );
 				}
 
 				return false;
@@ -988,7 +984,7 @@ public class TransferLogic
 
 		}
 
-		Console.WriteLine("Read Complete!");
+		Console.WriteLine( "Read Complete!" );
 
 		// Read 4 more bytes for the checksum
 
@@ -997,23 +993,19 @@ public class TransferLogic
 		int expectedChecksum = 0;
 
 		SetDefaultColour();
-		Console.WriteLine("Checksumming the checksums for checksummyness.\n");
+		Console.WriteLine( "Checksumming the checksums for checksummyness.\n" );
 
-		try
-		{
+		try {
 
-			for (int i = 0; i < 4; i++)
-			{
+			for ( int i = 0; i < 4; i++ ) {
 
-				while (activeSerial.BytesToRead == 0)
-				{
+				while ( activeSerial.BytesToRead == 0 ) {
 
 					currentSpan = GetSpan();
 
-					if ((currentSpan - lastSpan).TotalMilliseconds > 2000)
-					{
+					if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ) {
 						Console.ForegroundColor = ConsoleColor.Red;
-						Console.WriteLine("Error reading checksum byte " + i + " of 4!");
+						Console.WriteLine( "Error reading checksum byte " + i + " of 4!" );
 						break;
 					}
 
@@ -1028,43 +1020,37 @@ public class TransferLogic
 
 			}
 
-		}
-		catch (System.TimeoutException)
-		{
+		} catch ( System.TimeoutException ) {
 
 			Console.ForegroundColor = ConsoleColor.Red;
-			Error("No checksum sent, continuing anyway!\n ", false);
+			Error( "No checksum sent, continuing anyway!\n ", false );
 
 		}
 
-		if (expectedChecksum != checkSum)
-		{
+		if ( expectedChecksum != checkSum ) {
 			Console.ForegroundColor = ConsoleColor.Red;
-			Error("Checksum missmatch! Expected: " + expectedChecksum.ToString("X8") + "    Calced: %x\n" + checkSum.ToString("X8"), false);
-			Error(" WILL ATTEMPT TO CONTINUE\n", false);
+			Error( "Checksum missmatch! Expected: " + expectedChecksum.ToString( "X8" ) + "    Calced: %x\n" + checkSum.ToString( "X8" ), false );
+			Error( " WILL ATTEMPT TO CONTINUE\n", false );
 			return false;
-		}
-		else
-		{
+		} else {
 			SetDefaultColour();
-			Console.WriteLine(" Checksums match: " + expectedChecksum.ToString("X8") + "\n");			
+			Console.WriteLine( " Checksums match: " + expectedChecksum.ToString( "X8" ) + "\n" );
 		}
 
 
-		if (activeSerial.BytesToRead > 0)
-		{
+		if ( activeSerial.BytesToRead > 0 ) {
 			Console.ForegroundColor = ConsoleColor.Red;
-			Error("Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false);
+			Error( "Extra bytes still being sent from the PSX! - Will attempt to save file anyway!", false );
 		}
 
 		SetDefaultColour();
 
 		return true;
 
-	} // DUMP
+	}
 
 
-	#pragma warning disable CS0162
+#pragma warning disable CS0162
 
 	/// <summary>
 	/// Semi-supported: 
@@ -1170,7 +1156,7 @@ public class TransferLogic
 	}
 	#pragma warning restore CS0162
 
-
+	/*
 	/// <summary>
 	/// Leaves the serial connection open
 	/// Will attempt to detect /HALT notifications from Unirom
@@ -1234,6 +1220,7 @@ public class TransferLogic
 
 
 	}
+	*/
 
 	/// <summary>
 	/// Puts Unirom into /debug mode and wipes everything from the end of the kernel

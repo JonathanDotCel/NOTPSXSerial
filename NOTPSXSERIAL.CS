@@ -276,7 +276,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-	const string VERSION = "v12 (8.0.F)";
+	const string VERSION = "v13 (8.0.H)";
 	const int TIMEOUT = 500;
 
 	public static void PrintUsage( bool justTheTip = false ) {
@@ -921,7 +921,7 @@ internal partial class Program {
 		// If we got /m on its own
 		if ( monitorComms && argCommand == CommandMode.NOT_SET )
 		{
-			TransferLogic.DoMonitor();			
+			GDB.MonitorSerialToSocket();			
 			return true;
 		}
 
@@ -1113,8 +1113,8 @@ internal partial class Program {
 		// All done, are we leaving the comms monitor open?
 		//
 
-		if ( monitorComms ){
-			TransferLogic.DoMonitor();
+		if ( monitorComms ){			
+			GDB.MonitorSerialToSocket();
 		} else {
 			Console.WriteLine("\n Bye!");
 			activeSerial.Close();			

@@ -380,7 +380,7 @@ internal partial class Program {
 	//
 	// less public stuff	
 	//
-
+    
 	// Shared args
 	static string argComPort = "";
 	static string suggestedComPort = "COM8";
@@ -388,8 +388,8 @@ internal partial class Program {
 	static UInt32 argSize;
 	static UInt32 argValue;
 	static UInt32 argCard;
-    static UInt32 argPort;
-    static string argIP;
+	static UInt32 argPort;
+	static string argIP;
 	static CommandMode argCommand = CommandMode.NOT_SET;
 	static string argFileName;
 	static string argRegister = "";
@@ -405,7 +405,7 @@ internal partial class Program {
 	static bool satisfiedInputFileRequirements = false;
 	static bool satisfiedOutputFileRequirements = false;
 	static bool satisfiedIPRequirements = false;
-    static bool satisfiedPortRequirements = false;
+	static bool satisfiedPortRequirements = false;
 
 	// Misc
 	static byte[] inFile;

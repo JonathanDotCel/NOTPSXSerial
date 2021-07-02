@@ -819,7 +819,7 @@ public class TransferLogic
 
 			Console.ForegroundColor = ConsoleColor.Green;
 			int percent = (i + 1) * 100 / (inBytes.Length);
-			Console.Write("\r Sending chunk {0} of {1} ({2})%", (i / chunkSize) + 1, numChunks, percent);
+			Console.Write("\r Sending chunk {0} of {1} ({2})%", ((i / chunkSize) + 1) > numChunks ? numChunks : ((i / chunkSize) + 1), numChunks, percent);
 
 			SetDefaultColour();
 

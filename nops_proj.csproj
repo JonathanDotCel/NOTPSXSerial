@@ -44,7 +44,7 @@
   <ItemGroup>
     <Reference Include="ELFSharp, Version=2.0.0.0, Culture=neutral, PublicKeyToken=f2d0c9031b10d3c0, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>.\ELFSharp.dll</HintPath>
+      <HintPath>.\ElfSharp.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System" />
@@ -56,7 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="comport.txt" />
-    <Content Include="ELFSharp.dll" />
+    <Content Include="ElfSharp.dll" />
     <Content Include="nops.ico" />
     <Content Include="README.txt" />
     <Content Include="social_card_PNG.png" />
@@ -196,7 +196,7 @@
     <Folder Include=".git\refs\tags\" />
     <Folder Include="exclude\" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSHARP.Targets" />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio AllowExistingFolder="true" />
   </ProjectExtensions>

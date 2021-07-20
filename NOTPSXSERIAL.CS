@@ -73,7 +73,9 @@
 
 // 00_03_2020 - Release 14 - (~8.0.E)
 //   - Distinction between /gdb and /bridge
-//   
+//
+
+// See github for further release info.
 
 
 #define DebugArgs
@@ -258,6 +260,17 @@ public enum CommandMode {
 	[NeedsAddress]
 	WIPEMEM,
 
+	[Command("/stdin")]
+	[NeedsString]
+	[Challenge("STDI")]
+	[Response("STOK")]
+	STDIN,
+
+	[Command("/type")]
+	[NeedsString]	
+	TYPESTRING,
+	
+
 	/*
 	// Deprecated as of 8.0.C's self-correcting algo
 	[Command( "/verify" )]
@@ -276,7 +289,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-	const string VERSION = "v13 (8.0.H)";
+	const string VERSION = "v14 (8.0.I / 8.0.J)";
 	const int TIMEOUT = 500;
 
 	public static void PrintUsage( bool justTheTip = false ) {
@@ -365,6 +378,13 @@ internal partial class Program {
 		Console.Write( "                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n");
 		Console.Write( "                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n");
 		Console.Write( "                * = Resume with nops /cont\n");
+		Console.Write( "\n");
+
+		Console.Write( "  STDIN Functions:\n" );
+		Console.Write( "                Types a string into stdin  : nops /type \"something\"\n"  );
+		Console.Write( "                at about 1 char per frame  : nops /type 'something'\n" );
+
+		
 
 		Console.Write("\n");
 
@@ -393,6 +413,7 @@ internal partial class Program {
 	static CommandMode argCommand = CommandMode.NOT_SET;
 	static string argFileName;
 	static string argRegister = "";
+	static string argString = "";
 	// standalone/modifiers such as /fast, /slow, /m, etc
 	static bool allArgsAreSecondary = false;		
 
@@ -406,6 +427,7 @@ internal partial class Program {
 	static bool satisfiedOutputFileRequirements = false;
 	static bool satisfiedIPRequirements = false;
 	static bool satisfiedPortRequirements = false;
+	static bool satisfiedStringRequirements = false;
 
 	// Misc
 	static byte[] inFile;
@@ -674,6 +696,19 @@ internal partial class Program {
 
                     }
 
+					if ( argCommand.hasAttribute<NeedsStringAttribute>() ){
+
+						#if DebugArgs
+						Console.WriteLine("__DEBUG__Command " + c + " requires a memcard parameter ");
+						#endif
+
+						argString = remainingArgs[paramIndex];
+
+						remainingArgs.RemoveAt( paramIndex );
+						satisfiedStringRequirements = true;
+
+					}
+
 					// Do we need a memcard number
 					if (argCommand.hasAttribute<NeedsCardNumberAttribute>())
 					{
@@ -696,7 +731,7 @@ internal partial class Program {
 						}
 						*/
 
-						remainingArgs.RemoveAt(paramIndex);
+						remainingArgs.RemoveAt( paramIndex );
 						satisfiedCardRequirement = true;
 
 					}
@@ -744,7 +779,7 @@ internal partial class Program {
 			}
 
 		}
-
+		
 		// Do we need to save somewhere?
 		if ( argCommand.hasAttribute<NeedsOutputFileAttribute>() ){
 
@@ -769,6 +804,7 @@ internal partial class Program {
 		if ( !argCommand.hasAttribute<NeedsOutputFileAttribute>() ) satisfiedOutputFileRequirements = true;
         if ( !argCommand.hasAttribute<NeedsIPAttribute>() ) satisfiedIPRequirements = true;
         if ( !argCommand.hasAttribute<NeedsPortAttribute>() ) satisfiedPortRequirements = true;
+		if ( !argCommand.hasAttribute<NeedsStringAttribute>() ) satisfiedStringRequirements = true;
 		
 		// Missed something...
 		if ( !satisfiedAddressRequirements )    return Error("Did you specify an address or hex value? E.g. 0x23456788\n");
@@ -778,14 +814,16 @@ internal partial class Program {
 		if ( !satisfiedCardRequirement )        return Error("Specify memory card 0 or 1!");
 		if ( !satisfiedInputFileRequirements )  return Error("Specify an input file!");
 		if ( !satisfiedOutputFileRequirements ) return Error("Specify a filename to write to!");
-        if ( !satisfiedIPRequirements )         return Error("Specify a remote host/ip!" );
-        if ( !satisfiedPortRequirements )       return Error("Specify a local or remote port!" );
+		if ( !satisfiedIPRequirements )         return Error("Specify a remote host/ip!" );
+		if ( !satisfiedPortRequirements )       return Error("Specify a local or remote port!" );
+		if ( !satisfiedStringRequirements )     return Error("Need a string with either \"\" or ''!" );
 
 
 		#if DebugArgs
 		Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-		Console.WriteLine( "__DEBUG__FILENAME: " + argFileName );		
-		Console.WriteLine( "__DEBUG__INPUTFILE: " + inFile );		
+		Console.WriteLine( "__DEBUG__FILENAME: " + argFileName );
+		Console.WriteLine( "__DEBUG__INPUTFILE: " + inFile );
+		Console.WriteLine( "__DEBUG__stringArg: " + argString );
 		#endif
 
 		// there shouldn't be any arguments left!
@@ -1094,6 +1132,28 @@ internal partial class Program {
 
 		}
 
+		//
+		// STDIN / RAW
+		//
+
+		if ( argCommand == CommandMode.TYPESTRING )
+		{
+
+			// the sio HW only has 4 bytes available
+			// You could work out a specification and pre-send the
+			// expected text length with checksums, etc...
+			// or you cold type at a speed that gives you
+			// the chance to catch a few key strokes without
+			// entering a tight while loop.
+			Console.WriteLine( "Writing raw string: " + argString );
+			byte[] bytes = System.Text.Encoding.ASCII.GetBytes( argString );
+
+			for( int i = 0; i < bytes.Length; i++ ){
+				activeSerial.Write( bytes, i, 1 );
+				Thread.Sleep( 20 ); // 50fps to account for pal
+			}
+			
+		}
 
 		//
 		// Major work in progress
@@ -1230,6 +1290,7 @@ public class NeedsValueAttribute : System.Attribute{ public bool NeedsValue(){ r
 public class NeedsCardNumberAttribute : System.Attribute{ public bool NeedsCardNumber(){ return true; } }
 public class NeedsPortAttribute : System.Attribute{ public bool NeedsPort(){ return true; } }
 public class NeedsIPAttribute : System.Attribute{ public bool NeedsIP(){ return true; } }
+public class NeedsStringAttribute : System.Attribute{ public bool NeedsString(){ return true; } }
 
 public static class CommandModeExtensions {
 

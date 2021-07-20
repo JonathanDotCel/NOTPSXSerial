@@ -406,7 +406,12 @@ public class GDB{
                 }
 				bytesInBuffer = 0;
 			}
-			
+
+			if ( Console.KeyAvailable ){				
+				ConsoleKeyInfo keyVal = Console.ReadKey(true);
+				serial.Write( new byte[]{(byte)keyVal.KeyChar}, 0, 1 );
+				Console.Write( keyVal.KeyChar );
+			}
 			
 			// Yield the thread
 			Thread.Sleep(1);

@@ -133,6 +133,7 @@ public enum CommandMode {
 	[Response("OKAY")]
 	[NeedsAddress]
 	[NeedsSize]
+	[NeedsOutputFile]
 	DUMP,
 
 	// Poke commands
@@ -336,12 +337,14 @@ internal partial class Program {
 		Console.Write( "      Call addr (jal):  NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
 		
 		Console.Write( "    Dumpy Stuff:\n" );
-		Console.Write( "                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 {0}\n", suggestedComPort );
-		Console.Write( "                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  {0}\n", suggestedComPort );
-		Console.Write( "                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  {0}\n", suggestedComPort );
-		Console.Write( "                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  {0}\n", suggestedComPort );
-		Console.Write( "                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  {0}\n", suggestedComPort );
-		Console.Write( "                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    {0}\n\n", suggestedComPort );
+		Console.Write( "                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 <DUMP.BIN> {0}\n", suggestedComPort );
+		Console.Write( "                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  <DUMP.BIN> {0}\n", suggestedComPort );
+		Console.Write( "                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  <DUMP.BIN> {0}\n", suggestedComPort );
+		Console.Write( "                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  <DUMP.BIN> {0}\n", suggestedComPort );
+		Console.Write( "                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  <DUMP.BIN> {0}\n", suggestedComPort );
+		Console.Write( "                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    <DUMP.BIN> {0}\n\n", suggestedComPort );
+		Console.Write( "                WARNING! If named dump file already exist it will be overwritten!\n" );
+		Console.Write( "                Also note that you can use * for <DUMP.BIN> to have automagically generated filename\n\n" );
 
 		Console.Write( "    Memory Cards:\n");
 		Console.Write( "               MC0->File :  NOPS.EXE /mcdown 0 filename.mcr {0}\n", suggestedComPort);
@@ -554,7 +557,7 @@ internal partial class Program {
 			
 			// Inner loop: does it match any known commands?
 			// If so, check for sub params
-			// E.g. /dump <addr> <size> 
+			// E.g. /dump <addr> <size> <filename>
 			// first one is uninitialised... ignore it
 			for( int argIndex = 1; argIndex < (int)CommandMode.COUNT; argIndex++ ) {
 
@@ -1120,7 +1123,7 @@ internal partial class Program {
 
 		if (argCommand == CommandMode.DUMP)
 		{
-			if ( !TransferLogic.Command_Dump( argAddr, argSize ) )
+			if ( !TransferLogic.Command_Dump( argAddr, argSize, argFileName ) )
 				return false;
 
 		}

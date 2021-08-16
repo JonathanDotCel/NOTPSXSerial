@@ -524,30 +524,43 @@ public class TransferLogic
 	/// <summary>
 	/// Dump's a RAM/ROM region to disc, auto-named
 	/// </summary>	
-	public static bool Command_Dump( UInt32 inAddr, UInt32 inSize ){
-
+	public static bool Command_Dump( UInt32 inAddr, UInt32 inSize, string inFileName )
+	{
+		bool allowRewrite = false;
+		string fileName = inFileName;
 		byte[] lastReadBytes = new byte[inSize];
 
 		if ( !ReadBytes( inAddr, inSize, lastReadBytes) ){
 			return Error( "Couldn't ready bytes from Unirom!" );
 		}
 
-		string fileName = "DUMP_" + inAddr.ToString("X8") + "_to_" + inSize.ToString("X8") + ".bin";
+		if (inFileName == "*")
+		{
+			fileName = "DUMP_" + inAddr.ToString("X8") + "_to_" + inSize.ToString("X8") + ".bin";
+		} else
+        {
+			fileName = inFileName;
+			allowRewrite = true;
+        }
+
 
 		if (System.IO.File.Exists(fileName))
 		{
-
-			string newFilename = fileName + GetSpan().TotalSeconds.ToString();
-
-			Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
-
+			if (allowRewrite)
+			{
+				Console.Write("\n\nWARNING: Filename " + fileName + " already exists! Will overwrite!\n\n");
+			}
+			else
+			{
+			string newFilename = fileName.Substring(0, fileName.Length-4) + "_" + GetSpan().TotalSeconds.ToString() + ".bin";
+				Console.Write("\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n");
 			fileName = newFilename;
-
+			}
 		}
 
 		try
 		{
-
+			Console.Write("\n\nWriting dump to: " + fileName + " (overwrite:" + allowRewrite + ")\n\n");
 			File.WriteAllBytes(fileName, lastReadBytes);
 
 		}

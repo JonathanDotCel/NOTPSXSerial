@@ -163,10 +163,12 @@ public class TransferLogic
 			Console.ForegroundColor = (sect.Size == 0)? ConsoleColor.Red : oldColor;
 
 			Console.WriteLine( $"Section {i}: {sect.Name}" );			
-			Console.WriteLine( $"  Addr: 0x{sect.LoadAddress.ToString("X")}" );
-			Console.WriteLine( $"  Size: 0x{sect.Size.ToString( "X" )} (0x{sect.EntrySize.ToString("X")})" );
-			Console.WriteLine( $"  Flags: {sect.Flags}" );
-			
+			Console.WriteLine( $"  Addr   : 0x{sect.LoadAddress.ToString("X")}" );
+			Console.WriteLine( $"  Size   : 0x{sect.Size.ToString("X")} (0x{sect.EntrySize.ToString("X")})" );
+			Console.WriteLine( $"  Flags  : {sect.Flags}" );
+			Console.WriteLine( $"  Type   : {sect.Type}" );
+			Console.WriteLine( $"  Offset : 0x{sect.Offset.ToString("X")}" );
+
 			//byte[] b = sect.GetContents();
 			//File.WriteAllBytes( "sect_" + sect.Name, b );
 
@@ -192,6 +194,20 @@ public class TransferLogic
 			//File.WriteAllBytes( "seg_" + i, b );
 
 		}
+
+		/*
+		Console.WriteLine( "\n" );
+
+		var sectionsToLoad = inElf.GetSections<ProgBitsSection<UInt32>>();
+		foreach( ProgBitsSection<UInt32> pb in sectionsToLoad ) {
+			Console.WriteLine( $"Progbits" );
+			Console.WriteLine( $"  Offset : {pb.Offset.ToString("X")}" );
+			Console.WriteLine( $"  Size   : {pb.Size.ToString( "X" )}" );
+			Console.WriteLine( $"  Addr   : {pb.LoadAddress.ToString( "X" )}" );
+			Console.WriteLine( $"  Flags  : {pb.Flags}" );
+			Console.WriteLine( $"  Type  : {pb.Type}" );
+		}
+		*/
 
 		Console.ForegroundColor = oldColor;
 
@@ -239,16 +255,12 @@ public class TransferLogic
 
 		}
 
-		if ( seekPos == 0 ){			
-			Error( "Couldn't find a PS-EXE header!" );
-			return null;
-		}
-
+		UInt32 fileLength = 0;
 		Segment<UInt32> lastAddedSegment = null;
 
 		// Add the relevant segments:
 
-		for( int i = 0; i < elfy.Segments.Count; i++ ){
+		for ( int i = 0; i < elfy.Segments.Count; i++ ) {
 
 			Segment<UInt32> ss = elfy.Segments[ i ] as Segment<UInt32>;
 
@@ -260,13 +272,25 @@ public class TransferLogic
 			Console.WriteLine( $"  Offset   : 0x{ss.Offset.ToString( "X" )}  Size  : 0x{ss.Size.ToString( "X" )}" );
 			Console.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString( "X" )} for 0x{ss.Address.ToString( "X" )}" );
 			Console.WriteLine( $"  ElfHddr  : {segmentHasElfHeader}" );
-					
-			if ( segmentHasElfHeader || ss.Size == 0 ) {
+
+			if ( ss.Type != SegmentType.Load || ss.Size == 0 ) {
 				Console.WriteLine( "Skipping..." );
 				continue;
 			}
 
-			if ( lastAddedSegment == null ){
+			// is this the first one? Quickly ram a header in place
+			if ( seekPos == 0 ) {
+				byte[] header = new byte[ 0x800 ];
+				byte[] oep = BitConverter.GetBytes( (UInt32)ss.Address );
+				Console.WriteLine( $"Adding a header with entry point 0x{ss.Address.ToString( "X" )}" );
+				// same jump and copy addr
+				Buffer.BlockCopy( oep, 0, header, 16, 0x04 );
+				Buffer.BlockCopy( oep, 0, header, 24, 0x04 );
+				Buffer.BlockCopy( header, 0, outBytes, 0, 0x800 );
+				seekPos += 0x800;
+			}
+
+			if ( lastAddedSegment == null ) {
 				// First segment always goes right on the end of the header
 			} else {
 				// Else we'll judge the next segment start based on the disance between
@@ -280,13 +304,15 @@ public class TransferLogic
 
 		}
 
-		if ( lastAddedSegment == null ){			
+		if ( lastAddedSegment == null ) {
 			Error( "Couldn't find any segments to send!" );
 			return null;
 		}
 
-		UInt32 fileLength = seekPos + lastAddedSegment.Size;
+		fileLength = seekPos + lastAddedSegment.Size;
 
+		
+		
 		// Trim the array to use only as long as the .exe requires.
 		Array.Resize<byte>( ref outBytes, (int)fileLength );
 

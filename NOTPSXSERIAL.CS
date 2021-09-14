@@ -310,7 +310,7 @@ internal partial class Program {
 		Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
 		Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
 		Console.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
-		Console.Write( "            Nicolas Noble & T0fuZ!\n" );
+		Console.Write( "            Nicolas Noble, T0fuZ & Arthur!\n" );
 		Console.Write( "================================================================================\n" );
 		Console.Write( "\n" );
 

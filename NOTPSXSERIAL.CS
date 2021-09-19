@@ -855,13 +855,13 @@ internal partial class Program {
 
 	// Quite satisfyingly small
 	private static void Main( string[] args ){
-		
+
+		ApplyConsoleMode();
+
 		// Verify all the required args are present and parsed properly
 		if ( !VerifyArgs( args ) ){
 			return;
 		}
-
-		ApplyConsoleMode();
 
 		// Do stuff about it.
 		DoStuff();

@@ -861,6 +861,8 @@ internal partial class Program {
 			return;
 		}
 
+		ApplyConsoleMode();
+
 		// Do stuff about it.
 		DoStuff();
 

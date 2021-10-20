@@ -14,10 +14,94 @@ using ELFSharp.ELF.Sections;
 using ELFSharp.ELF.Segments;
 #endif
 
+abstract public class DataPort
+{
+	public DataPort(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits){}
+
+	abstract public int BytesToRead { get; }
+	abstract public int BytesToWrite { get; }
+	abstract public Handshake Handshake { get; set; }
+	abstract public bool DtrEnable { get; set; }
+	abstract public bool RtsEnable { get; set; }
+	abstract public int ReadTimeout { get; set; }
+	abstract public int WriteTimeout { get; set; }
+
+	abstract public void Open();
+	abstract public void Close();
+	abstract public int ReadByte();
+	abstract public int ReadChar();
+	abstract public void Write(string text);
+	abstract public void Write(char[] buffer, int offset, int count);
+	abstract public void Write(byte[] buffer, int offset, int count);
+}
+
+public class DPSerial : DataPort
+{
+	public DPSerial(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) : base(portName, baudRate, parity, dataBits, stopBits)
+	{
+		properSerial = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
+    }
+
+	private static SerialPort properSerial;
+
+	public override int BytesToRead
+	{
+		get { return properSerial.BytesToRead; }
+	}
+
+	public override int BytesToWrite
+	{
+		get { return properSerial.BytesToWrite; }
+	}
+
+	public override Handshake Handshake
+    {
+        get { return properSerial.Handshake; }
+		set { properSerial.Handshake = value; }
+    }
+
+	public override bool DtrEnable
+	{
+		get { return properSerial.DtrEnable ; }
+		set { properSerial.DtrEnable = value; }
+	}
+	public override bool RtsEnable
+	{
+		get { return properSerial.RtsEnable; }
+		set { properSerial.RtsEnable = value; }
+	}
+
+	public override int ReadTimeout
+	{
+		get { return properSerial.ReadTimeout; }
+		set { properSerial.ReadTimeout = value;  }
+	}
+	public override int WriteTimeout
+	{
+		get { return properSerial.WriteTimeout; }
+		set { properSerial.WriteTimeout = value; }
+	}
+
+	public override void Open()
+	{ properSerial.Open(); }
+	public override void Close()
+	{ properSerial.Close(); }
+	public override int ReadByte()
+	{ return properSerial.ReadByte(); }
+	public override int ReadChar()
+    { return properSerial.ReadChar(); }
+	public override void Write(string text)
+	{ properSerial.Write(text); }
+	public override void Write(char[] buffer, int offset, int count)
+	{ properSerial.Write(buffer, offset, count); }
+	public override void Write(byte[] buffer, int offset, int count)
+	{ properSerial.Write(buffer, offset, count); }
+}
+
 public class TransferLogic
 {
 
-	public static SerialPort activeSerial => Program.activeSerial;
+	public static DPSerial activeSerial => Program.activeSerial;
 
 	/// <summary>
 	/// Read a 32 bit unsigned int from the serial connection

@@ -55,11 +55,12 @@ public class TCB{
 
 public enum PSXState{ normal, halted };
 
+
 public class GDB{
 
     public static bool enabled = false;
 
-    public static SerialPort serial => Program.activeSerial;
+    public static DPSerial serial => Program.activeSerial;
     public static TCB tcb = new TCB();
     public static PSXState psxState = PSXState.normal;
 

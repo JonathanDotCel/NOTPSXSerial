@@ -7,7 +7,7 @@ using System.IO.Ports;
 
 class PCDrv {
 
-    public static SerialPort serial => Program.activeSerial;
+    public static DPSerial serial => Program.activeSerial;
 
 	public enum PCDrvCodes{ unknown, PCINIT_101 = 0x101, PCCREAT_102 = 0x102, PCOPEN_103 = 0x103, PCCLOSE_104 = 0x104, PCREAD_105 = 0x105, PCWRITE_106 = 0x106, PCSEEK_107 = 0x107 };
 

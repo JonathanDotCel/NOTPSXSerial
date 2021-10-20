@@ -6,21 +6,39 @@ using System.Text;
 using System.Threading;
 
 
-public class TCPBridge
+public class TCPBridge : DataPort
 {
 	public static Socket socket;
 
-	// Unused lace-holders, counter-parts to serial properties used in program
+	// Unused place-holders, counter-parts to serial properties used in program
+	override public int BytesToRead { get; }
+	override public int BytesToWrite { get; }
+	override public Handshake Handshake { get; set; }
+	override public bool DtrEnable { get; set; }
+	override public bool RtsEnable { get; set; }
+
+
+
+	override public int ReadTimeout
+	{
+		get { return socket.ReceiveTimeout; }
+		set { socket.ReceiveTimeout = value; }
+	}
+
+	override public int WriteTimeout
+	{
+		get { return socket.SendTimeout; }
+		set { socket.SendTimeout = value; }
+	}
 
 	static IPEndPoint remoteEndpoint;
 	static IPAddress ip;
 
-	public void Open()
+	public override void Open()
 	{
 		try
 		{
 			Console.WriteLine("Opening remote connection to " + ip + ":" + remoteEndpoint.Port);
-			socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 			socket.Connect(remoteEndpoint);
 		}
 		catch (SocketException e)
@@ -37,37 +55,48 @@ public class TCPBridge
 		{
 			Console.WriteLine("Connected to " + ip + ":" + remoteEndpoint.Port);
 		}
+		else
+        {
+			throw new System.Exception("Failed to connect to " + ip + ":" + remoteEndpoint.Port);
+		}
 	}
 
-	public void Close()
+	public override void Close()
 	{
 		socket.Close();
 	}
 
-	public int ReadByte()
+	public override int ReadByte()
 	{
+		throw new NotImplementedException();
 		return 0;
 	}
 
-	public void Write(string text)
+    public override int ReadChar()
+    {
+		throw new NotImplementedException();
+		return 0;
+	}
+
+    public override void Write(string text)
 	{
 		socket.Send(Encoding.ASCII.GetBytes(text));
 	}
 
-	public void Write(char[] buffer, int offset, int count)
+	public override void Write(char[] buffer, int offset, int count)
 	{
 		socket.Send(Encoding.ASCII.GetBytes(buffer, offset, count));
 	}
 
-	public static void Init(string host, UInt32 remotePort)
+	public override void Write(byte[] buffer, int offset, int count)
 	{
-		InitClient(host, remotePort);
-		ip = IPAddress.Parse(host);
-		remoteEndpoint = new IPEndPoint(ip, (int)remotePort);
+		socket.Send(buffer, offset, count, SocketFlags.None);
 	}
 
-	private static void InitClient(string host, UInt32 remotePort)
+	public TCPBridge(string remoteHost, UInt32 remotePort) : base(remoteHost, remotePort)
 	{
-		
+		socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+		ip = IPAddress.Parse(remoteHost);
+		remoteEndpoint = new IPEndPoint(ip, (int)remotePort);
 	}
 }

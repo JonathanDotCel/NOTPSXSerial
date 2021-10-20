@@ -398,7 +398,7 @@ internal partial class Program {
 	// public stuff
 	//
 
-	public static DPSerial activeSerial;
+	public static DataPort activeSerial;
 	public static UInt32 protocolVersion = 1;
 
 	//
@@ -894,6 +894,7 @@ internal partial class Program {
 		int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
 		//activeSerial = new SerialPort(argComPort, baud, Parity.None, 8, StopBits.Two);
 		activeSerial = new DPSerial(argComPort, baud, Parity.None, 8, StopBits.Two);
+		//activeSerial = new TCPBridge("10.0.0.148", 6699);
 		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
 		activeSerial.Handshake = Handshake.None;
 		activeSerial.DtrEnable = true;
@@ -1171,8 +1172,7 @@ internal partial class Program {
 
 		if (argCommand == CommandMode.BRIDGE)
 		{
-			//GDB.Init( argPort );
-			TCPBridge.Init("10.0.0.148", 6699);
+			GDB.Init( argPort );
 		}
 
 		//

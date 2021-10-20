@@ -17,6 +17,7 @@ using ELFSharp.ELF.Segments;
 abstract public class DataPort
 {
 	public DataPort(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits){}
+	public DataPort(string remoteHost, UInt32 remotePort) { }
 
 	abstract public int BytesToRead { get; }
 	abstract public int BytesToWrite { get; }
@@ -37,12 +38,12 @@ abstract public class DataPort
 
 public class DPSerial : DataPort
 {
+	private static SerialPort properSerial;
+
 	public DPSerial(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) : base(portName, baudRate, parity, dataBits, stopBits)
 	{
 		properSerial = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
     }
-
-	private static SerialPort properSerial;
 
 	public override int BytesToRead
 	{
@@ -84,24 +85,31 @@ public class DPSerial : DataPort
 
 	public override void Open()
 	{ properSerial.Open(); }
+
 	public override void Close()
 	{ properSerial.Close(); }
+
 	public override int ReadByte()
 	{ return properSerial.ReadByte(); }
+
 	public override int ReadChar()
     { return properSerial.ReadChar(); }
+
 	public override void Write(string text)
 	{ properSerial.Write(text); }
+
 	public override void Write(char[] buffer, int offset, int count)
 	{ properSerial.Write(buffer, offset, count); }
+
 	public override void Write(byte[] buffer, int offset, int count)
 	{ properSerial.Write(buffer, offset, count); }
 }
 
+
 public class TransferLogic
 {
 
-	public static DPSerial activeSerial => Program.activeSerial;
+	public static DataPort activeSerial => Program.activeSerial;
 
 	/// <summary>
 	/// Read a 32 bit unsigned int from the serial connection

@@ -892,9 +892,7 @@ internal partial class Program {
 		// note: psx @ 518400, pc @ 510000
 		//
 		int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
-		//activeSerial = new SerialPort(argComPort, baud, Parity.None, 8, StopBits.Two);
-		//activeSerial = new DPSerial(argComPort, baud, Parity.None, 8, StopBits.Two);
-		activeSerial = new TCPBridge("10.0.0.148", 6699);
+		activeSerial = new DPSerial(argComPort, baud, Parity.None, 8, StopBits.Two);
 		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
 		activeSerial.Handshake = Handshake.None;
 		activeSerial.DtrEnable = true;
@@ -1171,7 +1169,7 @@ internal partial class Program {
 		}
 
 		if (argCommand == CommandMode.BRIDGE)
-		{
+		{            
 			GDB.Init( argPort );
 		}
 

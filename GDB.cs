@@ -55,7 +55,6 @@ public class TCB{
 
 public enum PSXState{ normal, halted };
 
-
 public class GDB{
 
     public static bool enabled = false;

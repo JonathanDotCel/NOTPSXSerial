@@ -14,7 +14,7 @@ public class RingBuffer
 
 	public RingBuffer(int _size)
 	{
-		this.size = _size;
+		this.size = _size - 1;
 		this.Buffer = new byte[_size];
 	}
 
@@ -46,22 +46,43 @@ public class RingBuffer
 
 		return 0;
     }
+
+	public void Reset()
+    {
+		head = 0;
+		tail = 0;
+    }
 }
 
 public class TCPBridge : DataPort
 {
 	public static Socket socket;
-	public const int socketBufferSize = 512;
+	private static IAsyncResult asyncResult;
+	public const int socketBufferSize = 1024 * 4;
 	public static byte[] socketBuffer = new byte[socketBufferSize];
 	public static StringBuilder sb = new StringBuilder();
 	public static string socketString; // oh boy, this will be nuts on the GC
 
 
-	public RingBuffer ring_buffer = new RingBuffer(4096);
+	public RingBuffer ring_buffer = new RingBuffer(socketBufferSize * 2);
 	private volatile int _bytestoread = 0;
+	private volatile bool data_is_ready = false;
 
 	// Unused place-holders, counter-parts to serial properties used in program
-	override public int BytesToRead { get { return _bytestoread; } }
+	override public int BytesToRead
+	{
+		get
+		{
+			if (data_is_ready)
+			{
+				return _bytestoread;
+			}
+			else
+			{
+				return 0;
+			}
+		}
+	}
 	override public int BytesToWrite { get; }
 	override public Handshake Handshake { get; set; }
 	override public bool DtrEnable { get; set; }
@@ -87,6 +108,10 @@ public class TCPBridge : DataPort
 	{
 		try
 		{
+			/*if(!socket.IsBound)
+            {
+				socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+			}*/
 			Console.WriteLine("Opening remote connection to " + ip + ":" + remoteEndpoint.Port);
 			socket.Connect(remoteEndpoint);
 
@@ -110,7 +135,7 @@ public class TCPBridge : DataPort
             {
 				Console.WriteLine("Connected to " + ip + ":" + remoteEndpoint.Port);
 				Console.WriteLine("Starting async receive task");
-				socket.BeginReceive(socketBuffer, 0, socketBufferSize, 0, new AsyncCallback(RecieveCallback), socket);
+				asyncResult = socket.BeginReceive(socketBuffer, 0, socketBufferSize, 0, new AsyncCallback(RecieveCallback), socket);
 			}
 			catch (Exception e)
 			{
@@ -127,7 +152,10 @@ public class TCPBridge : DataPort
 
 	public override void Close()
 	{
+		//socket.EndReceive(asyncResult);
 		socket.Close();
+		this._bytestoread = 0;
+		this.ring_buffer.Reset();
 	}
 
 	public override int ReadByte()
@@ -204,28 +232,43 @@ public class TCPBridge : DataPort
 
 	private void RecieveCallback(IAsyncResult ar)
 	{
-		Socket recvSocket = (Socket)ar.AsyncState;
-		int numBytesRead = recvSocket.EndReceive(ar);
+		try
+		{
 
-		if (numBytesRead > 0)
-		{
-			for (int i = 0; i < numBytesRead; i++)
+			Socket recvSocket = (Socket)ar.AsyncState;
+			int numBytesRead = recvSocket.EndReceive(ar);
+			data_is_ready = false;
+
+			if (numBytesRead > 0)
 			{
-				if (this.ring_buffer.Write(Convert.ToByte(socketBuffer[i])) < 0)
+				for (int i = 0; i < numBytesRead; i++)
 				{
-					Console.WriteLine("buffer.Write() < 0");
-					return;
+					if (this.ring_buffer.Write(Convert.ToByte(socketBuffer[i])) < 0)
+					{
+						Console.WriteLine("buffer.Write() < 0");
+						return;
+					}
+					else
+					{
+						this._bytestoread++;
+					}
 				}
-				else
-				{
-					this._bytestoread++;
-				}
+				data_is_ready = true;
+				recvSocket.BeginReceive(socketBuffer, 0, socketBufferSize, 0, new AsyncCallback(RecieveCallback), recvSocket);
 			}
-			recvSocket.BeginReceive(socketBuffer, 0, socketBufferSize, 0, new AsyncCallback(RecieveCallback), recvSocket);
+			else
+			{
+				Console.WriteLine("Read 0 bytes...");
+			}
 		}
-		else
+		catch (ObjectDisposedException e)
 		{
-			Console.WriteLine("Read 0 bytes...");
+			
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine("Source : " + e.Source);
+			Console.WriteLine("Message : " + e.Message);
 		}
 	}
 }

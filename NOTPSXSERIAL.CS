@@ -893,6 +893,7 @@ internal partial class Program {
 		//
 		int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
 		activeSerial = new DPSerial(argComPort, baud, Parity.None, 8, StopBits.Two);
+		//activeSerial = new DPTCPBridge("10.0.0.148", 6699); 
 		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
 		activeSerial.Handshake = Handshake.None;
 		activeSerial.DtrEnable = true;

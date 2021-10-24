@@ -7,6 +7,7 @@ using System.Threading;
 
 public class RingBuffer
 {
+    // Adapted from https://gist.github.com/ryankurte/61f95dc71133561ed055ff62b33585f8
     public byte[] Buffer;
     uint head;
     uint tail;
@@ -168,7 +169,7 @@ public class DPTCPBridge : DataPort
             DateTime delay_start_time = DateTime.Now;
             DateTime delay_end_time = delay_start_time.AddMilliseconds(this.ReadTimeout);
 
-            while (this._bytestoread <= 0)
+            while (this._bytestoread == 0 || this.data_is_ready == false)
             {
                 if (DateTime.Now >= delay_end_time)
                 {
@@ -208,7 +209,7 @@ public class DPTCPBridge : DataPort
             DateTime delay_start_time = DateTime.Now;
             DateTime delay_end_time = delay_start_time.AddMilliseconds(this.ReadTimeout);
 
-            while (this._bytestoread <= 0)
+            while (this._bytestoread == 0 || this.data_is_ready == false)
             {
                 if (DateTime.Now >= delay_end_time)
                 {

@@ -8,13 +8,13 @@ using System.Threading;
 public class RingBuffer
 {
     public byte[] Buffer;
-    int head;
-    int tail;
-    int size;
+    uint head;
+    uint tail;
+    uint size;
 
-    public RingBuffer(int _size)
+    public RingBuffer(uint _size)
     {
-        this.size = _size - 1;
+        this.size = _size;
         this.Buffer = new byte[_size];
     }
 
@@ -23,7 +23,8 @@ public class RingBuffer
         byte temp;
         if (this.tail == this.head)
         {
-            Console.WriteLine("Head == tail on read(), Head = " + this.head + " Tail = " + tail);
+            // Empty - bytes not written?
+            Console.WriteLine("Underflow condition tail == head on read(), Head = " + this.head + " Tail = " + tail);
             return -1;
         }
 
@@ -37,7 +38,8 @@ public class RingBuffer
     {
         if (((this.head + 1) % this.size) == this.tail)
         {
-            Console.WriteLine("Head == tail on write(" + data + ")");
+            // Buffer full
+            Console.WriteLine("Overflow conditon, Head == tail on write(" + data + ")");
             return -1;
         }
 
@@ -57,10 +59,10 @@ public class RingBuffer
 public class DPTCPBridge : DataPort
 {
     private static Socket socket;
-    public const int socketBufferSize = 1024 * 4;
+    public const int socketBufferSize = 1024 * 16;
     public static byte[] socketBuffer_Receive = new byte[socketBufferSize];
 
-    public RingBuffer ringBuffer_Receive = new RingBuffer(socketBufferSize * 2);
+    public RingBuffer ringBuffer_Receive = new RingBuffer(1024 * 16);
     private volatile bool data_is_ready = false;
 
     private volatile int _bytestoread = 0;
@@ -95,15 +97,16 @@ public class DPTCPBridge : DataPort
 
     override public int ReadTimeout
     {
-        // Consider doubling up the wait value used by nops?
         get { return socket.ReceiveTimeout; }
-        set { socket.ReceiveTimeout = value; }
+        // To-do: Move this hacky fix to the port creation
+        set { socket.ReceiveTimeout = value * 2; }
     }
 
     override public int WriteTimeout
     {
         get { return socket.SendTimeout; }
-        set { socket.SendTimeout = value; }
+        // To-do: Move this hacky fix to the port creation
+        set { socket.SendTimeout = value * 2; }
     }
 
     static IPEndPoint remoteEndpoint;
@@ -152,12 +155,27 @@ public class DPTCPBridge : DataPort
 
     public override int ReadByte()
     {
-        int temp;
-        if (this._bytestoread <= 0)
+        int temp = 0;
+        if (this._bytestoread < 0)
         {
-            Console.WriteLine("ReadByte() this._bytestoread <= 0");
+            Console.WriteLine("ReadByte() this._bytestoread < 0");
             this._bytestoread = 0;
-            return -1;
+        }
+
+
+        if (this._bytestoread == 0 || this.data_is_ready == false)
+        {
+            DateTime delay_start_time = DateTime.Now;
+            DateTime delay_end_time = delay_start_time.AddMilliseconds(this.ReadTimeout);
+
+            while (this._bytestoread <= 0)
+            {
+                if (DateTime.Now >= delay_end_time)
+                {
+                    Console.WriteLine("ReadByte() timeout\n");
+                    return -1;
+                }
+            }
         }
 
         temp = this.ringBuffer_Receive.Read();
@@ -177,12 +195,27 @@ public class DPTCPBridge : DataPort
 
     public override int ReadChar()
     {
-        int temp;
-        if (this._bytestoread <= 0)
+        int temp = 0;
+        if (this._bytestoread < 0)
         {
-            Console.WriteLine("ReadChar() this._bytestoread <= 0");
+            Console.WriteLine("ReadChar() this._bytestoread < 0");
             this._bytestoread = 0;
-            return -1;
+        }
+
+
+        if (this._bytestoread == 0 || this.data_is_ready == false)
+        {
+            DateTime delay_start_time = DateTime.Now;
+            DateTime delay_end_time = delay_start_time.AddMilliseconds(this.ReadTimeout);
+
+            while (this._bytestoread <= 0)
+            {
+                if (DateTime.Now >= delay_end_time)
+                {
+                    Console.WriteLine("ReadChar() timeout\n");
+                    return -1;
+                }
+            }
         }
 
         temp = this.ringBuffer_Receive.Read();
@@ -202,20 +235,39 @@ public class DPTCPBridge : DataPort
 
     public override void Write(string text)
     {
-        this._bytestowrite += text.Length ;
-        this._bytestowrite -= socket.Send(Encoding.ASCII.GetBytes(text));
+        this._bytestowrite += text.Length;
+        int bytes_written = socket.Send(Encoding.ASCII.GetBytes(text));
+        this._bytestowrite -= bytes_written;
+
+        if (bytes_written != text.Length)
+        {
+            Console.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + text.Length);
+        }
     }
 
     public override void Write(char[] buffer, int offset, int count)
     {
         this._bytestowrite += count;
-        this._bytestowrite -= socket.Send(Encoding.ASCII.GetBytes(buffer, offset, count));
+        int bytes_written = socket.Send(Encoding.ASCII.GetBytes(buffer, offset, count));
+        this._bytestowrite -= bytes_written;
+
+        if (bytes_written != count)
+        {
+            Console.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + count);
+        }
     }
 
     public override void Write(byte[] buffer, int offset, int count)
     {
         this._bytestowrite += count;
-        this._bytestowrite -= socket.Send(buffer, offset, count, SocketFlags.None);
+        int bytes_written = socket.Send(buffer, offset, count, SocketFlags.None);
+        this._bytestowrite -= bytes_written;
+
+        if(bytes_written != count)
+        {
+            Console.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + count);
+        }
+
     }
 
     public DPTCPBridge(string remoteHost, UInt32 remotePort) : base(remoteHost, remotePort)
@@ -231,6 +283,10 @@ public class DPTCPBridge : DataPort
         {
             Socket recvSocket = (Socket)ar.AsyncState;
             int numBytesRead = recvSocket.EndReceive(ar);
+            if(numBytesRead >= socketBufferSize)
+            {
+                Console.WriteLine("More bytes received than buffer can hold");
+            }
             data_is_ready = false;
 
             if (numBytesRead > 0)

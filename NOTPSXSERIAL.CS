@@ -519,7 +519,7 @@ internal partial class Program {
 
             // port was specified, cache it for later
             try {
-                string savedTarget = argTargetPort != 0 ? argTargetDevice : (argTargetDevice + ":" + argTargetPort);
+                string savedTarget = argTargetPort != 0 ? (argTargetDevice + ":" + argTargetPort) : argTargetDevice;
                 File.WriteAllText( "comport.txt", savedTarget );
             } catch ( System.Exception e ) {
                 Console.Write( "Error writing cached com port!\n" + e );

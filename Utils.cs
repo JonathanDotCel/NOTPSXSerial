@@ -117,12 +117,12 @@ public class Utils {
     public static void ApplyConsoleMode() {
         IntPtr consoleHandle = GetStdHandle( STD_OUTPUT_HANDLE );
         if ( consoleHandle.ToInt32() == -INVALID_HANDLE_VALUE ) {
-            Console.WriteLine( "Error: invalid stdout handle value" );
+            Console.WriteLine( "Error: invalid stdout handle value" );  
             return;
         }
 
         UInt32 mode = 0;
-        if ( !GetConsoleMode(consoleHandle, out mode ) ) {
+        if ( !GetConsoleMode( consoleHandle, out mode ) ) {
             Console.WriteLine( "Error: couldn't read console mode..." );
             return;
         }
@@ -131,7 +131,7 @@ public class Utils {
 
         SetConsoleMode( consoleHandle, mode );
 
-        Console.WriteLine( $"Applied console mode: 0x{mode.ToString("X")}" );
+        Console.WriteLine( $"Applied console mode: 0x{mode.ToString( "X" )}" );
 
     }
 

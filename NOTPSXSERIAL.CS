@@ -273,14 +273,14 @@ public enum CommandMode {
 
 
     /*
-	// Deprecated as of 8.0.C's self-correcting algo
-	[Command( "/verify" )]
-	[Challenge("SBIN")]
-	[Response("OKAY")]
-	[NeedsInputFile]
-	[NeedsAddress]	
-	VERIFY,
-	*/
+    // Deprecated as of 8.0.C's self-correcting algo
+    [Command( "/verify" )]
+    [Challenge("SBIN")]
+    [Response("OKAY")]
+    [NeedsInputFile]
+    [NeedsAddress]	
+    VERIFY,
+    */
 
 
     COUNT
@@ -296,9 +296,9 @@ internal partial class Program {
     public static void PrintUsage( bool justTheTip = false ) {
 
 #if !DebugArgs
-		if( !justTheTip ){
-			Console.Clear();
-		}
+        if( !justTheTip ){
+            Console.Clear();
+        }
 #endif
 
         SetDefaultColour();
@@ -402,7 +402,7 @@ internal partial class Program {
     public static UInt32 protocolVersion = 1;
 
     //
-    // less public stuff	
+    // less public stuff
     //
 
     // Shared args
@@ -477,7 +477,7 @@ internal partial class Program {
         // Remove the arg for the com port: COM* or /dev/tty*
         for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
-            string s = remainingArgs[ i ];
+                        string s = remainingArgs[ i ];
 
 
             if ( ValidIPAddress( s, ref argTargetDevice, ref argTargetPort ) ) {
@@ -595,7 +595,7 @@ internal partial class Program {
                         Console.WriteLine( "__DEBUG__Command " + c + " requires an address " );
 #endif
 
-                        // reassign it						
+                        // reassign it
                         param = remainingArgs[ paramIndex ].ToLowerInvariant();
 
                         // try and get the address argument
@@ -733,13 +733,13 @@ internal partial class Program {
                         argCard = UInt32.Parse( param );
 
                         /*
-						// Working on something interesting here... hold tight.
-						if ( _arg != "0" && _arg != "1" ){
-							return Error( "EXCEPTION: memory card should be 0 or 1!" );
-						} else {
-							argCard = UInt32.Parse( _arg );
-						}
-						*/
+                        // Working on something interesting here... hold tight.
+                        if ( _arg != "0" && _arg != "1" ){
+                            return Error( "EXCEPTION: memory card should be 0 or 1!" );
+                        } else {
+                            argCard = UInt32.Parse( _arg );
+                        }
+                        */
 
                         remainingArgs.RemoveAt( paramIndex );
                         satisfiedCardRequirement = true;
@@ -855,11 +855,10 @@ internal partial class Program {
     } //VerifyArgs
 
 
-
-
-
     // Quite satisfyingly small
     private static void Main( string[] args ) {
+
+        ApplyConsoleMode();
 
         // Verify all the required args are present and parsed properly
         if ( !VerifyArgs( args ) ) {
@@ -903,7 +902,6 @@ internal partial class Program {
         } else {
             activeSerial = new DPSerial( argTargetDevice, baud, Parity.None, 8, StopBits.Two );
         }
-                
         // Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
         activeSerial.Handshake = Handshake.None;
         activeSerial.DtrEnable = true;
@@ -1204,7 +1202,6 @@ internal partial class Program {
 
         }
     }
-
 
 
     /// <summary>

@@ -60,10 +60,11 @@ public class RingBuffer
 public class DPTCPBridge : DataPort
 {
     private static Socket socket;
-    public const int socketBufferSize = 1024 * 16;
+    public const int socketBufferSize = 1024 * 2;
+    public const int ringBufferSize = 1024 * 4;
     public static byte[] socketBuffer_Receive = new byte[socketBufferSize];
 
-    public RingBuffer ringBuffer_Receive = new RingBuffer(1024 * 16);
+    public RingBuffer ringBuffer_Receive = new RingBuffer(ringBufferSize);
     private volatile bool data_is_ready = false;
 
     private volatile int _bytestoread = 0;
@@ -286,7 +287,7 @@ public class DPTCPBridge : DataPort
             int numBytesRead = recvSocket.EndReceive(ar);
             if(numBytesRead >= socketBufferSize)
             {
-                Console.WriteLine("More bytes received than buffer can hold");
+                Console.WriteLine("More bytes received than buffer can hold: " + numBytesRead);
             }
             data_is_ready = false;
 
@@ -312,7 +313,7 @@ public class DPTCPBridge : DataPort
                 Console.WriteLine("Read 0 bytes...");
             }
         }
-        catch (ObjectDisposedException e)
+        catch (ObjectDisposedException)
         {
 
         }

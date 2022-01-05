@@ -1,10 +1,14 @@
-﻿using System.IO.Ports;
+﻿//
+// For connections through a local device (COM14, /dev/tty.SLAB_USBtoUART, etc)
+//
 
-public class DPSerial : DataPort
+using System.IO.Ports;
+
+public class SerialTarget : TargetDataPort
 {
 	private static SerialPort properSerial;
 
-	public DPSerial(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) : base(portName, baudRate, parity, dataBits, stopBits)
+	public SerialTarget(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) : base(portName, baudRate, parity, dataBits, stopBits)
 	{
 		properSerial = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
 	}

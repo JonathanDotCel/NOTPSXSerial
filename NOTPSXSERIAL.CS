@@ -75,6 +75,10 @@
 //   - Distinction between /gdb and /bridge
 //
 
+// 05_01_2021 - Release 15 - (~8.0.J)
+//   - Proper TCP/Serial abstraction, thanks Skitchin!
+//
+
 // See github for further release info.
 
 
@@ -325,7 +329,9 @@ internal partial class Program {
         // COM8, /dev/tty*, /dev/cu.usbserial*, etc
         suggestedComPort = SampleCOMPortForEnvironment;
 
-        Console.Write( "    Usage: NOPS.EXE [/args] FILENAME COMPORT" );
+        Console.Write( "    Usage: NOPS.EXE [/args] FILENAME COMPORT\n" );
+        Console.Write( "    Usage: NOPS.EXE [/args] 192.168.0.5:5000\n" );
+        Console.Write( "    Usage: NOPS.EXE /bridge [TCP PORT] [COMPORT]\n" );
         Console.Write( "\n\n" );
 
         Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {0}\n\n", suggestedComPort );
@@ -398,7 +404,7 @@ internal partial class Program {
     // public stuff
     //
 
-    public static DataPort activeSerial;
+    public static TargetDataPort activeSerial;
     public static UInt32 protocolVersion = 1;
 
     //
@@ -898,9 +904,9 @@ internal partial class Program {
         int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
 
         if ( argTargetPort != 0 ) {
-            activeSerial = new DPTCPBridge( argTargetDevice, argTargetPort );
+            activeSerial = new TCPTarget( argTargetDevice, argTargetPort );
         } else {
-            activeSerial = new DPSerial( argTargetDevice, baud, Parity.None, 8, StopBits.Two );
+            activeSerial = new SerialTarget( argTargetDevice, baud, Parity.None, 8, StopBits.Two );
         }
         // Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
         activeSerial.Handshake = Handshake.None;

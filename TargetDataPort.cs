@@ -1,10 +1,16 @@
-﻿using System;
+﻿//
+// Base class for e.g. Serial and TCP targets
+//
+// "Target" to distinguish between e.g. a remote TCP target and a local listen server for TCP<->UART bridge
+//
+
+using System;
 using System.IO.Ports;
 
-abstract public class DataPort
+abstract public class TargetDataPort
 {
-	public DataPort(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) { }
-	public DataPort(string remoteHost, UInt32 remotePort) { }
+	public TargetDataPort(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) { }
+	public TargetDataPort(string remoteHost, UInt32 remotePort) { }
 
 	abstract public int BytesToRead { get; }
 	abstract public int BytesToWrite { get; }

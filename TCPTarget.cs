@@ -1,4 +1,15 @@
-﻿using System;
+﻿//
+// For targeting a TCP client connnected to the serial port.
+//
+// E.g. an ESP32 on wifi, which pushes the raw bytes back
+// and forth through the serial port.
+//
+// E.g. nops in TCP<->Serial bridge mode on another machine
+//
+// E.g. an emulator with a local port open which speaks nops
+//
+
+using System;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
@@ -57,7 +68,7 @@ public class RingBuffer
     }
 }
 
-public class DPTCPBridge : DataPort
+public class TCPTarget : TargetDataPort
 {
     private static Socket socket;
     public const int socketBufferSize = 1024 * 2;
@@ -272,7 +283,7 @@ public class DPTCPBridge : DataPort
 
     }
 
-    public DPTCPBridge(string remoteHost, UInt32 remotePort) : base(remoteHost, remotePort)
+    public TCPTarget(string remoteHost, UInt32 remotePort) : base(remoteHost, remotePort)
     {
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         ip = IPAddress.Parse(remoteHost);

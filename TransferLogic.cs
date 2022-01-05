@@ -15,7 +15,7 @@ using ELFSharp.ELF.Segments;
 
 public class TransferLogic {
 
-    public static DataPort activeSerial => Program.activeSerial;
+    public static TargetDataPort activeSerial => Program.activeSerial;
 
     /// <summary>
     /// Read a 32 bit unsigned int from the serial connection

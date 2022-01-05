@@ -398,7 +398,7 @@ internal partial class Program {
     // public stuff
     //
 
-    public static SerialPort activeSerial;
+    public static DataPort activeSerial;
     public static UInt32 protocolVersion = 1;
 
     //
@@ -406,13 +406,14 @@ internal partial class Program {
     //
 
     // Shared args
-    static string argComPort = "";
+    static string argTargetDevice = "";         // E.g. COM8, /dev/tty.SLAB_USBtoUART, 127.0.0.1, etc
+    static UInt32 argTargetPort = 0;           // E.g. 127.0.0.1:6666 (obvs not used with COM8 etc)
     static string suggestedComPort = "COM8";
     static UInt32 argAddr;
     static UInt32 argSize;
     static UInt32 argValue;
     static UInt32 argCard;
-    static UInt32 argPort;
+    static UInt32 argListenPort;
     static string argIP;
     static CommandMode argCommand = CommandMode.NOT_SET;
     static string argFileName;
@@ -439,7 +440,7 @@ internal partial class Program {
     static bool enterSlowMode = false;
 
     static bool monitorComms = false;
-    static bool usingCachedComPort = false;
+    static bool usingCachedPortOrAddress = false;
 
 
     /// <summary>
@@ -476,10 +477,15 @@ internal partial class Program {
         // Remove the arg for the com port: COM* or /dev/tty*
         for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
-            string s = remainingArgs[ i ];
+                        string s = remainingArgs[ i ];
 
-            if ( ValidPort( s ) ) {
-                argComPort = s;
+
+            if ( ValidIPAddress( s, ref argTargetDevice, ref argTargetPort ) ) {
+                // 127.0.0.1:1234 etc
+                remainingArgs.RemoveAt( i );
+                break;
+            } else if ( ValidTargetDevice( s, ref argTargetDevice ) ) {
+                // COM5 or /dev/uart_thing/                
                 remainingArgs.RemoveAt( i );
                 break;
             }
@@ -487,32 +493,34 @@ internal partial class Program {
         }
 
         // Cache the com port, or load the cached value
-        if ( string.IsNullOrEmpty( argComPort ) ) {
+        if ( string.IsNullOrEmpty( argTargetDevice ) ) {
 
+            string readVal = "";
             try {
                 if ( System.IO.File.Exists( "comport.txt" ) ) {
-                    argComPort = File.ReadAllText( "comport.txt" );
+                    readVal = File.ReadAllText( "comport.txt" );
                 }
             } catch ( System.Exception e ) {
                 Console.Write( "Error checking for cached com port...\n" + e );
             }
 
-            if ( argComPort == "" ) {
-
-                if ( !ValidPort( argComPort ) ) {
-                    // I think the GC can manage the hit on this one :)
-                    return Error( "\nERROR! Please specify a device or COM port in the format: " + SampleCOMPortForEnvironment + "\ngot: " + argCommand );
-                }
-
+            if ( ValidIPAddress( readVal, ref argTargetDevice, ref argTargetPort ) ) {
+                Console.Write( $"Using address and port: {argTargetDevice}:{argTargetPort}" );
+            } else if ( ValidTargetDevice( readVal, ref argTargetDevice ) ) {
+                Console.Write( $"Using device {argTargetDevice}" );
             } else {
-                usingCachedComPort = true;
+                // I think the GC can manage the hit on this one :)
+                return Error( $"\nERROR! Please specify a device or COM port in the format: {SampleCOMPortForEnvironment} or 127.0.0.1:1234, etc\ngot: {argCommand}" );
             }
+
+            usingCachedPortOrAddress = true;
 
         } else {
 
-            // port was specified, cache it for alter
+            // port was specified, cache it for later
             try {
-                File.WriteAllText( "comport.txt", argComPort );
+                string savedTarget = argTargetPort != 0 ? (argTargetDevice + ":" + argTargetPort) : argTargetDevice;
+                File.WriteAllText( "comport.txt", savedTarget );
             } catch ( System.Exception e ) {
                 Console.Write( "Error writing cached com port!\n" + e );
             }
@@ -542,7 +550,8 @@ internal partial class Program {
 
 #if DebugArgs
         Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-        Console.WriteLine( "__DEBUG__COM: " + argComPort );
+        Console.WriteLine( "__DEBUG__TARGDEVOCE: " + argTargetDevice );
+        Console.WriteLine( "__DEBUG__TARGPORT: " + argTargetPort );
         Console.WriteLine( "__DEBUG__FAST: " + enterFastMode );
         Console.WriteLine( "__DEBUG__FAST: " + enterSlowMode );
 #endif
@@ -689,7 +698,7 @@ internal partial class Program {
 
                         param = remainingArgs[ paramIndex ].ToLowerInvariant();
 
-                        if ( !UInt32.TryParse( param, out argPort ) ) {
+                        if ( !UInt32.TryParse( param, out argListenPort ) ) {
                             return Error( "EXCEPTION: Couldn't parse a valid port number from \"" + param + "\"" );
                         }
 
@@ -748,7 +757,7 @@ internal partial class Program {
 
 #if DebugArgs
         Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-        Console.WriteLine( "__DEBUG__COM: " + argComPort );
+        Console.WriteLine( "__DEBUG__COM: " + argTargetDevice );
         Console.WriteLine( "__DEBUG__COMMAND: " + argCommand );
         Console.WriteLine( "__DEBUG__ADDR: " + argAddr.ToString( "X8" ) );
         Console.WriteLine( "__DEBUG__VALUE: " + argValue.ToString( "X8" ) );
@@ -887,7 +896,12 @@ internal partial class Program {
         // note: psx @ 518400, pc @ 510000
         //
         int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
-        activeSerial = new SerialPort( argComPort, baud, Parity.None, 8, StopBits.Two );
+
+        if ( argTargetPort != 0 ) {
+            activeSerial = new DPTCPBridge( argTargetDevice, argTargetPort );
+        } else {
+            activeSerial = new DPSerial( argTargetDevice, baud, Parity.None, 8, StopBits.Two );
+        }
         // Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
         activeSerial.Handshake = Handshake.None;
         activeSerial.DtrEnable = true;
@@ -898,7 +912,7 @@ internal partial class Program {
         try {
             activeSerial.Open();
         } catch ( System.Exception exception ) {
-            Console.WriteLine( "Error opening temporary serial port on " + argComPort + " speed=" + inSpeed + "!" );
+            Console.WriteLine( "Error opening temporary serial port on " + argTargetDevice + " speed=" + inSpeed + "!" );
             Console.WriteLine( exception.Message );
             return false;
         }
@@ -969,8 +983,8 @@ internal partial class Program {
         // A little cleanup...
         //
 
-        if ( usingCachedComPort ) {
-            Console.WriteLine( "Using port " + argComPort + " from comport.txt\n" );
+        if ( usingCachedPortOrAddress ) {
+            Console.WriteLine( "Using port " + argTargetDevice + " from comport.txt\n" );
         }
 
         // Clear the SIO buffer incase the last program has been spamming
@@ -1139,11 +1153,11 @@ internal partial class Program {
         //
 
         if ( argCommand == CommandMode.GDB ) {
-            GDB.DebugInit( argPort );
+            GDB.DebugInit( argListenPort );
         }
 
         if ( argCommand == CommandMode.BRIDGE ) {
-            GDB.Init( argPort );
+            GDB.Init( argListenPort );
         }
 
         //
@@ -1193,31 +1207,91 @@ internal partial class Program {
     /// <summary>
     /// Verify that the port argument is (potentially) valid
     /// </summary>
-    /// <param name="inPort">COM5, /dev/ttyUSB0, etc</param>
-    /// <returns>Does itlook potentially valid?</returns>
-    public static bool ValidPort( string inPort ) {
+    /// <param name="inDevice">COM5, /dev/ttyUSB0, etc</param>
+    /// <returns>Does it look potentially valid?</returns>
+    public static bool ValidTargetDevice( string inDevice, ref string outTargetDevice ) {
 
         switch ( realPlatform ) {
 
             // A windowsy sort of affair
             default:
-                return inPort.ToUpperInvariant().StartsWith( "COM" );
+                if ( inDevice.ToUpperInvariant().StartsWith( "COM" ) )
+                    goto yay;
+                break;
 
             // Mac
             case PlatformID.MacOSX:
-                return inPort.ToLowerInvariant().StartsWith( "/dev/cu" ) | inPort.ToLowerInvariant().StartsWith( "/dev/tty" );
+                if ( inDevice.ToLowerInvariant().StartsWith( "/dev/cu" ) | inDevice.ToLowerInvariant().StartsWith( "/dev/tty" ) )
+                    goto yay;
+                break;
 
             // Some kinda POSIXy environment
             // Allow any tty device as *nix users could be using all sorts of pipes n redirects
             case (PlatformID)128:
             case PlatformID.Unix:
-                return inPort.ToLowerInvariant().StartsWith( "/dev/tty" );
+                if ( inDevice.ToLowerInvariant().StartsWith( "/dev/tty" ) )
+                    goto yay;
+                break;
 
         }
 
+        // nay
+        return false;
+
+        yay:;
+        outTargetDevice = inDevice;
+        return true;
+
     }
 
+    /// <summary>
+    /// Check if we have something in the format addr:port or ip:port
+    /// Hint: just lookin' for that ":"
+    /// </summary>
+    /// <param name="inAddress"></param>
+    /// <returns>yay or nay</returns>
+    /// TODO: this will not play nice with ipv6
+    public static bool ValidIPAddress( string inAddress, ref string outAddr, ref UInt32 outPort ) {
 
+        // no separator, move on
+        if ( inAddress.IndexOf( ":" ) == -1 ) return false;
+
+        string[] parts = inAddress.Split( ':' );
+
+        // too many bits
+        if ( parts.Length != 2 ) return false;
+
+        if ( parts[ 0 ].Length == 0 ) return false;
+        if ( parts[ 1 ].Length == 0 ) return false;
+
+        // what about the start bit
+        // is it 4 numbers separated by 3 dots?
+
+        string[] bytes = parts[ 0 ].Split( '.' );
+        if ( bytes.Length != 4 ) return false;
+
+        for( int i = 0; i < 4; i++ ) {
+            UInt32 dummy = 0; // less code than trycatch :)
+            if ( !UInt32.TryParse(bytes[i], out dummy)){
+                return false;
+            }
+        }
+
+        // First bit looks like an IP
+        // Does the last bit look like a uint?
+
+        try {
+            outPort = UInt32.Parse( parts[1] );
+        } catch (System.Exception ) {
+            return false;
+        }
+
+        outAddr = parts[ 0 ];
+
+        // Guess it's valid
+        return true;
+
+    }
 
 } // Main Class
 

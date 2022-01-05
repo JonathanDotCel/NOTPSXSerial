@@ -59,7 +59,7 @@ public class GDB {
 
     public static bool enabled = false;
 
-    public static SerialPort serial => Program.activeSerial;
+    public static DataPort serial => Program.activeSerial;
     public static TCB tcb = new TCB();
     public static PSXState psxState = PSXState.normal;
 

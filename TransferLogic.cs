@@ -5,7 +5,6 @@
 using System;
 using System.Threading;
 using System.IO;
-using System.IO.Ports;
 using System.Text;
 using static Utils;
 #if USE_ELFSHARP
@@ -16,7 +15,7 @@ using ELFSharp.ELF.Segments;
 
 public class TransferLogic {
 
-    public static SerialPort activeSerial => Program.activeSerial;
+    public static DataPort activeSerial => Program.activeSerial;
 
     /// <summary>
     /// Read a 32 bit unsigned int from the serial connection

@@ -68,7 +68,7 @@ public class GDB {
     public static Socket socket;
 
 
-    public static void DebugInit( UInt32 localPort ) {
+    public static void DebugInit( UInt32 localPort, string localIP = "" ) {
 
         Console.WriteLine( "Checking if Unirom is in debug mode..." );
 
@@ -90,13 +90,13 @@ public class GDB {
         Console.WriteLine( "THE TCP BRIDGE DOES NOT CURRENTLY ACCEPT COMMANDS FROM GDB" );
         Console.WriteLine( "********************** ******* ***************************" );
 
-        Init( localPort );
+        Init( localPort, localIP );
 
     }
 
-    public static void Init( UInt32 localPort ) {
+    public static void Init( UInt32 localPort, string localIP = "" ) {
 
-        InitListenServer( localPort );
+        InitListenServer( localPort, localIP );
         MonitorSerialToSocket();
 
     }
@@ -190,11 +190,17 @@ public class GDB {
 
     }
 
-    private static void InitListenServer( UInt32 inPort ) {
+    private static void InitListenServer( UInt32 inPort, string localIP = "" ) {
 
+        IPAddress ip;
 
-        IPAddress ip = IPAddress.Parse( "127.0.0.1" );
-
+        if ( string.IsNullOrEmpty( localIP ) ) {
+             ip = IPAddress.Parse( "127.0.0.1" );
+        } else {
+            Console.WriteLine( "Binding IP " + localIP );
+            ip = IPAddress.Parse( localIP );
+        }
+        
         Console.WriteLine( "Opening a listen server on " + ip + ":" + inPort );
 
         IPEndPoint localEndpoint = new IPEndPoint( ip, (int)inPort );

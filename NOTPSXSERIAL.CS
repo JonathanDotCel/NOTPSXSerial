@@ -77,6 +77,7 @@
 
 // 05_01_2021 - Release 15 - (~8.0.J)
 //   - Proper TCP/Serial abstraction, thanks Skitchin!
+//   - /Bridge mode now takes an IP so you can bind e.g. 192.168.0.4
 //
 
 // See github for further release info.
@@ -194,6 +195,7 @@ public enum CommandMode {
 
     // UART-TCP bridge
     [Command( "/bridge" )]
+    [NeedsIP]
     [NeedsPort]
     [Challenge( "NONE" )]
     [Response( "OKAY" )]
@@ -201,6 +203,7 @@ public enum CommandMode {
 
     // combines /debug and /bridge
     [Command( "/gdb" )]
+    [NeedsIP]
     [NeedsPort]
     [Challenge( "DEBG" )]
     [Response( "OKAY" )]
@@ -294,7 +297,7 @@ public enum CommandMode {
 
 internal partial class Program {
 
-    const string VERSION = "v14 (8.0.I / 8.0.J)";
+    const string VERSION = "v14 (8.0.J)";
     const int TIMEOUT = 500;
 
     public static void PrintUsage( bool justTheTip = false ) {
@@ -329,9 +332,11 @@ internal partial class Program {
         // COM8, /dev/tty*, /dev/cu.usbserial*, etc
         suggestedComPort = SampleCOMPortForEnvironment;
 
-        Console.Write( "    Usage: NOPS.EXE [/args] FILENAME COMPORT\n" );
-        Console.Write( "    Usage: NOPS.EXE [/args] 192.168.0.5:5000\n" );
-        Console.Write( "    Usage: NOPS.EXE /bridge [TCP PORT] [COMPORT]\n" );
+        Console.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [COMPORT]\n" );
+        Console.Write( "    Usage : NOPS.EXE [/args] [IPADDRESS:PORT]\n\n" );
+
+        Console.Write( "    Bridge: NOPS.EXE /bridge [LOCALIP:PORT] [COMPORT]\n" );
+        Console.Write( "            bridges e.g. a local serial device and port, allowing remote connections\n" );
         Console.Write( "\n\n" );
 
         Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {0}\n\n", suggestedComPort );
@@ -412,15 +417,15 @@ internal partial class Program {
     //
 
     // Shared args
-    static string argTargetDevice = "";         // E.g. COM8, /dev/tty.SLAB_USBtoUART, 127.0.0.1, etc
-    static UInt32 argTargetPort = 0;           // E.g. 127.0.0.1:6666 (obvs not used with COM8 etc)
+    static string argTargetDevice = "";         // E.g. COM8, /dev/tty.SLAB_USBtoUART, 127.0.0.1, etc    
     static string suggestedComPort = "COM8";
     static UInt32 argAddr;
     static UInt32 argSize;
     static UInt32 argValue;
     static UInt32 argCard;
-    static UInt32 argListenPort;
-    static string argIP;
+    static string argIP;                         // argIP and argPort used for both local and remote params
+    static UInt32 argtargetPort = 0;             // the port we'll connect to the device/emu on
+    static UInt32 argListenPort = 0;             // the listen port we'll use for bridge mode
     static CommandMode argCommand = CommandMode.NOT_SET;
     static string argFileName;
     static string argRegister = "";
@@ -483,10 +488,9 @@ internal partial class Program {
         // Remove the arg for the com port: COM* or /dev/tty*
         for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
-                        string s = remainingArgs[ i ];
+            string s = remainingArgs[ i ];
 
-
-            if ( ValidIPAddress( s, ref argTargetDevice, ref argTargetPort ) ) {
+            if ( ValidIPAddress( s, ref argTargetDevice, ref argtargetPort ) ) {
                 // 127.0.0.1:1234 etc
                 remainingArgs.RemoveAt( i );
                 break;
@@ -510,8 +514,8 @@ internal partial class Program {
                 Console.Write( "Error checking for cached com port...\n" + e );
             }
 
-            if ( ValidIPAddress( readVal, ref argTargetDevice, ref argTargetPort ) ) {
-                Console.Write( $"Using address and port: {argTargetDevice}:{argTargetPort}" );
+            if ( ValidIPAddress( readVal, ref argTargetDevice, ref argtargetPort ) ) {
+                Console.Write( $"Using address and port: {argTargetDevice}:{argtargetPort}" );
             } else if ( ValidTargetDevice( readVal, ref argTargetDevice ) ) {
                 Console.Write( $"Using device {argTargetDevice}" );
             } else {
@@ -525,7 +529,7 @@ internal partial class Program {
 
             // port was specified, cache it for later
             try {
-                string savedTarget = argTargetPort != 0 ? (argTargetDevice + ":" + argTargetPort) : argTargetDevice;
+                string savedTarget = argtargetPort != 0 ? (argTargetDevice + ":" + argtargetPort) : argTargetDevice;
                 File.WriteAllText( "comport.txt", savedTarget );
             } catch ( System.Exception e ) {
                 Console.Write( "Error writing cached com port!\n" + e );
@@ -556,10 +560,12 @@ internal partial class Program {
 
 #if DebugArgs
         Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-        Console.WriteLine( "__DEBUG__TARGDEVOCE: " + argTargetDevice );
-        Console.WriteLine( "__DEBUG__TARGPORT: " + argTargetPort );
+        Console.WriteLine( "__DEBUG__TARGDEVICE: " + argTargetDevice );
+        Console.WriteLine( "__DEBUG__TARGPORT: " + argtargetPort );
+        Console.WriteLine( "__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort );
+        Console.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort );
         Console.WriteLine( "__DEBUG__FAST: " + enterFastMode );
-        Console.WriteLine( "__DEBUG__FAST: " + enterSlowMode );
+        Console.WriteLine( "__DEBUG__SLOW: " + enterSlowMode );
 #endif
 
         // Not really transferring anything, let's go
@@ -679,39 +685,64 @@ internal partial class Program {
 
                     }
 
-                    if ( argCommand.hasAttribute<NeedsIPAttribute>() ) {
+
+                    // if it uses both, then let's parse them as an IP:PORT combo
+                    if ( argCommand.hasAttribute<NeedsIPAttribute>()
+                        && argCommand.hasAttribute<NeedsPortAttribute>()
+                    ) {
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires an IP/host parameter!" );
-#endif
-
-                        //param = remainingArgs[paramIndex].ToLowerInvariant();
-                        argIP = param;
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedIPRequirements = true;
-
-                    }
-
-                    if ( argCommand.hasAttribute<NeedsPortAttribute>() ) {
-
-#if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires a local/remote port!" );
+                        Console.WriteLine( "__DEBUG__Command " + c + " requires an IP:PORT combo" );
 #endif
 
                         if ( remainingArgs.Count == 0 ) {
-                            return Error( "Need to specify a local TCP/IP port!" );
+                            return Error( "Need an IP:PORT e.g. 192.168.0.7:1234\n" );
                         }
 
                         param = remainingArgs[ paramIndex ].ToLowerInvariant();
-
-                        if ( !UInt32.TryParse( param, out argListenPort ) ) {
-                            return Error( "EXCEPTION: Couldn't parse a valid port number from \"" + param + "\"" );
+                        if ( ValidIPAddress( remainingArgs[ paramIndex ], ref argIP, ref argListenPort ) ) {
+                            remainingArgs.RemoveAt( paramIndex );
+                            satisfiedAddressRequirements = true;
                         }
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedPortRequirements = true;
-
                     }
+
+                    // We might've already done a check for ip:port combos
+                    if ( !satisfiedPortRequirements && !satisfiedIPRequirements ) {
+
+                        if ( argCommand.hasAttribute<NeedsIPAttribute>() ) {
+
+#if DebugArgs
+                            Console.WriteLine( "__DEBUG__Command " + c + " requires an IP/host parameter!" );
+#endif
+                            argIP = param;
+                            remainingArgs.RemoveAt( paramIndex );
+                            satisfiedIPRequirements = true;
+
+                        } // needs ip
+
+                        if ( argCommand.hasAttribute<NeedsPortAttribute>() ) {
+
+#if DebugArgs
+                            Console.WriteLine( "__DEBUG__Command " + c + " requires a local/remote port!" );
+#endif
+
+                            if ( remainingArgs.Count == 0 ) {
+                                return Error( "Need to specify a local TCP/IP port!" );
+                            }
+
+                            param = remainingArgs[ paramIndex ].ToLowerInvariant();
+
+                            if ( !UInt32.TryParse( param, out argListenPort ) ) {
+                                return Error( "EXCEPTION: Couldn't parse a valid port number from \"" + param + "\"" );
+                            }
+
+                            remainingArgs.RemoveAt( paramIndex );
+                            satisfiedPortRequirements = true;
+
+                        } // port
+
+                    } // port and ip already satisfied
 
                     if ( argCommand.hasAttribute<NeedsStringAttribute>() ) {
 
@@ -903,8 +934,8 @@ internal partial class Program {
         //
         int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
 
-        if ( argTargetPort != 0 ) {
-            activeSerial = new TCPTarget( argTargetDevice, argTargetPort );
+        if ( argtargetPort != 0 ) {
+            activeSerial = new TCPTarget( argTargetDevice, argtargetPort );
         } else {
             activeSerial = new SerialTarget( argTargetDevice, baud, Parity.None, 8, StopBits.Two );
         }
@@ -1159,11 +1190,11 @@ internal partial class Program {
         //
 
         if ( argCommand == CommandMode.GDB ) {
-            GDB.DebugInit( argListenPort );
+            GDB.DebugInit( argListenPort, argIP );
         }
 
         if ( argCommand == CommandMode.BRIDGE ) {
-            GDB.Init( argListenPort );
+            GDB.Init( argListenPort, argIP );
         }
 
         //
@@ -1276,9 +1307,9 @@ internal partial class Program {
         string[] bytes = parts[ 0 ].Split( '.' );
         if ( bytes.Length != 4 ) return false;
 
-        for( int i = 0; i < 4; i++ ) {
+        for ( int i = 0; i < 4; i++ ) {
             UInt32 dummy = 0; // less code than trycatch :)
-            if ( !UInt32.TryParse(bytes[i], out dummy)){
+            if ( !UInt32.TryParse( bytes[ i ], out dummy ) ) {
                 return false;
             }
         }
@@ -1287,10 +1318,13 @@ internal partial class Program {
         // Does the last bit look like a uint?
 
         try {
-            outPort = UInt32.Parse( parts[1] );
-        } catch (System.Exception ) {
+            outPort = UInt32.Parse( parts[ 1 ] );
+        } catch ( System.Exception ) {
             return false;
         }
+
+        satisfiedPortRequirements = true;
+        satisfiedIPRequirements = true;
 
         outAddr = parts[ 0 ];
 

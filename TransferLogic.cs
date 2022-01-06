@@ -538,7 +538,7 @@ public class TransferLogic {
         byte[] lastReadBytes = new byte[ inSize ];
 
         if ( !ReadBytes( inAddr, inSize, lastReadBytes ) ) {
-            return Error( "Couldn't ready bytes from Unirom!" );
+            return Error( "Couldn't read bytes from Unirom!" );
         }
 
         if ( inFileName == "*" ) {

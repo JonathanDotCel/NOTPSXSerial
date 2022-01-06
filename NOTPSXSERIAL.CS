@@ -333,7 +333,7 @@ internal partial class Program {
         suggestedComPort = SampleCOMPortForEnvironment;
 
         Console.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [COMPORT]\n" );
-        Console.Write( "    Usage : NOPS.EXE [/args] [IPADDRESS:PORT]\n\n" );
+        Console.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [IPADDRESS:PORT]\n\n" );
 
         Console.Write( "    Bridge: NOPS.EXE /bridge [LOCALIP:PORT] [COMPORT]\n" );
         Console.Write( "            bridges e.g. a local serial device and port, allowing remote connections\n" );

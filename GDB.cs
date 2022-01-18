@@ -133,7 +133,19 @@ public class GDB {
 
         //Console.WriteLine( "SOCKET RCB 1 " + recvSocket );
 
-        int numBytesRead = recvSocket.EndReceive( ar );
+        SocketError errorCode;
+        int numBytesRead = recvSocket.EndReceive( ar, out errorCode );
+
+        if( errorCode != SocketError.Success ) {
+            if(errorCode == SocketError.ConnectionReset ) {
+                Console.WriteLine( "Remote connection closed, restarting listen server" );
+                Console.WriteLine( "CTRL-C to exit" );
+                recvSocket.Close();
+                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), recvSocket );
+            }
+            Console.WriteLine( "errorCode: " + errorCode.ToString() );
+            return;
+        }
 
         //Console.WriteLine( "SOCKET RCB 2 " + numBytesRead );
 
@@ -402,13 +414,13 @@ public class GDB {
 
             } // bytestoread > 0
 
-
+            SocketError errorCode;
             // Send the buffer back in a big chunk if we're not waiting
             // on an escaped byte resolving			
             if ( bytesInBuffer > 0 && !lastByteWasEscaped ) {
                 // send it baaahk
                 if ( replySocket != null ) {
-                    replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None );
+                    replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out errorCode );
                 }
                 bytesInBuffer = 0;
             }

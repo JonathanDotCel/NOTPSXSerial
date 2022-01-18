@@ -30,6 +30,16 @@ public class RingBuffer
         this.Buffer = new byte[_size];
     }
 
+    public long BytesAvailable()
+    {
+        return Math.Abs(this.head - this.tail);
+    }
+
+    public void Discard() {
+        this.head = 0;
+        this.tail = 0;
+    }
+
     public int Read()
     {
         byte temp;
@@ -76,21 +86,12 @@ public class TCPTarget : TargetDataPort
     public static byte[] socketBuffer_Receive = new byte[socketBufferSize];
 
     public RingBuffer ringBuffer_Receive = new RingBuffer(ringBufferSize);
-    private volatile bool data_is_ready = false;
 
-    private volatile int _bytestoread = 0;
     override public int BytesToRead
     {
         get
         {
-            if (data_is_ready)
-            {
-                return _bytestoread;
-            }
-            else
-            {
-                return 0;
-            }
+            return (int)ringBuffer_Receive.BytesAvailable();
         }
     }
 
@@ -160,8 +161,11 @@ public class TCPTarget : TargetDataPort
 
     public override void Close()
     {
+        // Try to give the tcp thread some time to cleanly finish transmission
+        // The reset command fires off and closes the connection especially quickly
+        Thread.Sleep( 100 );
+
         socket.Close();
-        this._bytestoread = 0;
         this._bytestowrite = 0;
         this.ringBuffer_Receive.Reset();
     }
@@ -169,19 +173,13 @@ public class TCPTarget : TargetDataPort
     public override int ReadByte()
     {
         int temp = 0;
-        if (this._bytestoread < 0)
-        {
-            Console.WriteLine("ReadByte() this._bytestoread < 0");
-            this._bytestoread = 0;
-        }
 
-
-        if (this._bytestoread == 0 || this.data_is_ready == false)
+        if (this.ringBuffer_Receive.BytesAvailable() == 0)
         {
             DateTime delay_start_time = DateTime.Now;
             DateTime delay_end_time = delay_start_time.AddMilliseconds(this.ReadTimeout);
 
-            while (this._bytestoread == 0 || this.data_is_ready == false)
+            while (this.ringBuffer_Receive.BytesAvailable() == 0)
             {
                 if (DateTime.Now >= delay_end_time)
                 {
@@ -195,13 +193,12 @@ public class TCPTarget : TargetDataPort
 
         if (temp < 0)
         {
-            Console.WriteLine("ReadByte() temp < 0 with " + this._bytestoread + "bytes to read");
-            this._bytestoread = 0;
+            Console.WriteLine("ReadByte() temp < 0 with " + this.ringBuffer_Receive.BytesAvailable() + "bytes to read");
+            this.ringBuffer_Receive.Discard(); // Program closes after this but might as well tidy up
             return 0;
         }
         else
         {
-            this._bytestoread--;
             return Convert.ToByte(temp);
         }
     }
@@ -209,19 +206,13 @@ public class TCPTarget : TargetDataPort
     public override int ReadChar()
     {
         int temp = 0;
-        if (this._bytestoread < 0)
-        {
-            Console.WriteLine("ReadChar() this._bytestoread < 0");
-            this._bytestoread = 0;
-        }
 
-
-        if (this._bytestoread == 0 || this.data_is_ready == false)
+        if ( this.ringBuffer_Receive.BytesAvailable() == 0)
         {
             DateTime delay_start_time = DateTime.Now;
             DateTime delay_end_time = delay_start_time.AddMilliseconds(this.ReadTimeout);
 
-            while (this._bytestoread == 0 || this.data_is_ready == false)
+            while ( this.ringBuffer_Receive.BytesAvailable() == 0)
             {
                 if (DateTime.Now >= delay_end_time)
                 {
@@ -235,13 +226,12 @@ public class TCPTarget : TargetDataPort
 
         if (temp < 0)
         {
-            Console.WriteLine("ReadChar() temp < 0 with " + this._bytestoread + "bytes to read");
-            this._bytestoread = 0;
+            Console.WriteLine("ReadChar() temp < 0 with " + this.ringBuffer_Receive.BytesAvailable() + "bytes to read");
+            this.ringBuffer_Receive.Discard(); // Program closes after this but might as well tidy up
             return 0;
         }
         else
         {
-            this._bytestoread--;
             return Convert.ToChar(temp);
         }
     }
@@ -300,7 +290,6 @@ public class TCPTarget : TargetDataPort
             {
                 Console.WriteLine("More bytes received than buffer can hold: " + numBytesRead);
             }
-            data_is_ready = false;
 
             if (numBytesRead > 0)
             {
@@ -311,12 +300,7 @@ public class TCPTarget : TargetDataPort
                         Console.WriteLine("buffer.Write() < 0");
                         return;
                     }
-                    else
-                    {
-                        this._bytestoread++;
-                    }
                 }
-                data_is_ready = true;
                 recvSocket.BeginReceive(socketBuffer_Receive, 0, socketBufferSize, 0, new AsyncCallback(RecieveCallback), recvSocket);
             }
             else

@@ -32,7 +32,7 @@ public class RingBuffer
 
     public long BytesAvailable()
     {
-        return Math.Abs(this.head - this.tail);
+        return (this.size - this.tail + this.head) % this.size;
     }
 
     public void Discard() {

@@ -50,23 +50,6 @@ public class Utils {
 
     }
 
-    public static PlatformID realPlatform {
-        get {
-
-            PlatformID deviceID = Environment.OSVersion.Platform;
-
-            // Bug:
-            // Mono always returns Unix (even for version numbers) when running on OSX
-            // even though the correct enum exists.
-
-            if ( Directory.Exists( "/Applications" ) & Directory.Exists( "/Volumes" ) )
-                deviceID = PlatformID.MacOSX;
-
-            return deviceID;
-
-        }
-    }
-
     private static bool hasCachedDefaultConsoleColour = false;
     private static ConsoleColor originalColour = ConsoleColor.Black;
 
@@ -87,6 +70,34 @@ public class Utils {
 
     public static TimeSpan GetSpan() {
         return (DateTime.UtcNow - new DateTime( 1970, 1, 1 )); // shortest way to represent the epoch?
+    }
+
+    public static PlatformID realPlatform {
+        get {
+
+            PlatformID deviceID = Environment.OSVersion.Platform;
+
+            // Bug:
+            // Mono always returns Unix (even for version numbers) when running on OSX
+            // even though the correct enum exists.
+
+            if ( Directory.Exists( "/Applications" ) & Directory.Exists( "/Volumes" ) )
+                deviceID = PlatformID.MacOSX;
+
+            return deviceID;
+
+        }
+    }
+
+    public static bool inWindowsPlatform {
+        get {
+            PlatformID plat = realPlatform;
+            if ( plat == PlatformID.MacOSX || plat == PlatformID.Unix || plat == (PlatformID)128 ){
+                return false;
+            }
+            // Missing anything? Not sure what to do for xbox, lol
+            return true;
+        }
     }
 
     #region virtual processing
@@ -115,6 +126,9 @@ public class Utils {
     private const int INVALID_HANDLE_VALUE = -1;
 
     public static void ApplyConsoleMode() {
+
+        if ( !inWindowsPlatform ) return;
+
         IntPtr consoleHandle = GetStdHandle( STD_OUTPUT_HANDLE );
         if ( consoleHandle.ToInt32() == -INVALID_HANDLE_VALUE ) {
             Console.WriteLine( "Error: invalid stdout handle value" );  

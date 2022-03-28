@@ -449,6 +449,10 @@ internal partial class Program {
     static byte[] inFile;
     static bool enterFastMode = false;
     static bool enterSlowMode = false;
+    // Force gapped datel V2 model via SIO
+    // (or force it off in the case of homebrew carts triggering auto detect)
+    static bool forceFlatMode = false;
+    static bool forceGappedMode = false;
 
     static bool monitorComms = false;
     static bool usingCachedPortOrAddress = false;
@@ -542,7 +546,9 @@ internal partial class Program {
         // in this case, there's no point processing the rest of the input
         allArgsAreSecondary = true;
         for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
+
             string lower = remainingArgs[ i ].ToLowerInvariant();
+
             if ( lower == "/m" ) {
                 monitorComms = true;
                 remainingArgs.RemoveAt( i );
@@ -552,9 +558,16 @@ internal partial class Program {
             } else if ( lower == "/slow" ) {
                 enterSlowMode = true;
                 remainingArgs.RemoveAt( i );
-            } else {
+            } else if ( lower == "/flat" ){
+                forceFlatMode = true;
+                remainingArgs.RemoveAt(i);
+            } else if ( lower == "/gaps" ){
+                forceGappedMode = true;
+                remainingArgs.RemoveAt(i);
+            } else{
                 allArgsAreSecondary = false;
             }
+
         }
 
 
@@ -1005,7 +1018,26 @@ internal partial class Program {
 
         }
 
-
+        // Older versions will just time out
+        if ( forceFlatMode ){
+            if ( !TransferLogic.ChallengeResponse("FLAT", "OKFL", 500) )
+            {
+                Error( "This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!" );
+                return false;
+            } else {
+                Console.WriteLine( "Forced flat mode..." );
+            }
+        }
+        if ( forceGappedMode ){
+            if ( !TransferLogic.ChallengeResponse("GAPS", "OKGP", 500) )
+            {
+                Error( "This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!" );
+                return false;
+            } else {
+                Console.WriteLine( "Forced gapped mode..." );
+            }
+        }
+        
         // If we got /m on its own
         if ( monitorComms && argCommand == CommandMode.NOT_SET ) {
             GDB.MonitorSerialToSocket();

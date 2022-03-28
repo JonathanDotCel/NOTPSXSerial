@@ -663,7 +663,7 @@ public class TransferLogic {
     /// Wait for a response to see if this version of
     /// Unirom supports the V2 protocol
     /// </summary>	
-    public static bool WaitResponse( string inResponse, bool verbose = true ) {
+    public static bool WaitResponse( string inResponse, bool verbose = true, int timeoutMillis = 0 ) {
 
         Program.protocolVersion = 1;
 
@@ -677,6 +677,9 @@ public class TransferLogic {
 
         if ( verbose )
             Console.WriteLine( "Waiting for response or protocol negotiation: " );
+
+        DateTime timeoutStartTime = DateTime.Now;
+        DateTime timeoutEndTime = timeoutStartTime.AddMilliseconds( timeoutMillis );
 
         while ( true ) {
 
@@ -738,10 +741,12 @@ public class TransferLogic {
                     break;
                 }
 
-            } // while(1)
+            } // if bytes to read > nuffink
 
-
-
+            // nope!
+            if ( timeoutMillis > 0 && DateTime.Now > timeoutEndTime ) {
+                return false;
+            }
 
         }
 
@@ -754,20 +759,21 @@ public class TransferLogic {
     /// Deceptively small function, but one of the most important
     /// This is the one that sends e.g. "/poke" and  checks that Unirom is paying attention
     /// </summary>	
-    public static bool ChallengeResponse( CommandMode inMode ) {
-        return ChallengeResponse( inMode.challenge(), inMode.response() );
+    public static bool ChallengeResponse( CommandMode inMode, int timeoutMillis = 0 ) {
+        return ChallengeResponse( inMode.challenge(), inMode.response(), timeoutMillis );
     }
 
-    public static bool ChallengeResponse( string inChallenge, string expectedResponse ) {
+    public static bool ChallengeResponse( string inChallenge, string expectedResponse, int timeoutMillis = 0 ) {
 
         // Now send the challenge code and wait
         Console.WriteLine( "Waiting for the PS1, C/R={0}/{1}....\n\n", inChallenge, expectedResponse );
 
         WriteChallenge( inChallenge );
 
+        // TODO: could this be an issue when connecting over TCP?
         Thread.Sleep( 50 );
 
-        return WaitResponse( expectedResponse );
+        return WaitResponse( expectedResponse, false, timeoutMillis );
 
     }
 

@@ -18,88 +18,31 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
-public enum GPR {
+public enum MonitorMode { 
+    // serial is monitored for printf, pcdrv, halt events, etc
+    MONITOR_OR_PCDRV, 
+    // as MONITOR_OR_PCDRV, but also forwarded to a socket
+    SERIALBRIDGE,
+    // as MONITOR_OR_PCDRV, but for GDB
+    GDB 
+};
 
-    stat,
-    badv,       // repurposed for unirom
+/// <summary>
+/// Monitor data over the target connection and optionally
+/// listens on a socket in bridge mode or gdb mode
+/// </summary>
+public class Bridge {
 
-    // GPR
-    r0, at, v0, v1, a0, a1, a2, a3,
-    t0, t1, t2, t3, t4, t5, t6, t7,
-    s0, s1, s2, s3, s4, s5, s6, s7,
-    t8, t9, k0, k1, gp, sp, fp, ra,
-
-    rapc,
-    hi, lo,
-    sr,
-    caus,
-    // GPR
-
-    unknown0, unknown1,
-    unknown2, unknown3,
-    unknown4, unknown5,
-    unknown6, unknown7,
-    unknown9,
-
-    COUNT // C# only, not present on the PSX struct
-
-}
-
-// The PSX's Thread Control Block (usually TCB[0])
-public class TCB {
-
-    public UInt32[] regs = new UInt32[ (int)GPR.COUNT ];
-
-}
-
-
-public enum PSXState { normal, halted };
-
-public class GDB {
+    // TODO: could do to document some of these a bit better.
 
     public static bool enabled = false;
 
     public static TargetDataPort serial => Program.activeSerial;
-    public static TCB tcb = new TCB();
-    public static PSXState psxState = PSXState.normal;
-
-    public const int TCB_LENGTH_BYTES = (int)GPR.COUNT * 4;
 
     public static Socket socket;
 
-
-    public static void DebugInit( UInt32 localPort, string localIP = "" ) {
-
-        Console.WriteLine( "Checking if Unirom is in debug mode..." );
-
-        // if it returns true, we might enter /m (monitor) mode, etc
-        if (
-            !TransferLogic.ChallengeResponse( CommandMode.DEBUG )
-        ) {
-            Console.WriteLine( "Couldn't determine if Unirom is in debug mode." );
-            return;
-        }
-
-        Console.WriteLine( "Grabbing initial state..." );
-
-        TransferLogic.Command_DumpRegs();
-
-        Console.WriteLine( "Monitoring sio..." );
-
-        Console.WriteLine( "********************** WARNING ***************************" );
-        Console.WriteLine( "THE TCP BRIDGE DOES NOT CURRENTLY ACCEPT COMMANDS FROM GDB" );
-        Console.WriteLine( "********************** ******* ***************************" );
-
-        Init( localPort, localIP );
-
-    }
-
-    public static void Init( UInt32 localPort, string localIP = "" ) {
-
-        InitListenServer( localPort, localIP );
-        MonitorSerialToSocket();
-
-    }
+    // default monitor mode, no external socket/gdb
+    public static MonitorMode activeBridgeMode = MonitorMode.MONITOR_OR_PCDRV;
 
     public const int socketBufferSize = 512;
     public static byte[] socketBuffer = new byte[ socketBufferSize ];
@@ -108,26 +51,45 @@ public class GDB {
 
     public static Socket replySocket;
 
+    public static void Init( MonitorMode inMode, UInt32 localPort, string localIP = "" ) {
+
+        activeBridgeMode = inMode;
+        InitListenServer( localPort, localIP );
+
+        if ( inMode == MonitorMode.GDB ) {
+            GDBServer.Init();
+            Console.WriteLine( $"Monitoring psx and accepting GDB connections on {localIP}:{localPort}" );
+        }
+
+        // Shared function
+        MonitorSerial();
+
+    }
+
+    // Called when a connection has been accepted
     public static void AcceptCallback( IAsyncResult result ) {
 
         Socket whichSocket = (Socket)result.AsyncState;
         Socket newSocket = socket.EndAccept( result );
 
-        //Console.WriteLine( "Remote connection to local socket accepted: " + whichSocket.LocalEndPoint );
         Console.WriteLine( "Remote connection to local socket accepted: " + newSocket.LocalEndPoint );
 
         replySocket = newSocket;
 
         // on the new socket or it'll moan. I don't like this setup.
-        newSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), newSocket );
-
+        newSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), newSocket );
 
     }
 
-    private static void RecieveCallback( IAsyncResult ar ) {
+    /// <summary>
+    /// Received data over a socket:
+    /// - in bridge mode
+    /// - from GDB
+    /// </summary>
+    /// <param name="ar">A <see cref="Socket" var./></param>
+    private static void ReceiveCallback( IAsyncResult ar ) {
 
         //Console.WriteLine( "SOCKET: RCB " + ar.AsyncState );
-
 
         Socket recvSocket = (Socket)ar.AsyncState;
 
@@ -141,7 +103,7 @@ public class GDB {
                 Console.WriteLine( "Remote connection closed, restarting listen server" );
                 Console.WriteLine( "CTRL-C to exit" );
                 recvSocket.Close();
-                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), recvSocket );
+                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), recvSocket );
             }
             Console.WriteLine( "errorCode: " + errorCode.ToString() );
             return;
@@ -164,14 +126,26 @@ public class GDB {
 
             } else {
 
-                // echo it back
-                //Send( recvSocket, thisPacket );
-                // also echo it over SIO
-                TransferLogic.activeSerial.Write( socketBuffer, 0, numBytesRead );
+
+                if ( activeBridgeMode == MonitorMode.GDB ) {
+
+                    GDBServer.ProcessData( socketString, replySocket );
+                    sb.Clear();
+
+                } else
+                if ( activeBridgeMode == MonitorMode.SERIALBRIDGE ) {
+
+                    // To echo it back:
+                    //Send( recvSocket, thisPacket );
+
+                    // Send the incoming socket data over sio
+                    TransferLogic.activeSerial.Write( socketBuffer, 0, numBytesRead );
+
+                }
 
                 //Console.WriteLine( "SOCKET: Grabbing more data" );
 
-                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( RecieveCallback ), recvSocket );
+                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), recvSocket );
 
             }
 
@@ -182,7 +156,7 @@ public class GDB {
 
     }
 
-    private static void Send( Socket inSocket, string inData ) {
+    public static void Send( Socket inSocket, string inData ) {
 
         byte[] bytes = ASCIIEncoding.ASCII.GetBytes( inData );
 
@@ -190,6 +164,7 @@ public class GDB {
 
     }
 
+    // Send() succeeded
     private static void SendCallback( IAsyncResult ar ) {
 
         Socket whichSocket = (Socket)ar.AsyncState;
@@ -202,6 +177,10 @@ public class GDB {
 
     }
 
+    //
+    // Listens on the given IP and port
+    // Shared by bridge and gdb modes
+    //
     private static void InitListenServer( UInt32 inPort, string localIP = "" ) {
 
         IPAddress ip;
@@ -227,116 +206,25 @@ public class GDB {
 
     }
 
-    public static bool GetRegs() {
 
-        // read the pointer to TCB[0]
-        byte[] ptrBuffer = new byte[ 4 ];
-        if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
-            return false;
-        }
-
-        UInt32 tcbPtr = BitConverter.ToUInt32( ptrBuffer, 0 );
-
-        Console.WriteLine( "TCB PTR " + tcbPtr.ToString( "X" ) );
-
-        byte[] tcbBytes = new byte[ TCB_LENGTH_BYTES ];
-        if ( !TransferLogic.ReadBytes( tcbPtr, (int)GPR.COUNT * 4, tcbBytes ) ) {
-            return false;
-        }
-
-        Buffer.BlockCopy( tcbBytes, 0, tcb.regs, 0, tcbBytes.Length );
-
-        return true;
-
-    }
-
-    public static bool SetRegs() {
-
-        // read the pointer to TCB[0]
-        byte[] ptrBuffer = new byte[ 4 ];
-        if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
-            return false;
-        }
-
-        UInt32 tcbPtr = BitConverter.ToUInt32( ptrBuffer, 0 );
-        Console.WriteLine( "TCB PTR " + tcbPtr.ToString( "X" ) );
-
-        // Convert regs back to a byte array and bang them back out
-        byte[] tcbBytes = new byte[ TCB_LENGTH_BYTES ];
-        Buffer.BlockCopy( tcb.regs, 0, tcbBytes, 0, TCB_LENGTH_BYTES );
-
-        TransferLogic.Command_SendBin( tcbPtr, tcbBytes );
-
-        return true;
-
-    }
-
-    public static void DumpRegs() {
-
-        int tab = 0;
-
-        for ( int i = 0; i < (int)GPR.COUNT - 9; i++ ) {
-            Console.Write( "\t {0} =0x{1}", ((GPR)i).ToString().PadLeft( 4 ), tcb.regs[ i ].ToString( "X8" ) );
-            // this format won't change, so there's no issue hardcoding them
-            if ( tab++ % 4 == 3 || i == 1 || i == 33 || i == 34 ) {
-                Console.WriteLine();
-                tab = 0;
-            }
-        }
-        Console.WriteLine();
-
-        UInt32 cause = (tcb.regs[ (int)GPR.caus ] >> 2) & 0xFF;
-
-        switch ( cause ) {
-            case 0x04:
-                Console.WriteLine( "AdEL - Data Load or instr fetch (0x{0})\n", cause );
-                break;
-            case 0x05:
-                Console.WriteLine( "AdES - Data Store (unaligned?) (0x{0})\n", cause );
-                break;
-            case 0x06:
-                Console.WriteLine( "IBE - Bus Error on instr fetch (0x{0})\n", cause );
-                break;
-            case 0x07:
-                Console.WriteLine( "DBE - Bus Error on data load/store (0x{0})\n", cause );
-                break;
-            case 0x08:
-                Console.WriteLine( "SYS - Unconditional Syscall (0x{0})\n", cause );
-                break;
-            case 0x09:
-                Console.WriteLine( "BP - Break! (0x{0})\n", cause );
-                break;
-            case 0x0A:
-                Console.WriteLine( "RI - Reserved Instruction (0x{0})\n", cause );
-                break;
-            case 0x0B:
-                Console.WriteLine( "CpU - Coprocessor unavailable (0x{0})\n", cause );
-                break;
-            case 0x0C:
-                Console.WriteLine( "Ov - Arithmetic overflow (0x{0})\n", cause );
-                break;
-
-            default:
-                Console.WriteLine( "Code {0}!\n", cause );
-                break;
-        }
-
-
-    }
 
     /// <summary>
-    /// Multi purpose monitor
+    /// Monitor serial data from the psx
     /// 
-    /// 1: regular SIO monitor to view printfs, etc
-    /// 2: detects halt messages and dumps regs
-    /// 3: handles PCDrv stuff
-    /// 4: handles *one half* of the SIO<->TCP bridge because mono hasn't implemented SIO callbacks.
-    /// * e.g. TCP->SIO is handled via callback, SIO->TCP is handled here.
+    /// 1: printfs() over serial
+    /// 2: PCDRV
+    /// 3: `HALT` (break/exception/etc)
+    /// 
+    /// + In bridge mode:
+    /// 4: forwards serial traffic over a TCP socket (because mono hasn't implemented SIO callbacks)
+    ///
+    /// + In GDB mode:
+    /// 5: forwards HALT etc to GDB
     /// 
     /// </summary>
 
     // TODO: move somewhere appropriate
-    public static void MonitorSerialToSocket() {
+    public static void MonitorSerial() {
 
         const int ESCAPECHAR = 0x00;
         // Old mode (unescaped): when this reads HLTD, kdebug has halted the playstation.
@@ -376,7 +264,6 @@ public class GDB {
 
                         }
 
-
                     }
 
                     // whether we're printing an escaped char or acting on
@@ -403,8 +290,9 @@ public class GDB {
                         && last4ResponseChars[ 2 ] == 'T' && last4ResponseChars[ 3 ] == 'D'
                     ) {
                         Console.WriteLine( "PSX may have halted (<8.0.I)!" );
-                        GDB.GetRegs();
-                        GDB.DumpRegs();
+                        
+                        GDBServer.GetRegs();
+                        GDBServer.DumpRegs();
 
                     }
 
@@ -435,7 +323,6 @@ public class GDB {
             Thread.Sleep( 1 );
 
         } // while
-
 
     }
 

@@ -1040,7 +1040,7 @@ internal partial class Program {
         
         // If we got /m on its own
         if ( monitorComms && argCommand == CommandMode.NOT_SET ) {
-            GDB.MonitorSerialToSocket();
+            Bridge.MonitorSerial();
             return true;
         }
 
@@ -1223,11 +1223,11 @@ internal partial class Program {
 
         if ( argCommand == CommandMode.GDB ) {
             //GDB.DebugInit( argListenPort, argIP );
-            GDBServer.DebugInit(argListenPort, argIP);
+            Bridge.Init( MonitorMode.GDB, argListenPort, argIP);
         }
 
         if ( argCommand == CommandMode.BRIDGE ) {
-            GDB.Init( argListenPort, argIP );
+            Bridge.Init( MonitorMode.GDB, argListenPort, argIP );
         }
 
         //
@@ -1235,7 +1235,7 @@ internal partial class Program {
         //
 
         if ( monitorComms ) {
-            GDB.MonitorSerialToSocket();
+            Bridge.MonitorSerial();
         } else {
             Console.WriteLine( "\n Bye!" );
             activeSerial.Close();

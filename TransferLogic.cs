@@ -602,11 +602,11 @@ public class TransferLogic {
     /// </summary>	
     public static bool Command_DumpRegs() {
 
-        if ( GDB.GetRegs() ) {
-            GDB.DumpRegs();
+        if ( GDBServer.GetRegs() ) {
+            GDBServer.DumpRegs();
             return true;
         } else {
-            Console.WriteLine( "Couldn't get regs" );
+            Console.WriteLine( "Failed to get PSX regs - is it in debug mode?" );
             return false;
         }
 
@@ -632,21 +632,23 @@ public class TransferLogic {
 
     /// <summary>
     ///  As above but typed
-    /// </summary>	
+    /// </summary>
     public static bool Command_SetReg( GPR inReg, UInt32 inValue ) {
 
         Console.WriteLine( "---- Getting a copy of current registers ----" );
 
-        if ( !GDB.GetRegs() ) {
-            Console.WriteLine( "Couldn't get regs" );
+        if ( !GDBServer.GetRegs() ) {
+            Console.WriteLine( "Couldn't get regs to modify - is the PSX in debug mode?" );
             return false;
         }
 
-        GDB.tcb.regs[ (int)inReg ] = inValue;
+        // TODO: shouldn't really be modifying shit in another class
+        // even if it is static
+        GDBServer.tcb.regs[ (int)inReg ] = inValue;
 
         Console.WriteLine( "---- Done, writing regs back ----" );
 
-        return GDB.SetRegs();
+        return GDBServer.SetRegs();
 
     }
 

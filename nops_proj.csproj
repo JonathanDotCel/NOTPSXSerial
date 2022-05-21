@@ -184,6 +184,7 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GDBServer.cs" />
     <Compile Include="TargetDataPort.cs" />
     <Compile Include="SerialTarget.cs" />
     <Compile Include="GDB.cs" />

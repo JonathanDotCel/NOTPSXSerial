@@ -1222,7 +1222,8 @@ internal partial class Program {
         //
 
         if ( argCommand == CommandMode.GDB ) {
-            GDB.DebugInit( argListenPort, argIP );
+            //GDB.DebugInit( argListenPort, argIP );
+            GDBServer.DebugInit(argListenPort, argIP);
         }
 
         if ( argCommand == CommandMode.BRIDGE ) {

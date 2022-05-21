@@ -184,10 +184,10 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Bridge.cs" />
     <Compile Include="GDBServer.cs" />
     <Compile Include="TargetDataPort.cs" />
     <Compile Include="SerialTarget.cs" />
-    <Compile Include="GDB.cs" />
     <Compile Include="NOTPSXSERIAL.CS" />
     <Compile Include="PCDrv.cs" />
     <Compile Include="TCPTarget.cs" />

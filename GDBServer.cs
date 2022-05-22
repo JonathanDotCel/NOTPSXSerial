@@ -377,13 +377,15 @@ public class GDBServer {
             for ( uint i = 0; i < length; i += 8 ) {
                 uint reg_num = i / 8;
                 uint reg_value = uint.Parse( data.Substring( (int)i + 1, 8 ), System.Globalization.NumberStyles.HexNumber );
-                SetOneRegister( reg_num, reg_value );
+                //SetOneRegister( reg_num, reg_value );
             }
 
-            DumpRegs();
             lock ( SerialTarget.serialLock ) {
                 TransferLogic.ChallengeResponse( CommandMode.HALT );
+                GetRegs();
                 SetRegs();
+                GetRegs();
+                DumpRegs();
                 TransferLogic.ChallengeResponse( CommandMode.CONT );
             }
         } else if ( data.StartsWith( "P" ) ) {

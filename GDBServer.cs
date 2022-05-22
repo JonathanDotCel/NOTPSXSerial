@@ -394,7 +394,10 @@ public class GDBServer {
 
             // E.g. to signal the start of mem writes with 
             // $Xffffffff8000f800,0:#e4
-            Console.WriteLine( "Starting mem write..." );
+            Console.WriteLine( "Pausing the PSX for uploads..." );
+            lock( SerialTarget.serialLock ){
+                TransferLogic.ChallengeResponse( CommandMode.HALT );
+            }
             SendGDBResponse( "", replySocket );
 
         } else if ( data.StartsWith( "M" ) ) {
@@ -509,7 +512,7 @@ public class GDBServer {
         Console.WriteLine( "Getting memory from 0x{0} for {1} bytes", address.ToString( "X8" ), length );
 
         lock ( SerialTarget.serialLock ) {
-            if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
+            if ( !TransferLogic.ReadBytes( address, length, data ) ) {
                 Console.WriteLine( "Couldn't read bytes from Unirom!" );
                 return false;
             }

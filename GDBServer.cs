@@ -267,10 +267,30 @@ const string targetXML = @"<?xml version=""1.0""?>
             //
         } else if ( data.StartsWith( "bc" ) ) {
             //
+        } else if ( data.StartsWith( "m" ) ) {
+            // Memmory read
+            string[] parts = data.Substring(1).Split( ',' );
+            int address = int.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
+            int length = int.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
+            Console.WriteLine( "Got m command for address {0} and length {1}", address, length );
+            string response = "";
+            for ( int i = 0; i < length; i++ ) {
+                response += "69";
+            }
+            SendGDBResponse( response, replySocket );
+            Console.WriteLine( "Sent response " + response );
         } else if ( data.StartsWith( "g" ) ) {
             // Reply with all registers
             string register_data = "";
-            for ( int i = 0; i < 72; i++ ) register_data += "00000000";
+            /*for ( int i = 0; i < 48; i++ )
+                register_data += tcb.regs[ i ].ToString( "X8" );
+
+            for ( int i = 48; i < 72; i++ )
+                register_data += "00000000";*/
+
+            for ( int i = 0; i < 72; i++ )
+                register_data += "00000000";
+
             SendGDBResponse( register_data, replySocket );
         } else if ( data.StartsWith( "?" ) ) {
             SendGDBResponse( "S05", replySocket );

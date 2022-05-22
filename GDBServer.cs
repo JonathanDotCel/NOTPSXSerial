@@ -17,6 +17,7 @@ using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Globalization;
 
 
 // The PSX registers
@@ -243,6 +244,86 @@ public class GDBServer {
 
     }
 
+
+    private static byte GimmeNibble( char inChar ) {
+
+        // TODO: lol not this
+        switch ( inChar ) {
+            case '0': return 0x0;
+            case '1': return 0x1;
+            case '2': return 0x2;
+            case '3': return 0x3;
+            case '4': return 0x4;
+            case '5': return 0x5;
+            case '6': return 0x6;
+            case '7': return 0x7;
+            case '8': return 0x8;
+            case '9': return 0x9;
+            case 'A': return 0xA;
+            case 'B': return 0xB;
+            case 'C': return 0xC;
+            case 'D': return 0xD;
+            case 'E': return 0xE;
+            case 'F': return 0xF;
+        }
+        return 0;
+
+    }
+
+    //
+    // Parse a string of hex bytes (no preceding 0x)
+    // TODO: lowercase support?
+    //
+    public static byte[] ParseHexBytes( string inString, int startChar, UInt32 numBytesToRead ) {
+
+        if ( inString.Length < startChar + (numBytesToRead * 2) ) {
+            throw new IndexOutOfRangeException( "Input string is too short!" );
+        }
+
+        byte[] outBytes = new byte[ numBytesToRead ];
+
+        byte activeByte = 0x00;
+        int charPos = 0;
+
+        for ( int i = startChar; i < startChar + (numBytesToRead * 2); i += 2 ) {
+            char first = inString[ i ];
+            char second = inString[ i + 1 ];
+            activeByte = (byte)((GimmeNibble( first ) << 4) | GimmeNibble( second ));
+            outBytes[ charPos++ ] = activeByte;
+        }
+
+        return outBytes;
+
+    }
+
+
+    //
+    // Parse and upload an $M packet - e.g. as a result of `load` in GDB
+    //
+    private static void MemWrite( string data, Socket replySocket ) {
+
+        // TODO: validate memory regions
+
+        UInt32 targetMemAddr = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
+
+        // Where in the string do we find the addr substring
+        int sizeStart = data.IndexOf( "," ) + 1;
+        int sizeEnd = data.IndexOf( ":" );
+        UInt32 targetSize = UInt32.Parse( data.Substring( sizeStart, (sizeEnd - sizeStart) ), NumberStyles.HexNumber );
+
+        byte[] bytes = ParseHexBytes( data, sizeEnd + 1, targetSize );
+
+        Console.WriteLine( "TMA " + targetMemAddr.ToString( "X8" ) ); ;
+        Console.WriteLine( "TSIZE " + targetSize.ToString( "X8" ) ); ;
+
+        lock ( SerialTarget.serialLock ) {
+            TransferLogic.Command_SendBin( targetMemAddr, bytes );
+        }
+
+        SendGDBResponse( "OK", replySocket );
+
+    }
+
     private static void ProcessCommand( string data, Socket replySocket ) {
         if ( data.StartsWith( "qSupported" ) ) {
             SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+", replySocket );
@@ -309,6 +390,19 @@ public class GDBServer {
         } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
             SendPagedResponse( memoryMap, replySocket );
             Console.WriteLine( "Got qXfer:memory-map:read:: command" );
+        } else if (data.StartsWith( "X" ) ) {
+
+            // E.g. to signal the start of mem writes with 
+            // $Xffffffff8000f800,0:#e4
+            Console.WriteLine( "Starting mem write..." );
+            SendGDBResponse( "", replySocket );
+
+        } else if ( data.StartsWith( "M" ) ) {
+
+            // Write to memory following the "X" packet
+            // $M8000f800,800:<data>#checks
+            MemWrite( data, replySocket );
+
         } else if ( data.StartsWith( "qXfer:threads:read::" ) ) {
             SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>", replySocket );
             Console.WriteLine( "Got qXfer:threads:read:: command" );
@@ -318,6 +412,10 @@ public class GDBServer {
         }
     }
 
+    // For joining parts of the TCP stream
+    private static bool stitchingPacketsTogether = false;
+    private static string activePacketString = "";
+
     public static void ProcessData( string Data, Socket replySocket ) {
 
         char[] packet = Data.ToCharArray();
@@ -325,6 +423,20 @@ public class GDBServer {
         string our_checksum = "0";
         int offset = 0;
         int size = Data.Length;
+
+        // TODO: this could maybe be done nicer?
+        if ( stitchingPacketsTogether ) {
+            // rip GC, #yolo
+            Console.WriteLine( "Adding partial packet, len= " + Data.Length );
+            activePacketString += Data;
+            // did we reach the end?
+            if ( Data.IndexOf( "#" ) == Data.Length - 2 - 1 ) {
+                stitchingPacketsTogether = false;
+                // now re-call this function with the completed packet
+                ProcessData( activePacketString, replySocket );
+            }
+            return;
+        }
 
         //Console.WriteLine( "Processing data: " + Data );
         while ( size > 0 ) {
@@ -338,7 +450,9 @@ public class GDBServer {
                 //Console.WriteLine( "Got a packet" );
                 int end = Data.IndexOf( '#', offset );
                 if ( end == -1 ) {
-                    Console.WriteLine( "No end of packet found" );
+                    Console.WriteLine( "Partial packet, len=" + Data.Length );
+                    stitchingPacketsTogether = true;
+                    activePacketString = Data;
                     return;
                 }
 
@@ -393,9 +507,12 @@ public class GDBServer {
     public static bool GetMemory( uint address, uint length, byte[] data ) {
         byte[] ptrBuffer = new byte[ 4 ];
         Console.WriteLine( "Getting memory from 0x{0} for {1} bytes", address.ToString( "X8" ), length );
-        if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
-            Console.WriteLine( "Couldn't read bytes from Unirom!" );
-            return false;
+
+        lock ( SerialTarget.serialLock ) {
+            if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
+                Console.WriteLine( "Couldn't read bytes from Unirom!" );
+                return false;
+            }
         }
 
         return true;

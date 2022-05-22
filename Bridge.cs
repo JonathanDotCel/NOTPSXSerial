@@ -238,86 +238,91 @@ public class Bridge {
 
         while ( true ) {
 
+            // Ensure that socket threads aren't trying
+            // to e.g. read/write memory at the same time
+            lock( SerialTarget.serialLock ) {
 
-            while ( serial.BytesToRead > 0 && bytesInBuffer < responseBytes.Length ) {
+                while ( serial.BytesToRead > 0 && bytesInBuffer < responseBytes.Length ) {
 
-                int thisByte = (byte)serial.ReadByte();
-                bool thisByteIsEscapeChar = (thisByte == ESCAPECHAR);
+                    int thisByte = (byte)serial.ReadByte();
+                    bool thisByteIsEscapeChar = (thisByte == ESCAPECHAR);
 
-                //Console.WriteLine( $"Got val {thisByte.ToString( "X" )} escaped={thisByteIsEscapeChar} lastWasEscapeChar={lastByteWasEscaped}" );
+                    //Console.WriteLine( $"Got val {thisByte.ToString( "X" )} escaped={thisByteIsEscapeChar} lastWasEscapeChar={lastByteWasEscaped}" );
 
-                // The byte before this one was an escape sequence...
-                if ( lastByteWasEscaped ) {
+                    // The byte before this one was an escape sequence...
+                    if ( lastByteWasEscaped ) {
 
-                    // 2x escape cars = just print that char
-                    if ( thisByteIsEscapeChar ) {
+                        // 2x escape cars = just print that char
+                        if ( thisByteIsEscapeChar ) {
 
-                        // a properly escaped doublet can go in the buffer.
-                        responseBytes[ bytesInBuffer++ ] = ESCAPECHAR;
+                            // a properly escaped doublet can go in the buffer.
+                            responseBytes[ bytesInBuffer++ ] = ESCAPECHAR;
+                            Console.Write( (char)thisByte );
+
+                        } else {
+
+                            if ( thisByte == 'p' ) {
+
+                                PCDrv.ReadCommand();
+
+                            }
+
+                        }
+
+                        // whether we're printing an escaped char or acting on
+                        // a sequence, reset things back to normal.
+                        lastByteWasEscaped = false;
+                        continue; // next inner loop
+
+                    }
+
+                    // Any non-escape char: print it, dump it, send it, etc
+                    if ( !thisByteIsEscapeChar ) {
+
+                        responseBytes[ bytesInBuffer++ ] = (byte)thisByte;
                         Console.Write( (char)thisByte );
 
-                    } else {
-
-                        if ( thisByte == 'p' ) {
-
-                            PCDrv.ReadCommand();
+                        // TODO: remove this unescaped method after a few versions
+                        // Clunky way to do it, but there's no unboxing or reallocation
+                        last4ResponseChars[ 0 ] = last4ResponseChars[ 1 ];
+                        last4ResponseChars[ 1 ] = last4ResponseChars[ 2 ];
+                        last4ResponseChars[ 2 ] = last4ResponseChars[ 3 ];
+                        last4ResponseChars[ 3 ] = (char)thisByte;
+                        if (
+                            last4ResponseChars[ 0 ] == 'H' && last4ResponseChars[ 1 ] == 'L'
+                            && last4ResponseChars[ 2 ] == 'T' && last4ResponseChars[ 3 ] == 'D'
+                        ) {
+                            Console.WriteLine( "PSX may have halted (<8.0.I)!" );
+                        
+                            GDBServer.GetRegs();
+                            GDBServer.DumpRegs();
 
                         }
 
                     }
 
-                    // whether we're printing an escaped char or acting on
-                    // a sequence, reset things back to normal.
-                    lastByteWasEscaped = false;
-                    continue; // next inner loop
+                    lastByteWasEscaped = thisByteIsEscapeChar;
 
-                }
+                } // bytestoread > 0
 
-                // Any non-escape char: print it, dump it, send it, etc
-                if ( !thisByteIsEscapeChar ) {
-
-                    responseBytes[ bytesInBuffer++ ] = (byte)thisByte;
-                    Console.Write( (char)thisByte );
-
-                    // TODO: remove this unescaped method after a few versions
-                    // Clunky way to do it, but there's no unboxing or reallocation
-                    last4ResponseChars[ 0 ] = last4ResponseChars[ 1 ];
-                    last4ResponseChars[ 1 ] = last4ResponseChars[ 2 ];
-                    last4ResponseChars[ 2 ] = last4ResponseChars[ 3 ];
-                    last4ResponseChars[ 3 ] = (char)thisByte;
-                    if (
-                        last4ResponseChars[ 0 ] == 'H' && last4ResponseChars[ 1 ] == 'L'
-                        && last4ResponseChars[ 2 ] == 'T' && last4ResponseChars[ 3 ] == 'D'
-                    ) {
-                        Console.WriteLine( "PSX may have halted (<8.0.I)!" );
-                        
-                        GDBServer.GetRegs();
-                        GDBServer.DumpRegs();
-
+                SocketError errorCode;
+                // Send the buffer back in a big chunk if we're not waiting
+                // on an escaped byte resolving			
+                if ( bytesInBuffer > 0 && !lastByteWasEscaped ) {
+                    // send it baaahk
+                    if ( replySocket != null ) {
+                        replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out errorCode );
                     }
-
+                    bytesInBuffer = 0;
                 }
 
-                lastByteWasEscaped = thisByteIsEscapeChar;
-
-            } // bytestoread > 0
-
-            SocketError errorCode;
-            // Send the buffer back in a big chunk if we're not waiting
-            // on an escaped byte resolving			
-            if ( bytesInBuffer > 0 && !lastByteWasEscaped ) {
-                // send it baaahk
-                if ( replySocket != null ) {
-                    replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out errorCode );
+                if ( Console.KeyAvailable ) {
+                    ConsoleKeyInfo keyVal = Console.ReadKey( true );
+                    serial.Write( new byte[] { (byte)keyVal.KeyChar }, 0, 1 );
+                    Console.Write( keyVal.KeyChar );
                 }
-                bytesInBuffer = 0;
-            }
 
-            if ( Console.KeyAvailable ) {
-                ConsoleKeyInfo keyVal = Console.ReadKey( true );
-                serial.Write( new byte[] { (byte)keyVal.KeyChar }, 0, 1 );
-                Console.Write( keyVal.KeyChar );
-            }
+            } // serial lock object
 
             // Yield the thread
             Thread.Sleep( 1 );

@@ -8,6 +8,11 @@ public class SerialTarget : TargetDataPort
 {
 	private static SerialPort properSerial;
 
+    // barrier to prevent the monitor going nuts and 
+    // eating our serial data when we're trying to do
+    // comms on another thread, initiated by socket callbacks
+    public static object serialLock = new object();
+
 	public SerialTarget(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) : base(portName, baudRate, parity, dataBits, stopBits)
 	{
 		properSerial = new SerialPort(portName, baudRate, parity, dataBits, stopBits);

@@ -227,11 +227,12 @@ const string targetXML = @"<?xml version=""1.0""?>
     //
     private static string CalculateChecksum( string packet ) {
 
-        int checksum = 0;
+        byte checksum = 0;
         foreach ( char c in packet ) {
-            checksum += (int)c;
+            checksum += (byte)c;
         }
-        checksum %= 256;
+
+        //checksum %= (byte)256;
         return checksum.ToString( "X2" );
     }
 
@@ -247,32 +248,56 @@ const string targetXML = @"<?xml version=""1.0""?>
             SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+", replySocket );
             Console.WriteLine( "Got qSupported" );
         } else if ( data.StartsWith( "!" ) ) {
+            // Extended Mode
             SendGDBResponse( "OK", replySocket );
             Console.WriteLine( "Got ! command" );
         } else if ( data.StartsWith( "Hc-1" ) ) {
+            //
             SendGDBResponse( "OK", replySocket );
             Console.WriteLine( "Got Hc-1 command" );
         } else if ( data.StartsWith( "Hg0" ) ) {
+            //
             SendGDBResponse( "OK", replySocket );
             Console.WriteLine( "Got Hg0 command" );
         } else if ( data.StartsWith( "vKill;" ) ) {
+            //
             SendGDBResponse( "OK", replySocket );
             Console.WriteLine( "Got vKill; command" );
         } else if ( data.StartsWith( "B" ) ) {
             //
         } else if ( data.StartsWith( "bc" ) ) {
             //
-        } else if ( data.StartsWith( "v" ) ) {
-            SendGDBResponse( "", replySocket );
-            Console.WriteLine( "Got unknown gdb command, reply empty" );
+        } else if ( data.StartsWith( "g" ) ) {
+            // Reply with all registers
+            string register_data = "";
+            for ( int i = 0; i < 72; i++ ) register_data += "00000000";
+            SendGDBResponse( register_data, replySocket );
+        } else if ( data.StartsWith( "?" ) ) {
+            SendGDBResponse( "S05", replySocket );
+            Console.WriteLine( "Got ? command" );
+        } else if ( data.StartsWith( "qAttached" ) ) {
+            SendGDBResponse( "1", replySocket );
+            Console.WriteLine( "Got qAttached command" );
+        } else if ( data.StartsWith( "qC" ) ) {
+            // Get Thread ID
+            SendGDBResponse( "QC00", replySocket );
+            Console.WriteLine( "Got qC command" );
         } else if ( data.StartsWith( "QStartNoAckMode" ) ) {
             SendGDBResponse( "OK", replySocket );
             ack_enabled = false;
         } else if ( data.StartsWith ( "qXfer:features:read:target.xml:" ) ) {
             SendPagedResponse( targetXML, replySocket );
+            Console.WriteLine( "Got qXfer:features:read:target.xml: command" );
         } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
             SendPagedResponse( memoryMap, replySocket );
-        } 
+            Console.WriteLine( "Got qXfer:memory-map:read:: command" );
+        } else if ( data.StartsWith( "qXfer:threads:read::" ) ) {
+            SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>", replySocket );
+            Console.WriteLine( "Got qXfer:threads:read:: command" );
+        } else {
+            SendGDBResponse( "", replySocket );
+            Console.WriteLine( "Got unknown gdb command " + data +", reply empty" );
+        }
     }
 
     public static void ProcessData( string Data, Socket replySocket ) {
@@ -300,16 +325,16 @@ const string targetXML = @"<?xml version=""1.0""?>
                 }
 
                 packetData = Data.Substring( offset, end - offset );
-                Console.WriteLine( "Packet data: " + packetData );
+                //Console.WriteLine( "Packet data: " + packetData );
                 our_checksum = CalculateChecksum( packetData );
                 size -= (end - offset);
                 offset = end;
             } else if ( c == '#' ) {
                 string checksum = Data.Substring( offset, 2 );
-                Console.WriteLine( "Checksum: " + checksum );
-                Console.WriteLine( "Our checksum: " + our_checksum );
+                //Console.WriteLine( "Checksum: " + checksum );
+                //Console.WriteLine( "Our checksum: " + our_checksum );
                 if ( checksum.ToUpper().Equals( our_checksum ) ) {
-                    Console.WriteLine( "Checksums match!" );
+                    //Console.WriteLine( "Checksums match!" );
                     if( ack_enabled )
                         SendAck( replySocket );
 

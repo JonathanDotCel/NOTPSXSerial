@@ -382,7 +382,9 @@ public class GDBServer {
 
             DumpRegs();
             lock ( SerialTarget.serialLock ) {
+                TransferLogic.ChallengeResponse( CommandMode.HALT );
                 SetRegs();
+                TransferLogic.ChallengeResponse( CommandMode.CONT );
             }
         } else if ( data.StartsWith( "P" ) ) {
             if ((data.Length != 12) || (data.Substring(3, 1) != "=")) {
@@ -390,11 +392,13 @@ public class GDBServer {
             } else {
                 uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
                 uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
-                Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value );
+                Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value.ToString( "X8" ) );
                 SetOneRegister( reg_num, reg_value );
-                DumpRegs();
+                //DumpRegs();
                 lock ( SerialTarget.serialLock ) {
+                    TransferLogic.ChallengeResponse( CommandMode.HALT );
                     SetRegs();
+                    TransferLogic.ChallengeResponse( CommandMode.CONT );
                 }
                 SendGDBResponse( "OK", replySocket );
             }
@@ -651,14 +655,16 @@ public class GDBServer {
     }
 
     private static void SetOneRegister( uint reg, uint value ) {
-        uint new_value = ((value >> 24) & 0xff) | ((value >> 8) & 0xff00) | ((value << 8) & 0xff0000) | ((value << 24) & 0xff000000);
-        if ( reg < 32 ) tcb.regs[ reg + 2 ] = new_value;
-        if ( reg == 32 ) tcb.regs[ (int)GPR.stat ] = new_value;
-        if ( reg == 33 ) tcb.regs[ (int)GPR.lo ] = new_value;
-        if ( reg == 34 ) tcb.regs[ (int)GPR.hi ] = new_value;
-        if ( reg == 35 ) tcb.regs[ (int)GPR.badv ] = new_value;
-        if ( reg == 36 ) tcb.regs[ (int)GPR.caus ] = new_value;
-        if ( reg == 37 ) tcb.regs[ (int)GPR.rapc ] = new_value;
+        value = ((value & 0xff000000) >> 24) | ((value & 0x00ff0000) >> 8) | ((value & 0x0000ff00) << 8) |
+            ((value & 0x000000ff) << 24);
+        Console.WriteLine( "Set register {0} with value {1}", reg, value.ToString( "X8" ) );
+        if ( reg < 32 ) tcb.regs[ reg + 2 ] = value;
+        if ( reg == 32 ) tcb.regs[ (int)GPR.stat ] = value;
+        if ( reg == 33 ) tcb.regs[ (int)GPR.lo ] = value;
+        if ( reg == 34 ) tcb.regs[ (int)GPR.hi ] = value;
+        if ( reg == 35 ) tcb.regs[ (int)GPR.badv ] = value;
+        if ( reg == 36 ) tcb.regs[ (int)GPR.caus ] = value;
+        if ( reg == 37 ) tcb.regs[ (int)GPR.rapc ] = value;
     }
 
     public static void DumpRegs() {

@@ -395,11 +395,15 @@ public class GDBServer {
                 uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
                 uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
                 Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value.ToString( "X8" ) );
-                SetOneRegister( reg_num, reg_value );
+                //SetOneRegister( reg_num, reg_value );
                 //DumpRegs();
                 lock ( SerialTarget.serialLock ) {
                     TransferLogic.ChallengeResponse( CommandMode.HALT );
+                    //SetRegs();
+                    GetRegs();
                     SetRegs();
+                    GetRegs();
+                    DumpRegs();
                     TransferLogic.ChallengeResponse( CommandMode.CONT );
                 }
                 SendGDBResponse( "OK", replySocket );

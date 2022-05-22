@@ -103,7 +103,7 @@ public class GDBServer {
 </memory-map>
 ";
 
-const string targetXML = @"<?xml version=""1.0""?>
+    const string targetXML = @"<?xml version=""1.0""?>
 <!DOCTYPE feature SYSTEM ""gdb-target.dtd"">
 <target version=""1.0"">
 
@@ -269,27 +269,25 @@ const string targetXML = @"<?xml version=""1.0""?>
             //
         } else if ( data.StartsWith( "m" ) ) {
             // Memmory read
-            string[] parts = data.Substring(1).Split( ',' );
-            int address = int.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
-            int length = int.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
-            Console.WriteLine( "Got m command for address {0} and length {1}", address, length );
+            string[] parts = data.Substring( 1 ).Split( ',' );
+            uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
+            uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
+            Console.WriteLine( "Got m command for address 0x{0} and length {1}", address.ToString("X8"), length );
+            byte[] buffer = new byte[ length ];
+            GetMemory( address, length, buffer );
             string response = "";
+            
             for ( int i = 0; i < length; i++ ) {
-                response += "69";
+                response += buffer[i].ToString("X2");
             }
+            Console.WriteLine( "Sending response: {0}", response );
             SendGDBResponse( response, replySocket );
-            Console.WriteLine( "Sent response " + response );
         } else if ( data.StartsWith( "g" ) ) {
             // Reply with all registers
             string register_data = "";
-            /*for ( int i = 0; i < 48; i++ )
-                register_data += tcb.regs[ i ].ToString( "X8" );
-
-            for ( int i = 48; i < 72; i++ )
-                register_data += "00000000";*/
 
             for ( int i = 0; i < 72; i++ )
-                register_data += "00000000";
+                register_data += GetOneRegister(i).ToString("X8");
 
             SendGDBResponse( register_data, replySocket );
         } else if ( data.StartsWith( "?" ) ) {
@@ -305,7 +303,7 @@ const string targetXML = @"<?xml version=""1.0""?>
         } else if ( data.StartsWith( "QStartNoAckMode" ) ) {
             SendGDBResponse( "OK", replySocket );
             ack_enabled = false;
-        } else if ( data.StartsWith ( "qXfer:features:read:target.xml:" ) ) {
+        } else if ( data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
             SendPagedResponse( targetXML, replySocket );
             Console.WriteLine( "Got qXfer:features:read:target.xml: command" );
         } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
@@ -316,7 +314,7 @@ const string targetXML = @"<?xml version=""1.0""?>
             Console.WriteLine( "Got qXfer:threads:read:: command" );
         } else {
             SendGDBResponse( "", replySocket );
-            Console.WriteLine( "Got unknown gdb command " + data +", reply empty" );
+            Console.WriteLine( "Got unknown gdb command " + data + ", reply empty" );
         }
     }
 
@@ -355,7 +353,7 @@ const string targetXML = @"<?xml version=""1.0""?>
                 //Console.WriteLine( "Our checksum: " + our_checksum );
                 if ( checksum.ToUpper().Equals( our_checksum ) ) {
                     //Console.WriteLine( "Checksums match!" );
-                    if( ack_enabled )
+                    if ( ack_enabled )
                         SendAck( replySocket );
 
                     ProcessCommand( packetData, replySocket );
@@ -392,6 +390,16 @@ const string targetXML = @"<?xml version=""1.0""?>
         Console.WriteLine( "-" );
     }
 
+    public static bool GetMemory( uint address, uint length, byte[] data ) {
+        byte[] ptrBuffer = new byte[ 4 ];
+        Console.WriteLine( "Getting memory from 0x{0} for {1} bytes", address.ToString( "X8" ), length );
+        if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
+            Console.WriteLine( "Couldn't read bytes from Unirom!" );
+            return false;
+        }
+
+        return true;
+    }
 
     //
     // Retrieve the regs from the PSX
@@ -439,6 +447,22 @@ const string targetXML = @"<?xml version=""1.0""?>
 
         return true;
 
+    }
+
+    private static uint GetOneRegister( int reg ) {
+        uint result;
+        uint value = 0;
+        if ( reg < 32 ) value = tcb.regs[ reg + 2 ];
+        if ( reg == 32 ) value = tcb.regs[ (int)GPR.stat ];
+        if ( reg == 33 ) value = tcb.regs[ (int)GPR.lo ];
+        if ( reg == 34 ) value = tcb.regs[ (int)GPR.hi ];
+        if ( reg == 35 ) value = tcb.regs[ (int)GPR.badv ];
+        if ( reg == 36 ) value = tcb.regs[ (int)GPR.caus ];
+        if ( reg == 37 ) value = tcb.regs[ (int)GPR.rapc ];
+
+        result = ((value >> 24) & 0xff) | ((value >> 8) & 0xff00) | ((value << 8) & 0xff0000) | ((value << 24) & 0xff000000);
+
+        return result;
     }
 
     public static void DumpRegs() {

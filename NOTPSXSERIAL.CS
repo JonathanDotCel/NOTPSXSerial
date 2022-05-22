@@ -1227,7 +1227,7 @@ internal partial class Program {
         }
 
         if ( argCommand == CommandMode.BRIDGE ) {
-            Bridge.Init( MonitorMode.GDB, argListenPort, argIP );
+            Bridge.Init( MonitorMode.SERIALBRIDGE, argListenPort, argIP );
         }
 
         //

@@ -62,24 +62,142 @@ public class GDBServer {
 
     public static TargetDataPort serial => Program.activeSerial;
 
-    /*struct GDBPacket {
-        public byte[] data;
-        public int len;
-        public int pos;
-    }*/
+    private static bool ack_enabled = true;
 
-    // qSupported
-    struct GDBClientFeatures {
-        bool multiprocess;
-        bool xmlRegisters;
-        bool qRelocInsn;
-        bool swbreak;
-        bool hwbreak;
-        bool fork_events;
-        bool vfork_events;
-        bool exec_events;
-        bool vContSupported;
-    }
+    const string memoryMap = @"<?xml version=""1.0""?>
+<memory-map>
+  <!-- Everything here is described as RAM, because we don't really
+       have any better option. -->
+
+  <!-- Main memory bloc: let's go with 8MB straight off the bat. -->
+  <memory type=""ram"" start=""0x0000000000000000"" length=""0x800000""/>
+  <memory type=""ram"" start=""0xffffffff80000000"" length=""0x800000""/>
+  <memory type=""ram"" start=""0xffffffffa0000000"" length=""0x800000""/>
+
+  <!-- EXP1 can go up to 8MB too. -->
+  <memory type=""ram"" start=""0x000000001f000000"" length=""0x800000""/>
+  <memory type=""ram"" start=""0xffffffff9f000000"" length=""0x800000""/>
+  <memory type=""ram"" start=""0xffffffffbf000000"" length=""0x800000""/>
+
+  <!-- Scratchpad -->
+  <memory type=""ram"" start=""0x000000001f800000"" length=""0x400""/>
+  <memory type=""ram"" start=""0xffffffff9f800000"" length=""0x400""/>
+
+  <!-- Hardware registers -->
+  <memory type=""ram"" start=""0x000000001f801000"" length=""0x2000""/>
+  <memory type=""ram"" start=""0xffffffff9f801000"" length=""0x2000""/>
+  <memory type=""ram"" start=""0xffffffffbf801000"" length=""0x2000""/>
+
+  <!-- DTL BIOS SRAM -->
+  <memory type=""ram"" start=""0x000000001fa00000"" length=""0x200000""/>
+  <memory type=""ram"" start=""0xffffffff9fa00000"" length=""0x200000""/>
+  <memory type=""ram"" start=""0xffffffffbfa00000"" length=""0x200000""/>
+
+  <!-- BIOS -->
+  <memory type=""ram"" start=""0x000000001fc00000"" length=""0x80000""/>
+  <memory type=""ram"" start=""0xffffffff9fc00000"" length=""0x80000""/>
+  <memory type=""ram"" start=""0xffffffffbfc00000"" length=""0x80000""/>
+
+  <!-- This really is only for 0xfffe0130 -->
+  <memory type=""ram"" start=""0xfffffffffffe0000"" length=""0x200""/>
+</memory-map>
+";
+
+const string targetXML = @"<?xml version=""1.0""?>
+<!DOCTYPE feature SYSTEM ""gdb-target.dtd"">
+<target version=""1.0"">
+
+<!-- Helping GDB -->
+<architecture>mips:3000</architecture>
+<osabi>none</osabi>
+
+<!-- Mapping ought to be flexible, but there seems to be some
+     hardcoded parts in gdb, so let's use the same mapping. -->
+<feature name=""org.gnu.gdb.mips.cpu"">
+  <reg name=""r0"" bitsize=""32"" regnum=""0""/>
+  <reg name=""r1"" bitsize=""32""/>
+  <reg name=""r2"" bitsize=""32""/>
+  <reg name=""r3"" bitsize=""32""/>
+  <reg name=""r4"" bitsize=""32""/>
+  <reg name=""r5"" bitsize=""32""/>
+  <reg name=""r6"" bitsize=""32""/>
+  <reg name=""r7"" bitsize=""32""/>
+  <reg name=""r8"" bitsize=""32""/>
+  <reg name=""r9"" bitsize=""32""/>
+  <reg name=""r10"" bitsize=""32""/>
+  <reg name=""r11"" bitsize=""32""/>
+  <reg name=""r12"" bitsize=""32""/>
+  <reg name=""r13"" bitsize=""32""/>
+  <reg name=""r14"" bitsize=""32""/>
+  <reg name=""r15"" bitsize=""32""/>
+  <reg name=""r16"" bitsize=""32""/>
+  <reg name=""r17"" bitsize=""32""/>
+  <reg name=""r18"" bitsize=""32""/>
+  <reg name=""r19"" bitsize=""32""/>
+  <reg name=""r20"" bitsize=""32""/>
+  <reg name=""r21"" bitsize=""32""/>
+  <reg name=""r22"" bitsize=""32""/>
+  <reg name=""r23"" bitsize=""32""/>
+  <reg name=""r24"" bitsize=""32""/>
+  <reg name=""r25"" bitsize=""32""/>
+  <reg name=""r26"" bitsize=""32""/>
+  <reg name=""r27"" bitsize=""32""/>
+  <reg name=""r28"" bitsize=""32""/>
+  <reg name=""r29"" bitsize=""32""/>
+  <reg name=""r30"" bitsize=""32""/>
+  <reg name=""r31"" bitsize=""32""/>
+
+  <reg name=""lo"" bitsize=""32"" regnum=""33""/>
+  <reg name=""hi"" bitsize=""32"" regnum=""34""/>
+  <reg name=""pc"" bitsize=""32"" regnum=""37""/>
+</feature>
+<feature name=""org.gnu.gdb.mips.cp0"">
+  <reg name=""status"" bitsize=""32"" regnum=""32""/>
+  <reg name=""badvaddr"" bitsize=""32"" regnum=""35""/>
+  <reg name=""cause"" bitsize=""32"" regnum=""36""/>
+</feature>
+
+<!-- We don't have an FPU, but gdb hardcodes one, and will choke
+     if this section isn't present. -->
+<feature name=""org.gnu.gdb.mips.fpu"">
+  <reg name=""f0"" bitsize=""32"" type=""ieee_single"" regnum=""38""/>
+  <reg name=""f1"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f2"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f3"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f4"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f5"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f6"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f7"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f8"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f9"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f10"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f11"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f12"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f13"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f14"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f15"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f16"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f17"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f18"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f19"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f20"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f21"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f22"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f23"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f24"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f25"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f26"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f27"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f28"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f29"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f30"" bitsize=""32"" type=""ieee_single""/>
+  <reg name=""f31"" bitsize=""32"" type=""ieee_single""/>
+
+  <reg name=""fcsr"" bitsize=""32"" group=""float""/>
+  <reg name=""fir"" bitsize=""32"" group=""float""/>
+</feature>
+</target>
+";
 
     // Double check that the console's there
     // when starting up
@@ -100,7 +218,7 @@ public class GDBServer {
         TransferLogic.Command_DumpRegs();
 
         Console.WriteLine( "GDB server initialised" );
-        
+
     }
 
     //
@@ -114,7 +232,7 @@ public class GDBServer {
             checksum += (int)c;
         }
         checksum %= 256;
-        return checksum.ToString( "x" );
+        return checksum.ToString( "X2" );
     }
 
     //
@@ -122,6 +240,39 @@ public class GDBServer {
     //
     public static void UniromHalted() {
 
+    }
+
+    private static void ProcessCommand( string data, Socket replySocket ) {
+        if ( data.StartsWith( "qSupported" ) ) {
+            SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+", replySocket );
+            Console.WriteLine( "Got qSupported" );
+        } else if ( data.StartsWith( "!" ) ) {
+            SendGDBResponse( "OK", replySocket );
+            Console.WriteLine( "Got ! command" );
+        } else if ( data.StartsWith( "Hc-1" ) ) {
+            SendGDBResponse( "OK", replySocket );
+            Console.WriteLine( "Got Hc-1 command" );
+        } else if ( data.StartsWith( "Hg0" ) ) {
+            SendGDBResponse( "OK", replySocket );
+            Console.WriteLine( "Got Hg0 command" );
+        } else if ( data.StartsWith( "vKill;" ) ) {
+            SendGDBResponse( "OK", replySocket );
+            Console.WriteLine( "Got vKill; command" );
+        } else if ( data.StartsWith( "B" ) ) {
+            //
+        } else if ( data.StartsWith( "bc" ) ) {
+            //
+        } else if ( data.StartsWith( "v" ) ) {
+            SendGDBResponse( "", replySocket );
+            Console.WriteLine( "Got unknown gdb command, reply empty" );
+        } else if ( data.StartsWith( "QStartNoAckMode" ) ) {
+            SendGDBResponse( "OK", replySocket );
+            ack_enabled = false;
+        } else if ( data.StartsWith ( "qXfer:features:read:target.xml:" ) ) {
+            SendPagedResponse( targetXML, replySocket );
+        } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
+            SendPagedResponse( memoryMap, replySocket );
+        } 
     }
 
     public static void ProcessData( string Data, Socket replySocket ) {
@@ -132,7 +283,7 @@ public class GDBServer {
         int offset = 0;
         int size = Data.Length;
 
-        Console.WriteLine( "Processing data: " + Data );
+        //Console.WriteLine( "Processing data: " + Data );
         while ( size > 0 ) {
             char c = packet[ offset++ ];
             size--;
@@ -141,7 +292,7 @@ public class GDBServer {
                 SendAck( replySocket );
             }
             if ( c == '$' ) {
-                Console.WriteLine( "Got a packet" );
+                //Console.WriteLine( "Got a packet" );
                 int end = Data.IndexOf( '#', offset );
                 if ( end == -1 ) {
                     Console.WriteLine( "No end of packet found" );
@@ -153,26 +304,26 @@ public class GDBServer {
                 our_checksum = CalculateChecksum( packetData );
                 size -= (end - offset);
                 offset = end;
-                Console.WriteLine( "Size remaining: " + size );
-                Console.WriteLine( "Data remaining: " + Data.Substring( offset ) );
             } else if ( c == '#' ) {
                 string checksum = Data.Substring( offset, 2 );
                 Console.WriteLine( "Checksum: " + checksum );
                 Console.WriteLine( "Our checksum: " + our_checksum );
-                if ( checksum.Equals( our_checksum ) ) {
+                if ( checksum.ToUpper().Equals( our_checksum ) ) {
                     Console.WriteLine( "Checksums match!" );
-                    SendAck( replySocket );
-                    Bridge.Send( replySocket, "$" + packetData + "#" + CalculateChecksum( packetData ));
+                    if( ack_enabled )
+                        SendAck( replySocket );
+
+                    ProcessCommand( packetData, replySocket );
+                    //Bridge.Send( replySocket, "$" + packetData + "#" + CalculateChecksum( packetData ));
                     //ProcessPacket( packetData );
                 } else {
                     Console.WriteLine( "Checksums don't match!" );
                 }
                 offset += 2;
                 size -= 3;
-            }
-            else if ( c == '-' ) {
+            } else if ( c == '-' ) {
                 Console.WriteLine( "NACK" );
-                SendNAck( replySocket );
+                //SendNAck( replySocket );
             }
         }
     }
@@ -180,6 +331,15 @@ public class GDBServer {
     private static void SendAck( Socket replySocket ) {
         Bridge.Send( replySocket, "+" );
         Console.WriteLine( "+" );
+    }
+
+    private static void SendGDBResponse( string response, Socket replySocket ) {
+        Bridge.Send( replySocket, "$" + response + "#" + CalculateChecksum( response ) );
+    }
+
+    // ?
+    private static void SendPagedResponse( string response, Socket replySocket ) {
+        Bridge.Send( replySocket, "$l" + response + "#" + CalculateChecksum( response ) );
     }
 
     private static void SendNAck( Socket replySocket ) {

@@ -353,13 +353,13 @@ public class GDBServer {
             string[] parts = data.Substring( 1 ).Split( ',' );
             uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
             uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
-            Console.WriteLine( "Got m command for address 0x{0} and length {1}", address.ToString("X8"), length );
+            Console.WriteLine( "Got m command for address 0x{0} and length {1}", address.ToString( "X8" ), length );
             byte[] buffer = new byte[ length ];
             GetMemory( address, length, buffer );
             string response = "";
-            
+
             for ( int i = 0; i < length; i++ ) {
-                response += buffer[i].ToString("X2");
+                response += buffer[ i ].ToString( "X2" );
             }
             Console.WriteLine( "Sending response: {0}", response );
             SendGDBResponse( response, replySocket );
@@ -367,10 +367,37 @@ public class GDBServer {
             // Reply with all registers
             string register_data = "";
 
-            for ( int i = 0; i < 72; i++ )
-                register_data += GetOneRegister(i).ToString("X8");
+            for ( uint i = 0; i < 72; i++ )
+                register_data += GetOneRegister( i ).ToString( "X8" );
 
             SendGDBResponse( register_data, replySocket );
+        } else if ( data.StartsWith( "G" ) ) {
+            uint length = (uint)data.Length - 1;
+
+            for ( uint i = 0; i < length; i += 8 ) {
+                uint reg_num = i / 8;
+                uint reg_value = uint.Parse( data.Substring( (int)i + 1, 8 ), System.Globalization.NumberStyles.HexNumber );
+                SetOneRegister( reg_num, reg_value );
+            }
+
+            DumpRegs();
+            lock ( SerialTarget.serialLock ) {
+                SetRegs();
+            }
+        } else if ( data.StartsWith( "P" ) ) {
+            if ((data.Length != 12) || (data.Substring(3, 1) != "=")) {
+                SendGDBResponse( "E00", replySocket );
+            } else {
+                uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
+                uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
+                Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value );
+                SetOneRegister( reg_num, reg_value );
+                DumpRegs();
+                lock ( SerialTarget.serialLock ) {
+                    SetRegs();
+                }
+                SendGDBResponse( "OK", replySocket );
+            }
         } else if ( data.StartsWith( "?" ) ) {
             SendGDBResponse( "S05", replySocket );
             Console.WriteLine( "Got ? command" );
@@ -390,7 +417,7 @@ public class GDBServer {
         } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
             SendPagedResponse( memoryMap, replySocket );
             Console.WriteLine( "Got qXfer:memory-map:read:: command" );
-        } else if (data.StartsWith( "X" ) ) {
+        } else if ( data.StartsWith( "X" ) ) {
 
             // E.g. to signal the start of mem writes with 
             // $Xffffffff8000f800,0:#e4
@@ -505,11 +532,10 @@ public class GDBServer {
     }
 
     public static bool GetMemory( uint address, uint length, byte[] data ) {
-        byte[] ptrBuffer = new byte[ 4 ];
         Console.WriteLine( "Getting memory from 0x{0} for {1} bytes", address.ToString( "X8" ), length );
 
         lock ( SerialTarget.serialLock ) {
-            if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
+            if ( !TransferLogic.ReadBytes( address, length, data ) ) {
                 Console.WriteLine( "Couldn't read bytes from Unirom!" );
                 return false;
             }
@@ -566,7 +592,7 @@ public class GDBServer {
 
     }
 
-    private static uint GetOneRegister( int reg ) {
+    private static uint GetOneRegister( uint reg ) {
         uint result;
         uint value = 0;
         if ( reg < 32 ) value = tcb.regs[ reg + 2 ];
@@ -580,6 +606,17 @@ public class GDBServer {
         result = ((value >> 24) & 0xff) | ((value >> 8) & 0xff00) | ((value << 8) & 0xff0000) | ((value << 24) & 0xff000000);
 
         return result;
+    }
+
+    private static void SetOneRegister( uint reg, uint value ) {
+        uint new_value = ((value >> 24) & 0xff) | ((value >> 8) & 0xff00) | ((value << 8) & 0xff0000) | ((value << 24) & 0xff000000);
+        if ( reg < 32 ) tcb.regs[ reg + 2 ] = new_value;
+        if ( reg == 32 ) tcb.regs[ (int)GPR.stat ] = new_value;
+        if ( reg == 33 ) tcb.regs[ (int)GPR.lo ] = new_value;
+        if ( reg == 34 ) tcb.regs[ (int)GPR.hi ] = new_value;
+        if ( reg == 35 ) tcb.regs[ (int)GPR.badv ] = new_value;
+        if ( reg == 36 ) tcb.regs[ (int)GPR.caus ] = new_value;
+        if ( reg == 37 ) tcb.regs[ (int)GPR.rapc ] = new_value;
     }
 
     public static void DumpRegs() {

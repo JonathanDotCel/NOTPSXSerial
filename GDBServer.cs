@@ -406,6 +406,25 @@ public class GDBServer {
             // $M8000f800,800:<data>#checks
             MemWrite( data, replySocket );
 
+        } else if ( data.StartsWith( "vCont?" ) ){
+
+            // vCont is not supported
+            SendGDBResponse( "", replySocket );
+
+        }  else if ( data.StartsWith( "H" ) ){
+            
+            // set the thread, we only have the one
+            SendGDBResponse( "OK", replySocket );
+
+        } else if ( data == "c" ){
+
+            // simple "continue", no  params
+            lock ( SerialTarget.serialLock ) {
+                TransferLogic.ChallengeResponse( CommandMode.CONT );
+            }
+
+            SendGDBResponse( "OK", replySocket );
+
         } else if ( data.StartsWith( "qXfer:threads:read::" ) ) {
             SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>", replySocket );
             Console.WriteLine( "Got qXfer:threads:read:: command" );
@@ -414,8 +433,22 @@ public class GDBServer {
             Console.WriteLine( "Got unknown gdb command " + data + ", reply empty" );
         }
     }
+    
+    // User pressed Ctrl+C, do a thing
+    public static void HandleCtrlC( Socket replySocket ){
+
+        lock ( SerialTarget.serialLock ) {
+            TransferLogic.ChallengeResponse( CommandMode.HALT );
+        }
+
+        // idk if we want to pick a thread
+        // and stick to it for now?
+        SendGDBResponse( "T00", replySocket );
+
+    }
 
     // For joining parts of the TCP stream
+    // TODO: there's no checks to stop this getting out of hand
     private static bool stitchingPacketsTogether = false;
     private static string activePacketString = "";
 
@@ -426,6 +459,12 @@ public class GDBServer {
         string our_checksum = "0";
         int offset = 0;
         int size = Data.Length;
+
+        //  This one isn't sent in plain text
+        if ( Data[0] == (byte)0x03 ){
+            HandleCtrlC( replySocket );
+            return;
+        }
 
         // TODO: this could maybe be done nicer?
         if ( stitchingPacketsTogether ) {

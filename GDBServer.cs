@@ -300,7 +300,7 @@ public class GDBServer {
     //
     // Parse and upload an $M packet - e.g. as a result of `load` in GDB
     //
-    private static void MemWrite( string data, Socket replySocket ) {
+    private static void MemWrite( string data ) {
 
         // TODO: validate memory regions
 
@@ -320,159 +320,192 @@ public class GDBServer {
             TransferLogic.Command_SendBin( targetMemAddr, bytes );
         }
 
-        SendGDBResponse( "OK", replySocket );
+        SendGDBResponse( "OK" );
 
     }
 
-    private static void ProcessCommand( string data, Socket replySocket ) {
-        if ( data.StartsWith( "qSupported" ) ) {
-            SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+", replySocket );
-            Console.WriteLine( "Got qSupported" );
-        } else if ( data.StartsWith( "!" ) ) {
-            // Extended Mode
-            SendGDBResponse( "OK", replySocket );
-            Console.WriteLine( "Got ! command" );
-        } else if ( data.StartsWith( "Hc-1" ) ) {
-            //
-            SendGDBResponse( "OK", replySocket );
-            Console.WriteLine( "Got Hc-1 command" );
-        } else if ( data.StartsWith( "Hg0" ) ) {
-            //
-            SendGDBResponse( "OK", replySocket );
-            Console.WriteLine( "Got Hg0 command" );
-        } else if ( data.StartsWith( "vKill;" ) ) {
-            //
-            SendGDBResponse( "OK", replySocket );
-            Console.WriteLine( "Got vKill; command" );
-        } else if ( data.StartsWith( "B" ) ) {
-            //
-        } else if ( data.StartsWith( "bc" ) ) {
-            //
-        } else if ( data.StartsWith( "m" ) ) {
-            // Memmory read
-            string[] parts = data.Substring( 1 ).Split( ',' );
-            uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
-            uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
-            Console.WriteLine( "Got m command for address 0x{0} and length {1}", address.ToString( "X8" ), length );
-            byte[] buffer = new byte[ length ];
-            GetMemory( address, length, buffer );
-            string response = "";
+    private static void EnableExtendedMode() {
+        SendGDBResponse( "OK" );
+    }
 
-            for ( int i = 0; i < length; i++ ) {
-                response += buffer[ i ].ToString( "X2" );
-            }
-            Console.WriteLine( "Sending response: {0}", response );
-            SendGDBResponse( response, replySocket );
-        } else if ( data.StartsWith( "g" ) ) {
-            // Reply with all registers
-            string register_data = "";
+    private static void QueryHaltReason() {
+        SendGDBResponse( "S05" );
+    }
 
-            for ( uint i = 0; i < 72; i++ )
-                register_data += GetOneRegister( i ).ToString( "X8" );
+    private static void SetArguments( string data ) {
+    }
 
-            SendGDBResponse( register_data, replySocket );
-        } else if ( data.StartsWith( "G" ) ) {
-            uint length = (uint)data.Length - 1;
+    private static void SetBaud( string data ) {
+    }
 
+    private static void SetBreakpoint( string data ) {
+    }
+
+    private static void MemoryRead( string data ) {
+        string[] parts = data.Substring( 1 ).Split( ',' );
+        uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
+        uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
+        Console.WriteLine( "Got m command for address 0x{0} and length {1}", address.ToString( "X8" ), length );
+        byte[] buffer = new byte[ length ];
+        GetMemory( address, length, buffer );
+        string response = "";
+
+        for ( int i = 0; i < length; i++ ) {
+            response += buffer[ i ].ToString( "X2" );
+        }
+        Console.WriteLine( "Sending response: {0}", response );
+        SendGDBResponse( response );
+    }
+
+    private static void ReadRegisters() {
+        string register_data = "";
+
+        for ( uint i = 0; i < 72; i++ )
+            register_data += GetOneRegister( i ).ToString( "X8" );
+
+        SendGDBResponse( register_data );
+    }
+
+    private static void WriteRegisters( string data ) {
+        uint length = (uint)data.Length - 1;
+
+        lock ( SerialTarget.serialLock ) {
+            TransferLogic.ChallengeResponse( CommandMode.HALT );
+            GetRegs();
             for ( uint i = 0; i < length; i += 8 ) {
                 uint reg_num = i / 8;
                 uint reg_value = uint.Parse( data.Substring( (int)i + 1, 8 ), System.Globalization.NumberStyles.HexNumber );
-                //SetOneRegister( reg_num, reg_value );
+                SetOneRegister( reg_num, reg_value );
             }
+            SetRegs();
+            TransferLogic.ChallengeResponse( CommandMode.CONT );
+        }
+    }
+
+    private static void WriteRegister( string data ) {
+        if ( (data.Length != 12) || (data.Substring( 3, 1 ) != "=") ) {
+            SendGDBResponse( "E00" );
+        } else {
+            uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
+            uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
+            Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value.ToString( "X8" ) );
 
             lock ( SerialTarget.serialLock ) {
                 TransferLogic.ChallengeResponse( CommandMode.HALT );
                 GetRegs();
+                SetOneRegister( reg_num, reg_value );
                 SetRegs();
-                GetRegs();
-                DumpRegs();
+                //DumpRegs();
                 TransferLogic.ChallengeResponse( CommandMode.CONT );
             }
-        } else if ( data.StartsWith( "P" ) ) {
-            if ((data.Length != 12) || (data.Substring(3, 1) != "=")) {
-                SendGDBResponse( "E00", replySocket );
-            } else {
-                uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
-                uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
-                Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value.ToString( "X8" ) );
-                //SetOneRegister( reg_num, reg_value );
-                //DumpRegs();
-                lock ( SerialTarget.serialLock ) {
-                    TransferLogic.ChallengeResponse( CommandMode.HALT );
-                    //SetRegs();
-                    GetRegs();
-                    SetRegs();
-                    GetRegs();
-                    DumpRegs();
-                    TransferLogic.ChallengeResponse( CommandMode.CONT );
-                }
-                SendGDBResponse( "OK", replySocket );
-            }
+            SendGDBResponse( "OK" );
+        }
+    }
+
+    private static void ProcessCommand( string data ) {
+        if ( data.StartsWith( "qSupported" ) ) {
+            SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
+            Console.WriteLine( "Got qSupported" );
+        } else if ( data.StartsWith( "!" ) ) {
+            // Enable Extended Mode
+            EnableExtendedMode();
         } else if ( data.StartsWith( "?" ) ) {
-            SendGDBResponse( "S05", replySocket );
-            Console.WriteLine( "Got ? command" );
+            // Query Halt Reason
+            QueryHaltReason();
+        } else if ( data.StartsWith( "A" ) ) {
+            // Set arguments
+            SetArguments( data );
+        } else if ( data.StartsWith( "b" ) ) {
+            // Set Baud
+            SetBaud( data );
+        } else if ( data.StartsWith( "B" ) ) {
+            // Set Breakpoint
+            SetBreakpoint( data );
+        } else if ( data.StartsWith( "Hc-1" ) ) {
+            // ?
+            SendGDBResponse( "OK" );
+        } else if ( data.StartsWith( "Hg0" ) ) {
+            // ?
+            SendGDBResponse( "OK" );
+        } else if ( data.StartsWith( "vKill;" ) ) {
+            // Kill the process
+            SendGDBResponse( "OK" );
+        } else if ( data.StartsWith( "bc" ) ) {
+            // Backwards continue
+        } else if ( data.StartsWith( "m" ) ) {
+            // Memmory read
+            MemoryRead( data );
+        } else if ( data.StartsWith( "g" ) ) {
+            // Read general registers
+            ReadRegisters();
+        } else if ( data.StartsWith( "G" ) ) {
+            // Write general registers
+            WriteRegisters( data );
+        } else if ( data.StartsWith( "P" ) ) {
+            // Write Single Register
+            WriteRegister( data );
         } else if ( data.StartsWith( "qAttached" ) ) {
-            SendGDBResponse( "1", replySocket );
+            SendGDBResponse( "1" );
             Console.WriteLine( "Got qAttached command" );
         } else if ( data.StartsWith( "qC" ) ) {
             // Get Thread ID
-            SendGDBResponse( "QC00", replySocket );
+            SendGDBResponse( "QC00" );
             Console.WriteLine( "Got qC command" );
         } else if ( data.StartsWith( "QStartNoAckMode" ) ) {
-            SendGDBResponse( "OK", replySocket );
+            SendGDBResponse( "OK" );
             ack_enabled = false;
         } else if ( data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
-            SendPagedResponse( targetXML, replySocket );
+            SendPagedResponse( targetXML );
             Console.WriteLine( "Got qXfer:features:read:target.xml: command" );
         } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
-            SendPagedResponse( memoryMap, replySocket );
+            SendPagedResponse( memoryMap );
             Console.WriteLine( "Got qXfer:memory-map:read:: command" );
         } else if ( data.StartsWith( "X" ) ) {
 
             // E.g. to signal the start of mem writes with 
             // $Xffffffff8000f800,0:#e4
             Console.WriteLine( "Pausing the PSX for uploads..." );
-            lock( SerialTarget.serialLock ){
+            lock ( SerialTarget.serialLock ) {
                 TransferLogic.ChallengeResponse( CommandMode.HALT );
             }
-            SendGDBResponse( "", replySocket );
+            SendGDBResponse( "" );
 
         } else if ( data.StartsWith( "M" ) ) {
 
             // Write to memory following the "X" packet
             // $M8000f800,800:<data>#checks
-            MemWrite( data, replySocket );
+            MemWrite( data );
 
-        } else if ( data.StartsWith( "vCont?" ) ){
+        } else if ( data.StartsWith( "vCont?" ) ) {
 
             // vCont is not supported
-            SendGDBResponse( "", replySocket );
+            SendGDBResponse( "" );
 
-        }  else if ( data.StartsWith( "H" ) ){
-            
+        } else if ( data.StartsWith( "H" ) ) {
+
             // set the thread, we only have the one
-            SendGDBResponse( "OK", replySocket );
+            SendGDBResponse( "OK" );
 
-        } else if ( data == "c" ){
+        } else if ( data == "c" ) {
 
             // simple "continue", no  params
             lock ( SerialTarget.serialLock ) {
                 TransferLogic.ChallengeResponse( CommandMode.CONT );
             }
 
-            SendGDBResponse( "OK", replySocket );
+            SendGDBResponse( "OK" );
 
         } else if ( data.StartsWith( "qXfer:threads:read::" ) ) {
-            SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>", replySocket );
+            SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>" );
             Console.WriteLine( "Got qXfer:threads:read:: command" );
         } else {
-            SendGDBResponse( "", replySocket );
+            SendGDBResponse( "" );
             Console.WriteLine( "Got unknown gdb command " + data + ", reply empty" );
         }
     }
-    
+
     // User pressed Ctrl+C, do a thing
-    public static void HandleCtrlC( Socket replySocket ){
+    public static void HandleCtrlC() {
 
         lock ( SerialTarget.serialLock ) {
             TransferLogic.ChallengeResponse( CommandMode.HALT );
@@ -480,7 +513,7 @@ public class GDBServer {
 
         // idk if we want to pick a thread
         // and stick to it for now?
-        SendGDBResponse( "T00", replySocket );
+        SendGDBResponse( "T00" );
 
     }
 
@@ -489,7 +522,7 @@ public class GDBServer {
     private static bool stitchingPacketsTogether = false;
     private static string activePacketString = "";
 
-    public static void ProcessData( string Data, Socket replySocket ) {
+    public static void ProcessData( string Data ) {
 
         char[] packet = Data.ToCharArray();
         string packetData = "";
@@ -498,8 +531,8 @@ public class GDBServer {
         int size = Data.Length;
 
         //  This one isn't sent in plain text
-        if ( Data[0] == (byte)0x03 ){
-            HandleCtrlC( replySocket );
+        if ( Data[ 0 ] == (byte)0x03 ) {
+            HandleCtrlC();
             return;
         }
 
@@ -512,7 +545,7 @@ public class GDBServer {
             if ( Data.IndexOf( "#" ) == Data.Length - 2 - 1 ) {
                 stitchingPacketsTogether = false;
                 // now re-call this function with the completed packet
-                ProcessData( activePacketString, replySocket );
+                ProcessData( activePacketString );
             }
             return;
         }
@@ -523,7 +556,7 @@ public class GDBServer {
             size--;
             if ( c == '+' ) {
                 Console.WriteLine( "ACK" );
-                SendAck( replySocket );
+                SendAck();
             }
             if ( c == '$' ) {
                 //Console.WriteLine( "Got a packet" );
@@ -547,10 +580,10 @@ public class GDBServer {
                 if ( checksum.ToUpper().Equals( our_checksum ) ) {
                     //Console.WriteLine( "Checksums match!" );
                     if ( ack_enabled )
-                        SendAck( replySocket );
+                        SendAck();
 
-                    ProcessCommand( packetData, replySocket );
-                    //Bridge.Send( replySocket, "$" + packetData + "#" + CalculateChecksum( packetData ));
+                    ProcessCommand( packetData );
+                    //Bridge.Send( "$" + packetData + "#" + CalculateChecksum( packetData ));
                     //ProcessPacket( packetData );
                 } else {
                     Console.WriteLine( "Checksums don't match!" );
@@ -559,27 +592,27 @@ public class GDBServer {
                 size -= 3;
             } else if ( c == '-' ) {
                 Console.WriteLine( "NACK" );
-                //SendNAck( replySocket );
+                //SendNAck( );
             }
         }
     }
 
-    private static void SendAck( Socket replySocket ) {
-        Bridge.Send( replySocket, "+" );
+    private static void SendAck() {
+        Bridge.Send( "+" );
         Console.WriteLine( "+" );
     }
 
-    private static void SendGDBResponse( string response, Socket replySocket ) {
-        Bridge.Send( replySocket, "$" + response + "#" + CalculateChecksum( response ) );
+    private static void SendGDBResponse( string response ) {
+        Bridge.Send( "$" + response + "#" + CalculateChecksum( response ) );
     }
 
     // ?
-    private static void SendPagedResponse( string response, Socket replySocket ) {
-        Bridge.Send( replySocket, "$l" + response + "#" + CalculateChecksum( response ) );
+    private static void SendPagedResponse( string response ) {
+        Bridge.Send( "$l" + response + "#" + CalculateChecksum( response ) );
     }
 
-    private static void SendNAck( Socket replySocket ) {
-        Bridge.Send( replySocket, "-" );
+    private static void SendNAck() {
+        Bridge.Send( "-" );
         Console.WriteLine( "-" );
     }
 

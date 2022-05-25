@@ -129,7 +129,7 @@ public class Bridge {
 
                 if ( activeBridgeMode == MonitorMode.GDB ) {
 
-                    GDBServer.ProcessData( socketString, replySocket );
+                    GDBServer.ProcessData( socketString );
                     sb.Clear();
 
                 } else
@@ -156,7 +156,11 @@ public class Bridge {
 
     }
 
-    public static void Send( Socket inSocket, string inData ) {
+    public static void Send( string inData ) {
+        Send( replySocket, inData );
+    }
+
+        public static void Send( Socket inSocket, string inData ) {
 
         byte[] bytes = ASCIIEncoding.ASCII.GetBytes( inData );
 

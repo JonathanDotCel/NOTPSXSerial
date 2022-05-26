@@ -324,6 +324,14 @@ public class GDBServer {
 
     }
 
+    private static void Detach() {
+        Console.WriteLine( "Detaching from target..." );
+
+        // Do some stuff to detach from the target
+
+        SendGDBResponse( "OK" );
+    }
+
     private static void EnableExtendedMode() {
         SendGDBResponse( "OK" );
     }
@@ -333,12 +341,15 @@ public class GDBServer {
     }
 
     private static void SetArguments( string data ) {
+        Unimplemented( data );
     }
 
     private static void SetBaud( string data ) {
+        Unimplemented( data );
     }
 
     private static void SetBreakpoint( string data ) {
+        Unimplemented( data );
     }
 
     private static void MemoryRead( string data ) {
@@ -382,85 +393,200 @@ public class GDBServer {
         }
     }
 
+    private static void ReadRegister( string data ) {
+        if ( (data.Length != 12) || (data.Substring( 3, 1 ) != "=") ) {
+            SendGDBResponse( "E00" );
+        } else {
+            uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
+
+            lock ( SerialTarget.serialLock ) {
+                TransferLogic.ChallengeResponse( CommandMode.HALT );
+                GetRegs();
+                TransferLogic.ChallengeResponse( CommandMode.CONT );
+            }
+            GetOneRegister( reg_num ).ToString( "X8" );
+        }
+    }
+
     private static void WriteRegister( string data ) {
         if ( (data.Length != 12) || (data.Substring( 3, 1 ) != "=") ) {
             SendGDBResponse( "E00" );
         } else {
             uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
             uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
-            Console.WriteLine( "Got P command for register {0} with value {1}", reg_num, reg_value.ToString( "X8" ) );
 
             lock ( SerialTarget.serialLock ) {
                 TransferLogic.ChallengeResponse( CommandMode.HALT );
                 GetRegs();
                 SetOneRegister( reg_num, reg_value );
                 SetRegs();
-                //DumpRegs();
                 TransferLogic.ChallengeResponse( CommandMode.CONT );
             }
             SendGDBResponse( "OK" );
         }
     }
 
+    private static void Unimplemented( string data ) {
+        SendGDBResponse( "" );
+        //Console.WriteLine( "Got unimplemented gdb command " + data + ", reply empty" );
+    }
+
     private static void ProcessCommand( string data ) {
-        if ( data.StartsWith( "qSupported" ) ) {
-            SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
-            Console.WriteLine( "Got qSupported" );
-        } else if ( data.StartsWith( "!" ) ) {
+        // Packets
+        if ( data.StartsWith( "!" ) ) {
             // Enable Extended Mode
             EnableExtendedMode();
+
         } else if ( data.StartsWith( "?" ) ) {
             // Query Halt Reason
             QueryHaltReason();
+
         } else if ( data.StartsWith( "A" ) ) {
-            // Set arguments
+            // Set arguments -  A arglen,argnum,arg,...
             SetArguments( data );
+
         } else if ( data.StartsWith( "b" ) ) {
-            // Set Baud
+            // Set Baud - b baud
             SetBaud( data );
+
         } else if ( data.StartsWith( "B" ) ) {
-            // Set Breakpoint
+            // Set Breakpoint - B addr,mode
             SetBreakpoint( data );
-        } else if ( data.StartsWith( "Hc-1" ) ) {
-            // ?
-            SendGDBResponse( "OK" );
-        } else if ( data.StartsWith( "Hg0" ) ) {
-            // ?
-            SendGDBResponse( "OK" );
-        } else if ( data.StartsWith( "vKill;" ) ) {
-            // Kill the process
-            SendGDBResponse( "OK" );
+
         } else if ( data.StartsWith( "bc" ) ) {
             // Backwards continue
-        } else if ( data.StartsWith( "m" ) ) {
-            // Memmory read
-            MemoryRead( data );
+
+        } else if ( data.StartsWith( "bs" ) ) {
+            // Backwards step
+
+        } else if ( data.StartsWith( "c" ) ) {
+            // Continue - c [addr]
+            // simple "continue", no  params
+            lock ( SerialTarget.serialLock ) {
+                TransferLogic.ChallengeResponse( CommandMode.CONT );
+            }
+            SendGDBResponse( "OK" );
+           
+        } else if ( data.StartsWith( "C" ) ) {
+            // Continue with signal - C sig[;addr]
+
+        } else if ( data.StartsWith( "d" ) ) {
+            // Toggle debug flag
+
+        } else if ( data.StartsWith( "D" ) ) {
+            // Detach - D / D;pid
+            Detach();
+
+        } else if ( data.StartsWith( "F" ) ) {
+            // F packet reply, F RC,EE,CF;XX
+
         } else if ( data.StartsWith( "g" ) ) {
             // Read general registers
             ReadRegisters();
+
         } else if ( data.StartsWith( "G" ) ) {
-            // Write general registers
+            // Write general registers - G XX...
             WriteRegisters( data );
+
+        } else if ( data.StartsWith( "Hc-1" ) ) {
+            // Step/continue, all threads (?)
+            SendGDBResponse( "OK" );
+
+        } else if ( data.StartsWith( "Hg0" ) ) {
+            // ?
+            SendGDBResponse( "OK" );
+
+        } else if ( data.StartsWith( "H" ) ) {
+            // set the thread, we only have the one
+            SendGDBResponse( "OK" );
+
+        } else if ( data.StartsWith( "i" ) ) {
+            // Step by a single clock cycle - i [addr[,nnn]]
+
+        } else if ( data.StartsWith( "I" ) ) {
+            // Signal then cycle step
+
+        } else if ( data.StartsWith( "k" ) ) {
+            // Kill request
+
+        } else if ( data.StartsWith( "m" ) ) {
+            // Memmory read
+            MemoryRead( data );
+
+        } else if ( data.StartsWith( "M" ) ) {
+            // Write to memory following the "X" packet
+            // $M8000f800,800:<data>#checks
+            MemWrite( data );
+
+        } else if ( data.StartsWith( "vKill;" ) ) {
+            // Kill the process
+            SendGDBResponse( "OK" );
+
+        } else if ( data.StartsWith( "p" ) ) {
+            // Read Single Register
+            ReadRegister( data );
+
         } else if ( data.StartsWith( "P" ) ) {
             // Write Single Register
             WriteRegister( data );
+
+        } else if ( data.StartsWith( "q" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "Q" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "R" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "s" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "S" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "t" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "T" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "v" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "vAttach" ) ) {
+            // 
+
+        } else if ( data.StartsWith( "vCont?" ) ) {
+
+            // vCont is not supported
+            SendGDBResponse( "" );
+
+        } else if ( data.StartsWith( "vCont" ) ) {
+            // 
+
         } else if ( data.StartsWith( "qAttached" ) ) {
             SendGDBResponse( "1" );
-            Console.WriteLine( "Got qAttached command" );
+
         } else if ( data.StartsWith( "qC" ) ) {
-            // Get Thread ID
+            // Get Thread ID, always 00
             SendGDBResponse( "QC00" );
-            Console.WriteLine( "Got qC command" );
+
         } else if ( data.StartsWith( "QStartNoAckMode" ) ) {
             SendGDBResponse( "OK" );
             ack_enabled = false;
+
+        } else if ( data.StartsWith( "qSupported" ) ) {
+            SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
+
         } else if ( data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
             SendPagedResponse( targetXML );
-            Console.WriteLine( "Got qXfer:features:read:target.xml: command" );
+
         } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
             SendPagedResponse( memoryMap );
-            Console.WriteLine( "Got qXfer:memory-map:read:: command" );
+
         } else if ( data.StartsWith( "X" ) ) {
+            // Write data to memory
 
             // E.g. to signal the start of mem writes with 
             // $Xffffffff8000f800,0:#e4
@@ -470,37 +596,11 @@ public class GDBServer {
             }
             SendGDBResponse( "" );
 
-        } else if ( data.StartsWith( "M" ) ) {
-
-            // Write to memory following the "X" packet
-            // $M8000f800,800:<data>#checks
-            MemWrite( data );
-
-        } else if ( data.StartsWith( "vCont?" ) ) {
-
-            // vCont is not supported
-            SendGDBResponse( "" );
-
-        } else if ( data.StartsWith( "H" ) ) {
-
-            // set the thread, we only have the one
-            SendGDBResponse( "OK" );
-
-        } else if ( data == "c" ) {
-
-            // simple "continue", no  params
-            lock ( SerialTarget.serialLock ) {
-                TransferLogic.ChallengeResponse( CommandMode.CONT );
-            }
-
-            SendGDBResponse( "OK" );
-
         } else if ( data.StartsWith( "qXfer:threads:read::" ) ) {
             SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>" );
             Console.WriteLine( "Got qXfer:threads:read:: command" );
         } else {
-            SendGDBResponse( "" );
-            Console.WriteLine( "Got unknown gdb command " + data + ", reply empty" );
+            Unimplemented( data );
         }
     }
 

@@ -145,7 +145,11 @@ public class Bridge {
 
                 //Console.WriteLine( "SOCKET: Grabbing more data" );
 
-                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), recvSocket );
+                try {
+                    recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), recvSocket );
+                } catch ( Exception ex ) {
+                    Console.WriteLine( "SOCKET: RCB EXCEPTION: " + ex.Message );
+                }
 
             }
 

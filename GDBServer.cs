@@ -200,6 +200,17 @@ public class GDBServer {
 </target>
 ";
 
+    public enum HaltState { RUNNING, HALT };
+
+    private static HaltState haltState = HaltState.RUNNING;
+
+    public static void SetHaltStateInternal( HaltState inState, bool notifyGDB ){
+        haltState = inState;
+        if ( notifyGDB ){
+            SendGDBResponse( "T00" );
+        }
+    }
+
     // Double check that the console's there
     // when starting up
     public static void Init() {
@@ -236,14 +247,6 @@ public class GDBServer {
         //checksum %= (byte)256;
         return checksum.ToString( "X2" );
     }
-
-    //
-    // TODO: flesh this out a bit
-    //
-    public static void UniromHalted() {
-
-    }
-
 
     private static byte GimmeNibble( char inChar ) {
 
@@ -337,10 +340,10 @@ public class GDBServer {
     }
 
     private static void QueryHaltReason() {
-        // if unirom is running
-        SendGDBResponse( "S00" );
-        // else
-        //  SendGDBResponse( "S05" );
+        switch ( haltState ) {
+            case HaltState.RUNNING: SendGDBResponse( "S00" ); break;
+            case HaltState.HALT: SendGDBResponse( "S05" ); break;
+        }
     }
 
     private static void SetArguments( string data ) {
@@ -382,7 +385,12 @@ public class GDBServer {
         uint length = (uint)data.Length - 1;
 
         lock ( SerialTarget.serialLock ) {
-            TransferLogic.ChallengeResponse( CommandMode.HALT );
+
+            bool wasRunning = GDBServer.haltState == HaltState.RUNNING;
+
+            if ( wasRunning )
+                TransferLogic.Halt( false );
+
             GetRegs();
             for ( uint i = 0; i < length; i += 8 ) {
                 uint reg_num = i / 8;
@@ -390,8 +398,12 @@ public class GDBServer {
                 SetOneRegister( reg_num, reg_value );
             }
             SetRegs();
-            TransferLogic.ChallengeResponse( CommandMode.CONT );
+
+            if ( wasRunning )
+                TransferLogic.Cont( false );
+
         }
+
     }
 
     private static void ReadRegister( string data ) {
@@ -401,27 +413,46 @@ public class GDBServer {
             uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
 
             lock ( SerialTarget.serialLock ) {
-                TransferLogic.ChallengeResponse( CommandMode.HALT );
+
+                bool wasRunning = GDBServer.haltState == HaltState.RUNNING;
+
+                if ( wasRunning )
+                    TransferLogic.Halt( false );
+
                 GetRegs();
-                TransferLogic.ChallengeResponse( CommandMode.CONT );
+
+                if ( wasRunning )
+                    TransferLogic.Cont( false );
+
             }
             GetOneRegister( reg_num ).ToString( "X8" );
+
         }
     }
 
     private static void WriteRegister( string data ) {
+
         if ( (data.Length != 12) || (data.Substring( 3, 1 ) != "=") ) {
             SendGDBResponse( "E00" );
         } else {
+
             uint reg_num = uint.Parse( data.Substring( 1, 2 ), System.Globalization.NumberStyles.HexNumber );
             uint reg_value = uint.Parse( data.Substring( 4, 8 ), System.Globalization.NumberStyles.HexNumber );
 
             lock ( SerialTarget.serialLock ) {
-                TransferLogic.ChallengeResponse( CommandMode.HALT );
+
+                bool wasRunning = GDBServer.haltState == HaltState.RUNNING;
+
+                if ( wasRunning )
+                    TransferLogic.Halt( false );
+
                 GetRegs();
                 SetOneRegister( reg_num, reg_value );
                 SetRegs();
-                TransferLogic.ChallengeResponse( CommandMode.CONT );
+
+                if ( wasRunning )
+                    TransferLogic.Cont( false );
+
             }
             SendGDBResponse( "OK" );
         }
@@ -487,6 +518,12 @@ public class GDBServer {
             case 'q':
                 if ( data.StartsWith( "qAttached" ) ) {
                     SendGDBResponse( "1" );
+
+                    // Actually halt the PSX and set our internal state to match
+                    // TODO: might be safer on another thread, incase of timeout issues?
+                    TransferLogic.Halt( false );
+                    SetHaltStateInternal( HaltState.HALT, false );
+
                 } else if ( data.StartsWith( "qC" ) ) {
                     // Get Thread ID, always 00
                     SendGDBResponse( "QC00" );
@@ -544,6 +581,13 @@ public class GDBServer {
             case 'b':
             case 'd': // Toggle debug flag.
             case 'c': // Continue - c [addr]
+                // TODO: specify an addr?
+                SendGDBResponse( "OK" );
+                if ( TransferLogic.Cont( false ) ){
+                    SetHaltStateInternal( HaltState.RUNNING, false );
+                }
+                SendGDBResponse( "T00" );
+                break;
             case 'C': // Continue with signal - C sig[;addr]
             case 'F':
             case 'i':
@@ -566,12 +610,8 @@ public class GDBServer {
     public static void HandleCtrlC() {
 
         lock ( SerialTarget.serialLock ) {
-            TransferLogic.ChallengeResponse( CommandMode.HALT );
+            SetHaltStateInternal( HaltState.HALT, true );
         }
-
-        // idk if we want to pick a thread
-        // and stick to it for now?
-        SendGDBResponse( "T00" );
 
     }
 

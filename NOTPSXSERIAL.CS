@@ -1133,11 +1133,11 @@ internal partial class Program {
         }
 
         if ( argCommand == CommandMode.HALT ) {
-            TransferLogic.ChallengeResponse( argCommand );
+            TransferLogic.Halt( false );
         }
 
         if ( argCommand == CommandMode.CONT ) {
-            TransferLogic.ChallengeResponse( argCommand );
+            TransferLogic.Cont( false );
         }
 
         if ( argCommand == CommandMode.REGS ) {

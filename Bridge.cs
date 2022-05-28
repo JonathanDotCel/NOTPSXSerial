@@ -304,6 +304,7 @@ public class Bridge {
                         
                             GDBServer.GetRegs();
                             GDBServer.DumpRegs();
+                            GDBServer.SetHaltStateInternal( GDBServer.HaltState.HALT, true );
 
                         }
 

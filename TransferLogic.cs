@@ -578,23 +578,6 @@ public class TransferLogic {
     // Debug
     //
 
-    /// <summary>
-    /// Halt the system by entering a SIO-wait loop in an interrupt/critical section
-    /// </summary>	
-    public static bool Command_Halt() {
-
-        return ChallengeResponse( CommandMode.HALT );
-
-    }
-
-    /// <summary>
-    /// UnHalt
-    /// </summary>	
-    public static bool Command_CONT() {
-
-        return ChallengeResponse( CommandMode.CONT );
-
-    }
 
     /// <summary>
     /// Dumps the stored registers which are saved
@@ -756,6 +739,36 @@ public class TransferLogic {
 
     }
 
+    //
+    // Halt the PSX (if debug stub is installed)
+    // Holds it in a tight wait loop in an exception/int/crit state
+    //
+    public static bool Halt( bool notifyGDB, int timeoutMillis = 0 ){
+
+        lock ( SerialTarget.serialLock ) {
+            bool rVal = ChallengeResponse( CommandMode.HALT, timeoutMillis );
+            if ( rVal && notifyGDB ) {
+                GDBServer.SetHaltStateInternal( GDBServer.HaltState.HALT, notifyGDB );
+            }
+            return rVal;
+        }
+        
+    }
+
+    //
+    // Continue the PSX from a halted state or exception
+    //
+    public static bool Cont( bool notifyGDB, int timeoutMillis = 0 ){
+
+        lock ( SerialTarget.serialLock ) {
+            bool rVal = ChallengeResponse( CommandMode.CONT, timeoutMillis );
+            if ( rVal && notifyGDB ){
+                GDBServer.SetHaltStateInternal( GDBServer.HaltState.RUNNING, notifyGDB );
+            }
+            return rVal;
+        }
+
+    }
 
     /// <summary>
     /// Deceptively small function, but one of the most important

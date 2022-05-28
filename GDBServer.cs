@@ -337,7 +337,10 @@ public class GDBServer {
     }
 
     private static void QueryHaltReason() {
-        SendGDBResponse( "S05" );
+        // if unirom is running
+        SendGDBResponse( "S00" );
+        // else
+        //  SendGDBResponse( "S05" );
     }
 
     private static void SetArguments( string data ) {
@@ -444,25 +447,13 @@ public class GDBServer {
                 SetArguments( data );
                 break;
 
-            case 'b':
-                if ( data.StartsWith( "bc" ) ) {
-                    // Backwards continue
-                    Unimplemented( data );
-                } else if ( data.StartsWith( "bs" ) ) {
-                    // Backwards step
-                    Unimplemented( data );
-                } else SetBaud( data );
-                break;
-
             case 'B':
                 SetBreakpoint( data );
                 break;
 
-
             case 'D':
                 Detach();
                 break;
-
 
             case 'g':
                 ReadRegisters();
@@ -499,6 +490,8 @@ public class GDBServer {
                 } else if ( data.StartsWith( "qC" ) ) {
                     // Get Thread ID, always 00
                     SendGDBResponse( "QC00" );
+                } else if ( data.StartsWith( "qRcmd" ) ) {
+                    // Monitor Command
                 } else if ( data.StartsWith( "qSupported" ) ) {
                     SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
                 } else if ( data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
@@ -528,13 +521,15 @@ public class GDBServer {
                 } else if ( data.StartsWith( "vCont" ) ) {
                     // 
                     Unimplemented( data );
+                } else if ( data.StartsWith( "vMustReplyEmpty" ) ) {
+                    SendGDBResponse( "" );
                 } else if ( data.StartsWith( "vKill;" ) ) {
                     // Kill the process
                     SendGDBResponse( "OK" );
                 } else Unimplemented( data );
                 break;
 
-            case 'X':
+            /*case 'X':
                 // Write data to memory
 
                 // E.g. to signal the start of mem writes with 
@@ -544,8 +539,9 @@ public class GDBServer {
                     TransferLogic.ChallengeResponse( CommandMode.HALT );
                 }
                 SendGDBResponse( "" );
-                break;
+                break;*/
 
+            case 'b':
             case 'd': // Toggle debug flag.
             case 'c': // Continue - c [addr]
             case 'C': // Continue with signal - C sig[;addr]

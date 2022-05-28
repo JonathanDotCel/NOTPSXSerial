@@ -259,12 +259,12 @@ public class GDBServer {
             case '7': return 0x7;
             case '8': return 0x8;
             case '9': return 0x9;
-            case 'A': return 0xA;
-            case 'B': return 0xB;
-            case 'C': return 0xC;
-            case 'D': return 0xD;
-            case 'E': return 0xE;
-            case 'F': return 0xF;
+            case 'A': case 'a': return 0xA;
+            case 'B': case 'b': return 0xB;
+            case 'C': case 'c': return 0xC;
+            case 'D': case 'd': return 0xD;
+            case 'E': case 'e': return 0xE;
+            case 'F': case 'f': return 0xF;
         }
         return 0;
 
@@ -491,7 +491,7 @@ public class GDBServer {
                     // Get Thread ID, always 00
                     SendGDBResponse( "QC00" );
                 } else if ( data.StartsWith( "qRcmd" ) ) {
-                    // Monitor Command
+                    Unimplemented( data );
                 } else if ( data.StartsWith( "qSupported" ) ) {
                     SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
                 } else if ( data.StartsWith( "qXfer:features:read:target.xml:" ) ) {

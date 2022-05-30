@@ -613,6 +613,15 @@ public class TransferLogic {
 
     }
 
+    public static bool Command_SetBreakOnExec( UInt32 inAddr ) {
+        if ( ChallengeResponse( CommandMode.HOOKEXEC ) ) {
+            activeSerial.Write( BitConverter.GetBytes(inAddr ), 0, 4 );
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>
     ///  As above but typed
     /// </summary>
@@ -752,7 +761,7 @@ public class TransferLogic {
             }
             return rVal;
         }
-        
+
     }
 
     //
@@ -1186,7 +1195,7 @@ public class TransferLogic {
 
                 int responseByte = activeSerial.ReadByte();
                 Console.Write((char)(responseByte));
-                
+
                 // check if the PSX has crashed
 
                 // TODO: use a more appropriate data collection, lol
@@ -1195,9 +1204,9 @@ public class TransferLogic {
                     lastMonitorBytes = lastMonitorBytes.Remove( 0, 1 );
 
                 if ( lastMonitorBytes == "HLTD" ){
-                    
+
                     while ( true ){
-                        
+
                         Console.WriteLine( "\nThe PSX may have crashed, enter debug mode? (y/n)" );                        
                         Console.WriteLine( "(Also starts a TCP/SIO bridge on port 3333." );
                         ConsoleKeyInfo c = Console.ReadKey();
@@ -1217,7 +1226,7 @@ public class TransferLogic {
                 }
 
             }
-            
+
             Thread.Sleep( 1 );
 
         }

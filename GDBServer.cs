@@ -204,10 +204,12 @@ public class GDBServer {
 
     private static HaltState haltState = HaltState.RUNNING;
 
-    public static void SetHaltStateInternal( HaltState inState, bool notifyGDB ){
+    public static void SetHaltStateInternal( HaltState inState, bool notifyGDB ) {
         haltState = inState;
-        if ( notifyGDB ){
-            SendGDBResponse( "T00" );
+        if ( notifyGDB ) {
+            //SendGDBResponse( "T00" );
+            Console.WriteLine( "Notify gdb client of T05" );
+            SendGDBResponse( "T05" );
         }
     }
 
@@ -318,6 +320,7 @@ public class GDBServer {
 
         Console.WriteLine( "TMA " + targetMemAddr.ToString( "X8" ) ); ;
         Console.WriteLine( "TSIZE " + targetSize.ToString( "X8" ) ); ;
+        Console.WriteLine( "DATA " + data ); 
 
         lock ( SerialTarget.serialLock ) {
             TransferLogic.Command_SendBin( targetMemAddr, bytes );
@@ -331,6 +334,7 @@ public class GDBServer {
         Console.WriteLine( "Detaching from target..." );
 
         // Do some stuff to detach from the target
+        // Close & restart server
 
         SendGDBResponse( "OK" );
     }
@@ -355,7 +359,23 @@ public class GDBServer {
     }
 
     private static void SetBreakpoint( string data ) {
-        Unimplemented( data );
+        UInt32 targetMemAddr = UInt32.Parse( data.Substring( 3, 8 ), NumberStyles.HexNumber );
+        Console.WriteLine( "Got breakpoint request for " + targetMemAddr.ToString( "X8" ) );
+
+        lock ( SerialTarget.serialLock ) {
+
+            bool wasRunning = GDBServer.haltState == HaltState.RUNNING;
+
+            if ( wasRunning )
+                TransferLogic.Halt( false );
+
+
+            TransferLogic.Command_SetBreakOnExec( targetMemAddr );
+
+            if ( wasRunning )
+                TransferLogic.Cont( false );
+        }
+        SendGDBResponse( "OK" );
     }
 
     private static void MemoryRead( string data ) {
@@ -369,11 +389,15 @@ public class GDBServer {
         for ( int i = 0; i < length; i++ ) {
             response += buffer[ i ].ToString( "X2" );
         }
+        Console.WriteLine( "MemoryRead @ 0x"+ address.ToString("X8") + ":" + response );
         SendGDBResponse( response );
     }
 
     private static void ReadRegisters() {
         string register_data = "";
+
+
+        GetRegs();
 
         for ( uint i = 0; i < 72; i++ )
             register_data += GetOneRegister( i ).ToString( "X8" );
@@ -465,6 +489,8 @@ public class GDBServer {
 
     private static void ProcessCommand( string data ) {
 
+        Console.WriteLine( "Got command " + data );
+
         switch ( data[ 0 ] ) {
             case '!':
                 EnableExtendedMode();
@@ -474,16 +500,21 @@ public class GDBServer {
                 QueryHaltReason();
                 break;
 
-            case 'A':
-                SetArguments( data );
-                break;
-
-            case 'B':
-                SetBreakpoint( data );
+            case 'c': // Continue - c [addr]
+            case 's':
+                // TODO: specify an addr?
+                Console.WriteLine( "Got continue request" );
+                if ( TransferLogic.Cont( false ) ) {
+                    SetHaltStateInternal( HaltState.RUNNING, false );
+                }
+                SendGDBResponse( "OK" );
+                //Console.WriteLine( "Continue, notify client of T05" );
+                SendGDBResponse( "T05" );
                 break;
 
             case 'D':
                 Detach();
+                //Unimplemented( data );
                 break;
 
             case 'g':
@@ -495,8 +526,14 @@ public class GDBServer {
                 break;
 
             case 'H':
-                // Just the one thread, always reply with OK
-                SendGDBResponse( "OK" );
+                // thread stuff
+                if ( data.StartsWith( "Hc0" ) ) {
+                    SendGDBResponse( "OK" );
+                } else if ( data.StartsWith( "Hc-1" ) ) {
+                    SendGDBResponse( "OK" );
+                } else if ( data.StartsWith( "Hg0" ) ) {
+                    SendGDBResponse( "OK" );
+                } else Unimplemented( data );
                 break;
 
             case 'm':
@@ -519,10 +556,12 @@ public class GDBServer {
                 if ( data.StartsWith( "qAttached" ) ) {
                     SendGDBResponse( "1" );
 
+
+                    // ? Not sure this belongs here? Commenting out for now
                     // Actually halt the PSX and set our internal state to match
                     // TODO: might be safer on another thread, incase of timeout issues?
-                    TransferLogic.Halt( false );
-                    SetHaltStateInternal( HaltState.HALT, false );
+                    //TransferLogic.Halt( false );
+                    //SetHaltStateInternal( HaltState.HALT, false );
 
                 } else if ( data.StartsWith( "qC" ) ) {
                     // Get Thread ID, always 00
@@ -537,6 +576,11 @@ public class GDBServer {
                     SendPagedResponse( memoryMap );
                 } else if ( data.StartsWith( "qXfer:threads:read::" ) ) {
                     SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>" );
+                } else if ( data.StartsWith( "qRcmd" ) ) {
+                    // To-do: Process monitor commands
+                    Console.WriteLine( "Got qRcmd: " + data );
+                    SendGDBResponse( "" );
+                    //SendGDBResponse( "OK" );
                 } else Unimplemented( data );
                 break;
 
@@ -566,7 +610,7 @@ public class GDBServer {
                 } else Unimplemented( data );
                 break;
 
-            /*case 'X':
+            case 'X':
                 // Write data to memory
 
                 // E.g. to signal the start of mem writes with 
@@ -576,29 +620,18 @@ public class GDBServer {
                     TransferLogic.ChallengeResponse( CommandMode.HALT );
                 }
                 SendGDBResponse( "" );
-                break;*/
-
-            case 'b':
-            case 'd': // Toggle debug flag.
-            case 'c': // Continue - c [addr]
-                // TODO: specify an addr?
-                SendGDBResponse( "OK" );
-                if ( TransferLogic.Cont( false ) ){
-                    SetHaltStateInternal( HaltState.RUNNING, false );
-                }
-                SendGDBResponse( "T00" );
                 break;
-            case 'C': // Continue with signal - C sig[;addr]
-            case 'F':
-            case 'i':
-            case 'I':
-            case 'k': // kill request
-            case 'r': // Restart the entire system
-            case 'R': // Restart the program being debugged
-            case 's':
-            case 'S':
-            case 't':
-            case 'T':
+
+            case 'Z':
+                // Set breakpoint
+                SetBreakpoint( data );
+
+                break;
+
+            case 'z':
+                SendGDBResponse( "" );
+                break;
+
             default:
                 Unimplemented( data );
                 break;
@@ -637,7 +670,7 @@ public class GDBServer {
         // TODO: this could maybe be done nicer?
         if ( stitchingPacketsTogether ) {
             // rip GC, #yolo
-            Console.WriteLine( "Adding partial packet, len= " + Data.Length );
+            //Console.WriteLine( "Adding partial packet, len= " + Data.Length );
             activePacketString += Data;
             // did we reach the end?
             if ( Data.IndexOf( "#" ) == Data.Length - 2 - 1 ) {
@@ -660,7 +693,7 @@ public class GDBServer {
                 //Console.WriteLine( "Got a packet" );
                 int end = Data.IndexOf( '#', offset );
                 if ( end == -1 ) {
-                    Console.WriteLine( "Partial packet, len=" + Data.Length );
+                    //Console.WriteLine( "Partial packet, len=" + Data.Length );
                     stitchingPacketsTogether = true;
                     activePacketString = Data;
                     return;
@@ -732,25 +765,35 @@ public class GDBServer {
     // and 
     //
     public static bool GetRegs() {
-
-        // read the pointer to TCB[0]
+        bool got_regs = false;
         byte[] ptrBuffer = new byte[ 4 ];
-        if ( !TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
-            return false;
+
+        lock ( SerialTarget.serialLock ) {
+
+            bool wasRunning = GDBServer.haltState == HaltState.RUNNING;
+
+            if ( wasRunning )
+                TransferLogic.Halt( false );
+
+
+            // read the pointer to TCB[0]
+            if ( TransferLogic.ReadBytes( 0x80000110, 4, ptrBuffer ) ) {
+                UInt32 tcbPtr = BitConverter.ToUInt32( ptrBuffer, 0 );
+                Console.WriteLine( "TCB PTR " + tcbPtr.ToString( "X" ) );
+
+                byte[] tcbBytes = new byte[ TCB_LENGTH_BYTES ];
+                if ( TransferLogic.ReadBytes( tcbPtr, (int)GPR.COUNT * 4, tcbBytes ) ) {
+                    Buffer.BlockCopy( tcbBytes, 0, tcb.regs, 0, tcbBytes.Length );
+
+                    got_regs = true;
+                }
+            }
+
+            if ( wasRunning )
+                TransferLogic.Cont( false );
         }
 
-        UInt32 tcbPtr = BitConverter.ToUInt32( ptrBuffer, 0 );
-
-        Console.WriteLine( "TCB PTR " + tcbPtr.ToString( "X" ) );
-
-        byte[] tcbBytes = new byte[ TCB_LENGTH_BYTES ];
-        if ( !TransferLogic.ReadBytes( tcbPtr, (int)GPR.COUNT * 4, tcbBytes ) ) {
-            return false;
-        }
-
-        Buffer.BlockCopy( tcbBytes, 0, tcb.regs, 0, tcbBytes.Length );
-
-        return true;
+        return got_regs;
 
     }
 

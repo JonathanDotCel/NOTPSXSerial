@@ -1160,7 +1160,8 @@ internal partial class Program {
             || argCommand == CommandMode.HOOKEXEC
         ) {
             if ( TransferLogic.ChallengeResponse( argCommand ) )
-                activeSerial.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
+                Console.WriteLine("GOT HOOK REQUEST FOR ADDRESS 0x" + argAddr.ToString("X8"));
+            activeSerial.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
         }
 
         // Memory card 

@@ -322,21 +322,23 @@ public class Bridge {
 
                 } // bytestoread > 0
 
-                SocketError errorCode;
-                // Send the buffer back in a big chunk if we're not waiting
-                // on an escaped byte resolving			
-                if ( bytesInBuffer > 0 && !lastByteWasEscaped ) {
-                    // send it baaahk
-                    if ( replySocket != null ) {
-                        replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out errorCode );
+                if ( !GDBServer.enabled ) {
+                    SocketError errorCode;
+                    // Send the buffer back in a big chunk if we're not waiting
+                    // on an escaped byte resolving			
+                    if ( bytesInBuffer > 0 && !lastByteWasEscaped ) {
+                        // send it baaahk
+                        if ( replySocket != null ) {
+                            replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out errorCode );
+                        }
+                        bytesInBuffer = 0;
                     }
-                    bytesInBuffer = 0;
-                }
 
-                if ( Console.KeyAvailable ) {
-                    ConsoleKeyInfo keyVal = Console.ReadKey( true );
-                    serial.Write( new byte[] { (byte)keyVal.KeyChar }, 0, 1 );
-                    Console.Write( keyVal.KeyChar );
+                    if ( Console.KeyAvailable ) {
+                        ConsoleKeyInfo keyVal = Console.ReadKey( true );
+                        serial.Write( new byte[] { (byte)keyVal.KeyChar }, 0, 1 );
+                        Console.Write( keyVal.KeyChar );
+                    }
                 }
 
             } // serial lock object

@@ -57,7 +57,8 @@ public class TCB {
 
 public class GDBServer {
 
-    public static bool enabled = false;
+    private static bool _enabled = false;
+    public static bool enabled => _enabled;
 
     // The PSX's active thread control block
     // (a copy of the psx's registers at the time of breaking)
@@ -242,6 +243,7 @@ public class GDBServer {
         TransferLogic.Command_DumpRegs();
 
         Console.WriteLine( "GDB server initialised" );
+        _enabled = true;
 
     }
 

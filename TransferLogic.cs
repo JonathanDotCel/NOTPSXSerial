@@ -1070,6 +1070,42 @@ public class TransferLogic {
 
     }
 
+    /// <summary>
+    /// Install a read/write/exec hook at the given address
+    /// The CPU supports 1 hook address (1-3 types on it)
+    /// The protocol supports 1 address/type combo
+    /// </summary>
+    public static bool HookAddr( CommandMode inMode, UInt32 inAddr ){
+
+        if (
+            inMode == CommandMode.HOOKREAD
+            || inMode == CommandMode.HOOKWRITE
+            || inMode == CommandMode.HOOKEXEC
+        ) {
+            if ( ChallengeResponse( inMode ) )
+                Console.WriteLine( "GOT HOOK REQUEST FOR ADDRESS 0x" + inAddr.ToString( "X8" ) );
+            activeSerial.Write( BitConverter.GetBytes( inAddr ), 0, 4 );
+            return true;
+        }
+
+        return false;
+
+    }
+
+    /// <summary>
+    /// Remove an existing hook installed by HookAddr or otherwise. 
+    /// </summary>
+    public static bool Unhook(){
+
+        if ( ChallengeResponse( CommandMode.UNHOOK ) ) {
+            Console.WriteLine( "Unhooked!" );
+            return true;
+        }
+
+        return false;
+
+    }
+
 
 #pragma warning disable CS0162
 

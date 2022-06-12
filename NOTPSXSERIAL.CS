@@ -1165,15 +1165,11 @@ internal partial class Program {
             || argCommand == CommandMode.HOOKWRITE
             || argCommand == CommandMode.HOOKEXEC
         ) {
-            if ( TransferLogic.ChallengeResponse( argCommand ) )
-                Console.WriteLine("GOT HOOK REQUEST FOR ADDRESS 0x" + argAddr.ToString("X8"));
-            activeSerial.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
+            TransferLogic.HookAddr( argCommand, argAddr );
         }
 
         if ( argCommand == CommandMode.UNHOOK ){
-            if ( TransferLogic.ChallengeResponse( CommandMode.UNHOOK ) ){
-                Console.WriteLine( "Unhooked!" );
-            }
+            TransferLogic.Unhook();
         }
 
         // Memory card 

@@ -247,6 +247,11 @@ public enum CommandMode {
     [Response( "OKAY" )]
     HOOKEXEC,
 
+    [Command( "/unhook" )]
+    [Challenge( "UNHK" )]
+    [Response( "OKAY" )]
+    UNHOOK,
+
     // Memcard
 
     [Command( "/mcdown" )]
@@ -392,6 +397,7 @@ internal partial class Program {
         Console.Write( "                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n" );
         Console.Write( "                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n" );
         Console.Write( "                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n" );
+        Console.Write( "                Unhook (read/write/exec)           : nops /unhook\n" );
         Console.Write( "                * = Resume with nops /cont\n" );
         Console.Write( "\n" );
 
@@ -1162,6 +1168,12 @@ internal partial class Program {
             if ( TransferLogic.ChallengeResponse( argCommand ) )
                 Console.WriteLine("GOT HOOK REQUEST FOR ADDRESS 0x" + argAddr.ToString("X8"));
             activeSerial.Write( BitConverter.GetBytes( argAddr ), 0, 4 );
+        }
+
+        if ( argCommand == CommandMode.UNHOOK ){
+            if ( TransferLogic.ChallengeResponse( CommandMode.UNHOOK ) ){
+                Console.WriteLine( "Unhooked!" );
+            }
         }
 
         // Memory card 

@@ -164,7 +164,15 @@ public class Bridge {
         Send( replySocket, inData );
     }
 
-        public static void Send( Socket inSocket, string inData ) {
+
+    public static void Send( Socket inSocket, string inData ) {
+
+        // TODO: we could probs check if there's
+        //       any sort of connection long before it
+        //       reaches this point.
+        if ( inSocket == null ) {
+            return;
+        }
 
         byte[] bytes = ASCIIEncoding.ASCII.GetBytes( inData );
 

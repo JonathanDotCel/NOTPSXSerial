@@ -11,6 +11,9 @@
 // bridge is still very much a work in progress!
 //
 
+// TODO: allow reconnection
+// TODO: set running/halted state when reconnecting
+
 using System;
 using System.Text;
 using System.IO.Ports;
@@ -202,7 +205,7 @@ public class GDBServer {
 
     public enum HaltState { RUNNING, HALT };
 
-    private static HaltState haltState = HaltState.RUNNING;
+    private static HaltState haltState = HaltState.HALT;
 
     public static HaltState GetHaltState() {
         return haltState;

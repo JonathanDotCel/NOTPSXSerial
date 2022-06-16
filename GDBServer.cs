@@ -872,6 +872,8 @@ public class GDBServer {
         }
         Console.WriteLine();
 
+        Console.Write( "BD = 0x{0}\n", tcb.regs[ (int)GPR.unknown0 ].ToString("X") );
+
         UInt32 cause = (tcb.regs[ (int)GPR.caus ] >> 2) & 0xFF;
 
         switch ( cause ) {

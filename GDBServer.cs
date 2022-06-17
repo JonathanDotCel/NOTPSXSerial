@@ -60,6 +60,14 @@ public class GDBServer {
     private static bool _enabled = false;
     public static bool enabled => _enabled;
 
+    private static bool step_break_set = false;
+    private static UInt32 step_break_addr;
+
+    public static bool isStepBreakSet {
+        get { return step_break_set; }
+        set { step_break_set = value; }
+    }
+
     // The PSX's active thread control block
     // (a copy of the psx's registers at the time of breaking)
     public static TCB tcb = new TCB();
@@ -215,11 +223,10 @@ public class GDBServer {
     public static void SetHaltStateInternal( HaltState inState, bool notifyGDB ) {
         haltState = inState;
         if ( notifyGDB ) {
-            //SendGDBResponse( "T00" );
             if ( haltState == HaltState.RUNNING ) {
-                SendGDBResponse( "T00" );
+                SendGDBResponse( "S00" );
             } else {
-                SendGDBResponse( "T05" );
+                SendGDBResponse( "S05" );
             }
         }
     }
@@ -457,6 +464,69 @@ public class GDBServer {
         }
     }
 
+    private static void Step() {
+        byte[] last_opcode = new byte[ 4 ];
+        UInt32 opcode;
+
+        if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
+            Console.WriteLine( "Not in BD, Stepping" );
+            step_break_addr = tcb.regs[ (int)GPR.rapc ] += 4;
+        }
+        else {
+            // We're in a branch delay slot, so we need to do some spooky voodoo
+            // to get the next PC location for our temporary breakpoint.
+            Console.WriteLine( "Step on BD, testing branch to find next pc" );
+
+            if ( TransferLogic.ReadBytes( tcb.regs[ (int)GPR.rapc ], 4, last_opcode ) ) {
+                opcode = BitConverter.ToUInt32( last_opcode, 0 );
+                Console.WriteLine( "Last opcode " + opcode.ToString( "X8" ) );
+                switch ( opcode >> 26 ) {
+                    case 0x01: // BcondZ
+                    // Branch
+                    case 0x02: // J
+                        // Jump
+                        // Easy one, grab the address from opcode and use it as next pc
+                        // Upper 4 bits of current PC and shift and mask the opcode stuff around
+                        step_break_addr = (tcb.regs[ (int)GPR.rapc ] & 0x80000000) | ((opcode & 0x03FFFFFF) << 2);
+                        Console.WriteLine( "Got jump: " + step_break_addr.ToString( "X8" ) );
+                        //TransferLogic.Command_JumpAddr( tcb.regs[ (int)GPR.rapc ] );
+                        break;
+
+                    case 0x03: // JAL
+                        step_break_addr = (tcb.regs[ (int)GPR.rapc ] & 0x80000000) | ((opcode & 0x03FFFFFF) << 2);
+                        Console.WriteLine( "Got JAL: " + step_break_addr.ToString( "X8" ) );
+                        //TransferLogic.Command_CallAddr( tcb.regs[ (int)GPR.rapc ] );
+                        break;
+
+                    /*case 0x04: // BEQ
+                        break;
+
+                    case 0x05: // BNE
+                        break;
+
+                    case 0x06: // BLEZ
+                        break;
+
+                    case 0x07: // BGTZ
+                        break;*/
+
+                    default: // derp?
+                        Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
+                        break;
+                }
+
+            }
+            else {
+                Console.WriteLine( "Failed to read last opcode" );
+            }
+        }
+        //if ( !step_break_set ) {
+            // Serial already locked, do our thang           
+            TransferLogic.HookAddr( CommandMode.HOOKEXEC, step_break_addr ); // To-do: Look at doing software breakpoints instead of cop0
+            step_break_set = true;
+        //}
+    }
+
     private static void WriteRegister( string data ) {
 
         if ( (data.Length != 12) || (data.Substring( 3, 1 ) != "=") ) {
@@ -492,7 +562,7 @@ public class GDBServer {
 
     private static void ProcessCommand( string data ) {
 
-        //Console.WriteLine( "Got command " + data );
+        Console.WriteLine( "Got command " + data );
 
         switch ( data[ 0 ] ) {
             case '!':
@@ -504,8 +574,8 @@ public class GDBServer {
                 break;
 
             case 'c': // Continue - c [addr]
-                // TODO: specify an addr?
-                //Console.WriteLine( "Got continue request" );
+                      // TODO: specify an addr?
+                      //Console.WriteLine( "Got continue request" );
                 lock ( SerialTarget.serialLock ) {
                     if ( TransferLogic.Cont( false ) ) {
                         SetHaltStateInternal( HaltState.RUNNING, false );
@@ -522,12 +592,14 @@ public class GDBServer {
                     // Need a way to step over a breakpoint
                     // Vscode sends a step command to resume from breakpoints
 
+                    Step();
+
                     if ( TransferLogic.Cont( false ) ) {
                         SetHaltStateInternal( HaltState.RUNNING, false );
                     }
                 }
-              
-                
+
+
                 break;
 
             case 'D':
@@ -652,7 +724,7 @@ public class GDBServer {
     public static void HandleCtrlC() {
 
         lock ( SerialTarget.serialLock ) {
-            if(TransferLogic.Halt( false ))
+            if ( TransferLogic.Halt( false ) )
                 SetHaltStateInternal( HaltState.HALT, true );
         }
 
@@ -862,7 +934,7 @@ public class GDBServer {
 
         int tab = 0;
 
-        for ( int i = 0; i < (int)GPR.COUNT - 9; i++ ) {
+        for ( int i = 0; i < (int)GPR.COUNT - 8; i++ ) {
             Console.Write( "\t {0} =0x{1}", ((GPR)i).ToString().PadLeft( 4 ), tcb.regs[ i ].ToString( "X8" ) );
             // this format won't change, so there's no issue hardcoding them
             if ( tab++ % 4 == 3 || i == 1 || i == 33 || i == 34 ) {

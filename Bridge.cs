@@ -312,8 +312,11 @@ public class Bridge {
                         
                             GDBServer.GetRegs();
                             GDBServer.DumpRegs();
+                            if ( GDBServer.isStepBreakSet ) {
+                                TransferLogic.Unhook();
+                                GDBServer.isStepBreakSet = false;
+                            }
                             GDBServer.SetHaltStateInternal( GDBServer.HaltState.HALT, true );
-
                         }
 
                     }

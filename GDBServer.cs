@@ -467,12 +467,13 @@ public class GDBServer {
     private static void Step() {
         byte[] last_opcode = new byte[ 4 ];
         UInt32 opcode;
+        UInt32 rs;
+        UInt32 rt;
 
         if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
             Console.WriteLine( "Not in BD, Stepping" );
             step_break_addr = tcb.regs[ (int)GPR.rapc ] += 4;
-        }
-        else {
+        } else {
             // We're in a branch delay slot, so we need to do some spooky voodoo
             // to get the next PC location for our temporary breakpoint.
             Console.WriteLine( "Step on BD, testing branch to find next pc" );
@@ -481,50 +482,100 @@ public class GDBServer {
                 opcode = BitConverter.ToUInt32( last_opcode, 0 );
                 Console.WriteLine( "Last opcode " + opcode.ToString( "X8" ) );
                 switch ( opcode >> 26 ) {
-                    case 0x01: // BcondZ
-                    // Branch
+                    case 0x00: // Special
+                        switch ( opcode & 0x3F ) {
+                            case 0x08: // JR - Bits 21-25 contain the Jump Register
+                            case 0x09: // JALR - Bits 21-25 contain the Jump Register
+                                rs = (opcode >> 21) & 0x1F;
+                                step_break_addr = GetOneRegisterRev( rs );
+                                break;
+
+                            default:
+                                step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8;
+                                break;
+                        }
+                        break;
+
+                    case 0x01: // REGIMM / BcondZ
+                        switch ( (opcode >> 16) & 0x1F ) {
+                            case 0x00: // BLTZ
+                            case 0x10: // BLTZAL
+                                rs = (opcode >> 21) & 0x1F;
+                                if ( (Int32)GetOneRegisterRev( rs ) < 0 ) {
+                                    step_break_addr = ((opcode & 0xFFFF) << 2) + tcb.regs[ (int)GPR.rapc ] + 4;
+                                } else { step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8; }
+                                break;
+
+                            case 0x01: // BGEZ
+                            case 0x11: // BGEZAL
+                                rs = (opcode >> 21) & 0x1F;
+                                if ( (Int32)GetOneRegisterRev( rs ) >= 0 ) {
+                                    step_break_addr = ((opcode & 0xFFFF) << 2) + tcb.regs[ (int)GPR.rapc ] + 4;
+                                } else { step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8; }
+                                break;
+
+                            default:
+                                step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8;
+                                break;
+                        }
+                        break;
+
                     case 0x02: // J
                         // Jump
                         // Easy one, grab the address from opcode and use it as next pc
                         // Upper 4 bits of current PC and shift and mask the opcode stuff around
                         step_break_addr = (tcb.regs[ (int)GPR.rapc ] & 0x80000000) | ((opcode & 0x03FFFFFF) << 2);
                         Console.WriteLine( "Got jump: " + step_break_addr.ToString( "X8" ) );
-                        //TransferLogic.Command_JumpAddr( tcb.regs[ (int)GPR.rapc ] );
                         break;
 
                     case 0x03: // JAL
                         step_break_addr = (tcb.regs[ (int)GPR.rapc ] & 0x80000000) | ((opcode & 0x03FFFFFF) << 2);
                         Console.WriteLine( "Got JAL: " + step_break_addr.ToString( "X8" ) );
-                        //TransferLogic.Command_CallAddr( tcb.regs[ (int)GPR.rapc ] );
                         break;
 
-                    /*case 0x04: // BEQ
+                    case 0x04: // BEQ
+                        rs = (opcode >> 21) & 0x1F;
+                        rt = (opcode >> 16) & 0x1F;
+                        if ( GetOneRegisterRev( rs ) == GetOneRegisterRev( rt ) ) {
+                            step_break_addr = ((opcode & 0xFFFF) << 2) + tcb.regs[ (int)GPR.rapc ] + 4;
+                        } else { step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8; }
                         break;
 
                     case 0x05: // BNE
+                        rs = (opcode >> 21) & 0x1F;
+                        rt = (opcode >> 16) & 0x1F;
+                        if ( GetOneRegisterRev( rs ) != GetOneRegisterRev( rt ) ) {
+                            step_break_addr = ((opcode & 0xFFFF) << 2) + tcb.regs[ (int)GPR.rapc ] + 4;
+                        } else { step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8; }
                         break;
 
                     case 0x06: // BLEZ
+                        rs = (opcode >> 21) & 0x1F;
+                        if ( (Int32)GetOneRegisterRev( rs ) <= 0 ) {
+                            step_break_addr = ((opcode & 0xFFFF) << 2) + tcb.regs[ (int)GPR.rapc ] + 4;
+                        } else { step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8; }
                         break;
 
                     case 0x07: // BGTZ
-                        break;*/
+                        rs = (opcode >> 21) & 0x1F;
+                        if ( (Int32)GetOneRegisterRev( rs ) > 0 ) {
+                            step_break_addr = ((opcode & 0xFFFF) << 2) + tcb.regs[ (int)GPR.rapc ] + 4;
+                        } else { step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8; }
+                        break;
 
                     default: // derp?
                         Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
+                        step_break_addr = tcb.regs[ (int)GPR.rapc ] += 8;
                         break;
                 }
 
-            }
-            else {
+            } else {
                 Console.WriteLine( "Failed to read last opcode" );
             }
         }
-        //if ( !step_break_set ) {
-            // Serial already locked, do our thang           
-            TransferLogic.HookAddr( CommandMode.HOOKEXEC, step_break_addr ); // To-do: Look at doing software breakpoints instead of cop0
-            step_break_set = true;
-        //}
+        // Serial already locked, do our thang           
+        TransferLogic.HookAddr( CommandMode.HOOKEXEC, step_break_addr ); // To-do: Look at doing software breakpoints instead of cop0
+        step_break_set = true;
     }
 
     private static void WriteRegister( string data ) {
@@ -917,6 +968,19 @@ public class GDBServer {
         return result;
     }
 
+    private static uint GetOneRegisterRev( uint reg ) {
+        uint value = 0;
+        if ( reg < 32 ) value = tcb.regs[ reg + 2 ];
+        if ( reg == 32 ) value = tcb.regs[ (int)GPR.stat ];
+        if ( reg == 33 ) value = tcb.regs[ (int)GPR.lo ];
+        if ( reg == 34 ) value = tcb.regs[ (int)GPR.hi ];
+        if ( reg == 35 ) value = tcb.regs[ (int)GPR.badv ];
+        if ( reg == 36 ) value = tcb.regs[ (int)GPR.caus ];
+        if ( reg == 37 ) value = tcb.regs[ (int)GPR.rapc ];
+
+        return value;
+    }
+
     private static void SetOneRegister( uint reg, uint value ) {
         value = ((value & 0xff000000) >> 24) | ((value & 0x00ff0000) >> 8) | ((value & 0x0000ff00) << 8) |
             ((value & 0x000000ff) << 24);
@@ -944,7 +1008,7 @@ public class GDBServer {
         }
         Console.WriteLine();
 
-        Console.Write( "BD = 0x{0}\n", tcb.regs[ (int)GPR.unknown0 ].ToString("X") );
+        Console.Write( "BD = 0x{0}\n", tcb.regs[ (int)GPR.unknown0 ].ToString( "X" ) );
 
         UInt32 cause = (tcb.regs[ (int)GPR.caus ] >> 2) & 0xFF;
 

@@ -337,33 +337,32 @@ public class GDBServer {
         int sizeEnd = data.IndexOf( ":" );
         UInt32 targetSize = UInt32.Parse( data.Substring( sizeStart, (sizeEnd - sizeStart) ), NumberStyles.HexNumber );
 
-        byte[] bytes = ParseHexBytes( data, sizeEnd + 1, targetSize );
+        byte[] bytes_out = ParseHexBytes( data, sizeEnd + 1, targetSize );
         byte[] read_buffer = new byte[ 4 ];
-        UInt32 read_opcode = 0;
-        //Console.WriteLine( "TMA " + targetMemAddr.ToString( "X8" ) ); ;
-        //Console.WriteLine( "TSIZE " + targetSize.ToString( "X8" ) ); ;
-        //Console.WriteLine( "DATA " + data ); 
+        UInt32 instr_in_ram = 0;
+
 
         if ( targetSize == 4 ) {
-            if ( bytes[ 0 ] == 0x0D ) {
+            if ( bytes_out[ 0 ] == 0x0D ) {
                 // Writing breakpoint to memory, save old opcode in our cache
                 if ( GetMemory( targetMemAddr, 4, read_buffer ) ) {
-                    read_opcode = BitConverter.ToUInt32( read_buffer, 0 );
+                    instr_in_ram = BitConverter.ToUInt32( read_buffer, 0 );
                     // Key already exists, remove it to replace the entry
                     if ( read_buffer[ 0 ] != 0x0D ) {
-                        Console.WriteLine( "Saving original opcode at " + targetMemAddr.ToString( "X8" ) );
-                        original_opcode[ targetMemAddr ] = read_opcode;
+                        Console.WriteLine( "Saving original opcode " + instr_in_ram.ToString( "X8" ) + " at " + targetMemAddr.ToString( "X8" ) );
+                        original_opcode[ targetMemAddr ] = instr_in_ram;
                     }
                 }
             } else {
                 if ( original_opcode.ContainsKey( targetMemAddr ) ) {
-                    //original_opcode.Remove( targetMemAddr );
+                    //if ( original_opcode[ targetMemAddr ] == BitConverter.ToUInt32( bytes_out, 0 ) )
+                    original_opcode.Remove( targetMemAddr );
                 }
             }
         }
 
         lock ( SerialTarget.serialLock ) {
-            TransferLogic.Command_SendBin( targetMemAddr, bytes );
+            TransferLogic.Command_SendBin( targetMemAddr, bytes_out );
         }
 
         SendGDBResponse( "OK" );
@@ -388,14 +387,6 @@ public class GDBServer {
             case HaltState.RUNNING: SendGDBResponse( "S00" ); break;
             case HaltState.HALT: SendGDBResponse( "S05" ); break;
         }
-    }
-
-    private static void SetArguments( string data ) {
-        Unimplemented( data );
-    }
-
-    private static void SetBaud( string data ) {
-        Unimplemented( data );
     }
 
     private static void SetBreakpoint( string data ) {
@@ -500,21 +491,34 @@ public class GDBServer {
         return opcode;
     }
 
-    private static UInt32 CalculateBranchAddress( UInt32 opcode ) {
+    private static UInt32 CalculateBranchAddress( UInt32 opcode, bool eval ) {
         UInt32 offset = (opcode & 0xFFFF) << 2;
-        if ( (offset & (1 << 17)) != 0 ) { // Extend sign bit
-            offset |= 0xFFFFC000;
+
+        if ( eval ) {
+
+            if ( (offset & (1 << 17)) != 0 ) { // Extend sign bit
+                offset |= 0xFFFFC000;
+            }
+
+            return offset + tcb.regs[ (int)GPR.rapc ] + 4;
+        } else {
+            return tcb.regs[ (int)GPR.rapc ] += 8;
         }
-        return offset + tcb.regs[ (int)GPR.rapc ] + 4;
     }
 
     private static UInt32 CalculateJumpAddress( UInt32 opcode ) {
         return ((tcb.regs[ (int)GPR.rapc ] + 4) & 0x80000000) | ((opcode & 0x03FFFFFF) << 2);
     }
 
+    private static UInt32 SkipJumpInstruction( UInt32 opcode ) {
+        Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
+        return tcb.regs[ (int)GPR.rapc ] += 8;
+    }
+
     private static UInt32 JumpAddressFromOpcode( UInt32 opcode ) {
-        UInt32 rs;
-        UInt32 rt;
+        UInt32 rs = GetOneRegisterRev( (opcode >> 21) & 0x1F );
+        UInt32 rt = GetOneRegisterRev( (opcode >> 16) & 0x1F );
+
         UInt32 address;
 
         switch ( opcode >> 26 ) {
@@ -522,13 +526,11 @@ public class GDBServer {
                 switch ( opcode & 0x3F ) {
                     case 0x08: // JR - Bits 21-25 contain the Jump Register
                     case 0x09: // JALR - Bits 21-25 contain the Jump Register
-                        rs = (opcode >> 21) & 0x1F;
-                        address = GetOneRegisterRev( rs );
+                        address = rs;
                         break;
 
                     default:
-                        Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
-                        address = tcb.regs[ (int)GPR.rapc ] += 8;
+                        address = SkipJumpInstruction( opcode );
                         break;
                 }
                 break;
@@ -537,23 +539,16 @@ public class GDBServer {
                 switch ( (opcode >> 16) & 0x1F ) {
                     case 0x00: // BLTZ
                     case 0x10: // BLTZAL
-                        rs = (opcode >> 21) & 0x1F;
-                        if ( (Int32)GetOneRegisterRev( rs ) < 0 ) {
-                            address = CalculateBranchAddress( opcode );
-                        } else { address = tcb.regs[ (int)GPR.rapc ] += 8; }
+                        address = CalculateBranchAddress( opcode, rs < 0 );
                         break;
 
                     case 0x01: // BGEZ
                     case 0x11: // BGEZAL
-                        rs = (opcode >> 21) & 0x1F;
-                        if ( (Int32)GetOneRegisterRev( rs ) >= 0 ) {
-                            address = CalculateBranchAddress( opcode );
-                        } else { address = tcb.regs[ (int)GPR.rapc ] += 8; }
+                        address = CalculateBranchAddress( opcode, rs >= 0 );
                         break;
 
                     default:
-                        Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
-                        address = tcb.regs[ (int)GPR.rapc ] += 8;
+                        address = SkipJumpInstruction( opcode );
                         break;
                 }
                 break;
@@ -564,42 +559,27 @@ public class GDBServer {
                 break;
 
             case 0x04: // BEQ
-                rs = (opcode >> 21) & 0x1F;
-                rt = (opcode >> 16) & 0x1F;
-                if ( GetOneRegisterRev( rs ) == GetOneRegisterRev( rt ) ) {
-                    address = CalculateBranchAddress( opcode );
-                } else { address = tcb.regs[ (int)GPR.rapc ] += 8; }
+                address = CalculateBranchAddress( opcode, rs == rt );
                 break;
 
             case 0x05: // BNE
-                rs = (opcode >> 21) & 0x1F;
-                rt = (opcode >> 16) & 0x1F;
-                if ( GetOneRegisterRev( rs ) != GetOneRegisterRev( rt ) ) {
-                    address = CalculateBranchAddress( opcode );
-                } else { address = tcb.regs[ (int)GPR.rapc ] += 8; }
+                address = CalculateBranchAddress( opcode, rs != rt );
                 break;
 
             case 0x06: // BLEZ
-                rs = (opcode >> 21) & 0x1F;
-                if ( (Int32)GetOneRegisterRev( rs ) <= 0 ) {
-                    address = CalculateBranchAddress( opcode );
-                } else { address = tcb.regs[ (int)GPR.rapc ] += 8; }
+                address = CalculateBranchAddress( opcode, rs <= 0 );
                 break;
 
             case 0x07: // BGTZ
-                rs = (opcode >> 21) & 0x1F;
-                if ( (Int32)GetOneRegisterRev( rs ) > 0 ) {
-                    address = CalculateBranchAddress( opcode );
-                } else { address = tcb.regs[ (int)GPR.rapc ] += 8; }
+                address = CalculateBranchAddress( opcode, rs > 0 );
                 break;
 
             default: // derp?
-                Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
-                address = tcb.regs[ (int)GPR.rapc ] += 8;
+                address = SkipJumpInstruction( opcode );
                 break;
         }
 
-         return address;
+        return address;
     }
 
     private static void Step() {
@@ -686,10 +666,6 @@ public class GDBServer {
 
 
                 lock ( SerialTarget.serialLock ) {
-                    // To-do:
-                    // Need a way to step over a breakpoint
-                    // Vscode sends a step command to resume from breakpoints
-
                     Step();
 
                     if ( TransferLogic.Cont( false ) ) {
@@ -702,7 +678,6 @@ public class GDBServer {
 
             case 'D':
                 Detach();
-                //Unimplemented( data );
                 break;
 
             case 'g':
@@ -743,14 +718,6 @@ public class GDBServer {
             case 'q':
                 if ( data.StartsWith( "qAttached" ) ) {
                     SendGDBResponse( "1" );
-
-
-                    // ? Not sure this belongs here? Commenting out for now
-                    // Actually halt the PSX and set our internal state to match
-                    // TODO: might be safer on another thread, incase of timeout issues?
-                    //TransferLogic.Halt( false );
-                    //SetHaltStateInternal( HaltState.HALT, false );
-
                 } else if ( data.StartsWith( "qC" ) ) {
                     // Get Thread ID, always 00
                     SendGDBResponse( "QC00" );
@@ -766,7 +733,6 @@ public class GDBServer {
                     // To-do: Process monitor commands
                     Console.WriteLine( "Got qRcmd: " + data );
                     SendGDBResponse( "" );
-                    //SendGDBResponse( "OK" );
                 } else Unimplemented( data );
                 break;
 
@@ -801,6 +767,7 @@ public class GDBServer {
                 SendGDBResponse( "" );
                 break;
 
+            // Comment out, let GDB manage writing breakpoints
             /*case 'Z':
                 // Set breakpoint
                 SetBreakpoint( data );
@@ -911,7 +878,6 @@ public class GDBServer {
 
     private static void SendAck() {
         Bridge.Send( "+" );
-        //Console.WriteLine( "+" );
     }
 
     private static void SendGDBResponse( string response ) {
@@ -921,11 +887,6 @@ public class GDBServer {
     // ?
     private static void SendPagedResponse( string response ) {
         Bridge.Send( "$l" + response + "#" + CalculateChecksum( response ) );
-    }
-
-    private static void SendNAck() {
-        Bridge.Send( "-" );
-        Console.WriteLine( "-" );
     }
 
     public static bool GetMemory( uint address, uint length, byte[] data ) {
@@ -1091,9 +1052,5 @@ public class GDBServer {
                 Console.WriteLine( "Code {0}!\n", cause );
                 break;
         }
-
     }
-
-
-
 }

@@ -50,6 +50,87 @@ public enum GPR {
     COUNT // C# only, not present on the PSX struct
 }
 
+public enum PrimaryOpcode : byte {
+    SPECIAL = 0x00,
+    BCZ = 0x01,
+    J = 0x02,
+    JAL = 0x03,
+    BEQ = 0x04,
+    BNE = 0x05,
+    BLEZ = 0x06,
+    BGTZ = 0x07,
+    ADDI = 0x08,
+    ADDIU = 0x09,
+    SLTI = 0X0A,
+    SLTIU = 0X0B,
+    ANDI = 0X0C,
+    ORI = 0X0D,
+    XORI = 0X0E,
+    LUI = 0X0F,
+    COP0 = 0X10,
+    COP1 = 0X11,
+    COP2 = 0X12,
+    COP3 = 0X13,
+    LB = 0X20,
+    LH = 0X21,
+    LWL = 0X22,
+    LW = 0X23,
+    LBU = 0X24,
+    LHU = 0X25,
+    LWR = 0X26,
+    SB = 0X28,
+    SH = 0X29,
+    SWL = 0X2A,
+    SW = 0X2B,
+    SWR = 0X2E,
+    LWC0 = 0X30,
+    LWC1 = 0X31,
+    LWC2 = 0X32,
+    LWC3 = 0X33,
+    SWC0 = 0X38,
+    SWC1 = 0X39,
+    SWC2 = 0X3A,
+    SWC3 = 0X3B
+}
+
+public enum SecondaryOpcode : byte {
+    SLL = 0X00,
+    SRL = 0X02,
+    SRA = 0X03,
+    SLLV = 0X04,
+    SRLV = 0X06,
+    SRAV = 0X07,
+    JR = 0X08,
+    JALR = 0X09,
+    SYSCALL = 0X0C,
+    BREAK = 0X0D,
+    MFHI = 0X10,
+    MTHI = 0X11,
+    MFLO = 0X12,
+    MTLO = 0X13,
+    MULT = 0X18,
+    MULTU = 0X19,
+    DIV = 0X1A,
+    DIVU = 0X1B,
+    ADD = 0X20,
+    ADDU = 0X21,
+    SUB = 0X22,
+    SUBU = 0X23,
+    AND = 0X24,
+    OR = 0X25,
+    XOR = 0X26,
+    NOR = 0X27,
+    SLT = 0X2A,
+    SLTU = 0X2B
+}
+
+public enum BCZOpcode : byte {
+    BLTZ = 0x00,
+    BLTZAL = 0x10,
+    BGEZ = 0x01,
+    BGEZAL = 0x11
+}
+
 // The PSX's Thread Control Block (usually TCB[0])
 public class TCB {
     public UInt32[] regs = new UInt32[ (int)GPR.COUNT ];
@@ -352,6 +433,52 @@ public class GDBServer {
         return outBytes;
     }
 
+    private static void CacheInstruction( UInt32 addr, UInt32 instruction ) {
+        byte[] read_buffer = new byte[ 4 ];
+
+        if ( IsBreakInstruction( instruction ) ) {
+            return;
+        }
+
+        original_opcode[ addr ] = instruction;
+
+        /*if ( instruction[ 0 ] == 0x0D ) {
+            // Writing breakpoint to memory, save old opcode in our cache
+            if ( GetMemory( addr, 4, read_buffer ) ) {
+                decoded_instruction = BitConverter.ToUInt32( read_buffer, 0 );
+                // Key already exists, remove it to replace the entry
+                if ( read_buffer[ 0 ] != 0x0D ) {
+                    Console.WriteLine( "Saving original opcode " + decoded_instruction.ToString( "X8" ) + " at " + addr.ToString( "X8" ) );
+                    original_opcode[ addr ] = decoded_instruction;
+                }
+            }
+        }*/
+    }
+
+    private static PrimaryOpcode GetPrimaryOpcode( UInt32 opcode ) {
+        return (PrimaryOpcode)(opcode >> 26);
+    }
+
+    private static SecondaryOpcode GetSecondaryOpcode( UInt32 opcode ) {
+        return (SecondaryOpcode)(opcode & 0x3F);
+    }
+
+    private static BCZOpcode GetBCZOpcode( UInt32 opcode ) {
+        return (BCZOpcode)((opcode >> 16) & 0x1F);
+    }
+
+    private static bool IsBreakInstruction( UInt32 opcode ) {
+        PrimaryOpcode primary_opcode;
+        SecondaryOpcode secondary_opcode;
+
+        primary_opcode = GetPrimaryOpcode( opcode );
+        secondary_opcode = GetSecondaryOpcode( opcode );
+
+        if ( primary_opcode == PrimaryOpcode.SPECIAL && secondary_opcode == SecondaryOpcode.BREAK )
+            return true;
+
+        return false;
+    }
 
     /// <summary>
     /// Parse and upload an $M packet - e.g. as a result of `load` in GDB
@@ -369,28 +496,10 @@ public class GDBServer {
         UInt32 targetSize = UInt32.Parse( data.Substring( sizeStart, (sizeEnd - sizeStart) ), NumberStyles.HexNumber );
 
         byte[] bytes_out = ParseHexBytes( data, sizeEnd + 1, targetSize );
-        byte[] read_buffer = new byte[ 4 ];
-        UInt32 instr_in_ram = 0;
 
-
-        if ( targetSize == 4 ) {
-            if ( bytes_out[ 0 ] == 0x0D ) {
-                // Writing breakpoint to memory, save old opcode in our cache
-                if ( GetMemory( targetMemAddr, 4, read_buffer ) ) {
-                    instr_in_ram = BitConverter.ToUInt32( read_buffer, 0 );
-                    // Key already exists, remove it to replace the entry
-                    if ( read_buffer[ 0 ] != 0x0D ) {
-                        Console.WriteLine( "Saving original opcode " + instr_in_ram.ToString( "X8" ) + " at " + targetMemAddr.ToString( "X8" ) );
-                        original_opcode[ targetMemAddr ] = instr_in_ram;
-                    }
-                }
-            }/* else { // Don't remove data from the cache for now
-                if ( original_opcode.ContainsKey( targetMemAddr ) ) {
-                    //if ( original_opcode[ targetMemAddr ] == BitConverter.ToUInt32( bytes_out, 0 ) )
-                    original_opcode.Remove( targetMemAddr );
-                }
-            }*/
-        }
+        /*if ( targetSize == 4 && bytes_out[ 0 ] != 0x0D ) {
+            CacheInstruction( targetMemAddr, bytes_out );
+        }*/
 
         lock ( SerialTarget.serialLock ) {
             TransferLogic.Command_SendBin( targetMemAddr, bytes_out );
@@ -450,13 +559,35 @@ public class GDBServer {
         string[] parts = data.Substring( 1 ).Split( ',' );
         uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
         uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
-        byte[] buffer = new byte[ length ];
-        GetMemory( address, length, buffer );
+        byte[] read_buffer = new byte[ length ];
+        UInt32 instruction = 0;
         string response = "";
 
-        for ( int i = 0; i < length; i++ ) {
-            response += buffer[ i ].ToString( "X2" );
+        if ( length == 4 ) {
+            instruction = GetOriginalOpcode( address );
+            for ( uint i = 0; i < 4; i++ ) {
+                read_buffer = BitConverter.GetBytes( instruction );
+            }
+        } else {
+            GetMemory( address, length, read_buffer );
+
+            for ( uint i = 0; i < length / 4; i += 4 ) {
+                if ( length - i < 4 )
+                    break;
+
+                instruction = BitConverter.ToUInt32( read_buffer, (int)i );
+
+                if ( IsBreakInstruction( instruction ) )
+                    continue;
+
+                CacheInstruction( address + i, instruction );
+            }
         }
+
+        for ( uint i = 0; i < length; i++ ) {
+            response += read_buffer[ i ].ToString( "X2" );
+        }
+
         //Console.WriteLine( "MemoryRead @ 0x"+ address.ToString("X8") + ":" + response );
         SendGDBResponse( response );
     }
@@ -599,13 +730,17 @@ public class GDBServer {
         UInt32 rs = GetOneRegisterLE( (opcode >> 21) & 0x1F );
         UInt32 rt = GetOneRegisterLE( (opcode >> 16) & 0x1F );
 
+        //PrimaryOpcode primary_opcode = GetPrimaryOpcode(opcode);
+        //SecondaryOpcode secondary_opcode = GetSecondaryOpcode(opcode);
+        //BCZOpcode bcz_opcode = GetBCZOpcode( opcode );
+
         UInt32 address;
 
-        switch ( opcode >> 26 ) {
-            case 0x00: // Special
-                switch ( opcode & 0x3F ) {
-                    case 0x08: // JR - Bits 21-25 contain the Jump Register
-                    case 0x09: // JALR - Bits 21-25 contain the Jump Register
+        switch ( GetPrimaryOpcode( opcode ) ) {
+            case PrimaryOpcode.SPECIAL: // Special
+                switch ( GetSecondaryOpcode( opcode ) ) {
+                    case SecondaryOpcode.JR: // JR - Bits 21-25 contain the Jump Register
+                    case SecondaryOpcode.JALR: // JALR - Bits 21-25 contain the Jump Register
                         address = rs;
                         break;
 
@@ -615,15 +750,15 @@ public class GDBServer {
                 }
                 break;
 
-            case 0x01: // REGIMM / BcondZ
-                switch ( (opcode >> 16) & 0x1F ) {
-                    case 0x00: // BLTZ
-                    case 0x10: // BLTZAL
+            case PrimaryOpcode.BCZ: // REGIMM / BcondZ
+                switch ( GetBCZOpcode( opcode ) ) {
+                    case BCZOpcode.BLTZ: // BLTZ
+                    case BCZOpcode.BLTZAL: // BLTZAL
                         address = CalculateBranchAddress( opcode, (Int32)rs < 0 );
                         break;
 
-                    case 0x01: // BGEZ
-                    case 0x11: // BGEZAL
+                    case BCZOpcode.BGEZ: // BGEZ
+                    case BCZOpcode.BGEZAL: // BGEZAL
                         address = CalculateBranchAddress( opcode, (Int32)rs >= 0 );
                         break;
 
@@ -633,24 +768,24 @@ public class GDBServer {
                 }
                 break;
 
-            case 0x02: // J
-            case 0x03: // JAL          
+            case PrimaryOpcode.J: // J
+            case PrimaryOpcode.JAL: // JAL          
                 address = CalculateJumpAddress( opcode );
                 break;
 
-            case 0x04: // BEQ
+            case PrimaryOpcode.BEQ: // BEQ
                 address = CalculateBranchAddress( opcode, rs == rt );
                 break;
 
-            case 0x05: // BNE
+            case PrimaryOpcode.BNE: // BNE
                 address = CalculateBranchAddress( opcode, rs != rt );
                 break;
 
-            case 0x06: // BLEZ
+            case PrimaryOpcode.BLEZ: // BLEZ
                 address = CalculateBranchAddress( opcode, (Int32)rs <= 0 );
                 break;
 
-            case 0x07: // BGTZ
+            case PrimaryOpcode.BGTZ: // BGTZ
                 address = CalculateBranchAddress( opcode, (Int32)rs > 0 );
                 break;
 
@@ -672,7 +807,7 @@ public class GDBServer {
         UInt32 opcode;
 
 
-        if(data.Length > 1 ) {
+        if ( data.Length > 1 ) {
             Console.WriteLine( "Hrm?" );
         }
 

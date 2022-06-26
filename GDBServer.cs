@@ -142,13 +142,16 @@ public class GDBServer {
     private static bool _enabled = false;
     public static bool enabled => _enabled;
 
+    private static bool emulate_steps = false;
     private static bool step_break_set = false;
-    private static Dictionary<UInt32, UInt32> original_opcode = new Dictionary<UInt32, UInt32>();
-
+    private static UInt32 branch_address = 0;
+    private static bool branch_on_next_exec;
     public static bool isStepBreakSet {
         get { return step_break_set; }
         set { step_break_set = value; }
     }
+
+    private static Dictionary<UInt32, UInt32> original_opcode = new Dictionary<UInt32, UInt32>();
 
     // The PSX's active thread control block
     // (a copy of the psx's registers at the time of breaking)
@@ -580,7 +583,7 @@ public class GDBServer {
             PareseToCache(address, length, read_buffer );
         } else {
             for ( uint i = 0; i < length; i += 4 ) {
-                instruction = GetOriginalOpcode( address + i );
+                instruction = GetInstructionCached( address + i );
                 Array.Copy( BitConverter.GetBytes( instruction ), 0, read_buffer, i, 4 );
             }
         }
@@ -662,7 +665,7 @@ public class GDBServer {
     /// </summary>
     /// <param name="address"></param>
     /// <returns></returns>
-    private static UInt32 GetOriginalOpcode( UInt32 address ) {
+    private static UInt32 GetInstructionCached( UInt32 address ) {
         byte[] read_buffer = new byte[ 4 ];
         UInt32 opcode = 0;
 
@@ -712,6 +715,129 @@ public class GDBServer {
     private static UInt32 SkipJumpInstruction( UInt32 opcode ) {
         Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
         return tcb.regs[ (int)GPR.rapc ] += 8;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="opcode"></param>
+    /// <returns></returns>
+    private static void EmulateStep( UInt32 opcode ) {
+        UInt32 rs = GetOneRegisterBE( (opcode >> 21) & 0x1F );
+        UInt32 rt = GetOneRegisterBE( (opcode >> 16) & 0x1F );
+        UInt32 rd = (opcode >> 11) & 0x1F;
+        UInt32 immediate = opcode & 0xFFFF;
+
+        //UInt32 pc = 0;
+        bool emulated = true;
+
+        switch ( GetPrimaryOpcode( opcode ) ) {
+            case PrimaryOpcode.SPECIAL: // Special
+                switch ( GetSecondaryOpcode( opcode ) ) {
+                    case SecondaryOpcode.ADD:
+                        SetOneRegisterBE( rd, rs + rt );
+                        break;
+
+                    case SecondaryOpcode.ADDU:
+                        SetOneRegisterBE( rd, rs + rt );
+                        break;
+                        
+
+                    case SecondaryOpcode.JR: // JR - Bits 21-25 contain the Jump Register
+                    case SecondaryOpcode.JALR: // JALR - Bits 21-25 contain the Jump Register
+                        branch_address = rs;
+                        branch_on_next_exec = true;
+                        break;
+
+                    default: // derp?
+                        //pc = SkipJumpInstruction( opcode );
+                        emulated = false;
+                        break;
+                }
+                break;
+
+            case PrimaryOpcode.BCZ: // REGIMM / BcondZ
+                switch ( GetBCZOpcode( opcode ) ) {
+                    case BCZOpcode.BLTZ: // BLTZ
+                    case BCZOpcode.BLTZAL: // BLTZAL
+                        branch_address = CalculateBranchAddress( opcode, (Int32)rs < 0 );
+                        tcb.regs[ (int)GPR.unknown0 ] = 1;
+                        break;
+
+                    case BCZOpcode.BGEZ: // BGEZ
+                    case BCZOpcode.BGEZAL: // BGEZAL
+                        branch_address = CalculateBranchAddress( opcode, (Int32)rs >= 0 );
+                        tcb.regs[ (int)GPR.unknown0 ] = 1;
+                        break;
+
+                    default: // derp?
+                        //pc = SkipJumpInstruction( opcode );
+                        emulated = false;
+                        break;
+                }
+                break;
+
+            case PrimaryOpcode.J: // J
+            case PrimaryOpcode.JAL: // JAL          
+                branch_address = CalculateJumpAddress( opcode );
+                tcb.regs[ (int)GPR.unknown0 ] = 1;
+                break;
+
+            case PrimaryOpcode.BEQ: // BEQ
+                branch_address = CalculateBranchAddress( opcode, rs == rt );
+                tcb.regs[ (int)GPR.unknown0 ] = 1;
+                break;
+
+            case PrimaryOpcode.BNE: // BNE
+                branch_address = CalculateBranchAddress( opcode, rs != rt );
+                tcb.regs[ (int)GPR.unknown0 ] = 1;
+                break;
+
+            case PrimaryOpcode.BLEZ: // BLEZ
+                branch_address = CalculateBranchAddress( opcode, (Int32)rs <= 0 );
+                tcb.regs[ (int)GPR.unknown0 ] = 1;
+                break;
+
+            case PrimaryOpcode.BGTZ: // BGTZ
+                branch_address = CalculateBranchAddress( opcode, (Int32)rs > 0 );
+                tcb.regs[ (int)GPR.unknown0 ] = 1;
+                break;
+
+            default: // derp?
+                emulated = false;
+                break;
+        }
+
+        if( emulated ) {
+            if ( branch_on_next_exec ) {
+                tcb.regs[ (int)GPR.rapc ] = branch_address;
+                branch_on_next_exec = false;
+                tcb.regs[ (int)GPR.unknown0 ] = 0;
+            } else {
+                if( tcb.regs[ (int)GPR.unknown0 ] == 0)
+                    tcb.regs[ (int)GPR.rapc ] += 4;
+            }
+            
+            SetRegs();
+            SetHaltStateInternal( HaltState.HALT, true );
+        }
+        else {
+            Console.WriteLine( "Un-emulated opcode: " + opcode.ToString( "X8" ) );
+            if ( branch_on_next_exec ) {
+                branch_on_next_exec = false;
+                Step( "", false );
+                tcb.regs[ (int)GPR.unknown0 ] = 0;
+            } else {
+                // Not emulated, set breakpoint 4 ahead and hope for the best
+                SetBreakpoint( tcb.regs[ (int)GPR.rapc ] + 4 );
+                step_break_set = true;
+                SetRegs();
+            }
+
+            if ( TransferLogic.Cont( false ) ) {
+                SetHaltStateInternal( HaltState.RUNNING, false );
+            }
+        }
     }
 
     /// <summary>
@@ -792,8 +918,7 @@ public class GDBServer {
     /// </summary>
     /// <param name="data"></param>
     /// <returns></returns>
-    private static void Step( string data ) {
-        UInt32 current_pc;
+    private static void Step( string data, bool use_emulation ) {
         UInt32 next_pc;
         UInt32 opcode;
 
@@ -802,30 +927,47 @@ public class GDBServer {
             Console.WriteLine( "Hrm?" );
         }
 
-        if ( data.Length == 9 ) {
-            // UNTESTED
-            // To-do: Test it.
-            // Got memory address to step to
-            Console.WriteLine( "Got memory address to step to" );
-            next_pc = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
-        } else {
-            // To-do: Emulate opcodes except for load and store?
-            if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
-                // Not in BD, step one instruction
-                next_pc = tcb.regs[ (int)GPR.rapc ] += 4;
-            } else {
-                // We're in a branch delay slot, So we need to emulate
-                // the previous opcode to find the next instruction.
-                // To-do: Re-purpose this to emulate other instructions
-                opcode = GetOriginalOpcode( tcb.regs[ (int)GPR.rapc ] );
-                next_pc = JumpAddressFromOpcode( opcode );
 
+        if ( use_emulation ) {
+            opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
+            if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
+                opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
+            } else {
+                branch_on_next_exec = true;
+                opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] + 4 );
+            }
+            EmulateStep( opcode );
+            // Notify GDB of "halt"?
+        } else {
+            if ( data.Length == 9 ) {
+                // UNTESTED
+                // To-do: Test it.
+                // Got memory address to step to
+                Console.WriteLine( "Got memory address to step to" );
+                next_pc = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
+            } else {
+                // To-do: Emulate opcodes except for load and store?
+                if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
+                    // Not in BD, step one instruction
+                    next_pc = tcb.regs[ (int)GPR.rapc ] += 4;
+                } else {
+                    // We're in a branch delay slot, So we need to emulate
+                    // the previous opcode to find the next instruction.
+                    // To-do: Re-purpose this to emulate other instructions
+                    opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
+                    next_pc = JumpAddressFromOpcode( opcode );
+
+                }
+            }
+
+            // Serial already locked, do our thang           
+            SetBreakpoint( next_pc ); // To-do: Look at doing software breakpoints instead of cop0
+            step_break_set = true;
+
+            if ( TransferLogic.Cont( false ) ) {
+                SetHaltStateInternal( HaltState.RUNNING, false );
             }
         }
-
-        // Serial already locked, do our thang           
-        TransferLogic.Command_SetBreakOnExec( next_pc ); // To-do: Look at doing software breakpoints instead of cop0
-        step_break_set = true;
     }
 
     /// <summary>
@@ -889,6 +1031,13 @@ public class GDBServer {
             case 'c': // Continue - c [addr]
                       // TODO: specify an addr?
                       //Console.WriteLine( "Got continue request" );
+                if ( data.Length == 9 ) {
+                    // UNTESTED
+                    // To-do: Test it.
+                    // Got memory address to continue to
+                    Console.WriteLine( "Got memory address to continue to" );
+                    SetBreakpoint( UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber ) );
+                }
                 lock ( SerialTarget.serialLock ) {
                     if ( TransferLogic.Cont( false ) ) {
                         SetHaltStateInternal( HaltState.RUNNING, false );
@@ -898,11 +1047,7 @@ public class GDBServer {
 
             case 's': // Step - s [addr]
                 lock ( SerialTarget.serialLock ) {
-                    Step( data );
-
-                    if ( TransferLogic.Cont( false ) ) {
-                        SetHaltStateInternal( HaltState.RUNNING, false );
-                    }
+                    Step( data, emulate_steps );
                 }
                 break;
 

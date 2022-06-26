@@ -476,16 +476,7 @@ public class GDBServer {
 
         if ( !original_opcode.ContainsKey( address ) ) {
 
-            for ( uint i = 0; i < length; i += 4 ) {
-                if ( length - i < 4 )
-                    break; // derp?
-
-                instruction = BitConverter.ToUInt32( bytes_out, (int)i );
-
-                if ( !original_opcode.ContainsKey( address + i ) && !IsBreakInstruction(instruction) ) {
-                    original_opcode[ address + i ] = instruction;
-                }
-            }
+            PareseToCache( address, length, bytes_out );
         }
 
 
@@ -561,6 +552,21 @@ public class GDBServer {
         SendGDBResponse( response );
     }
 
+    private static void PareseToCache( UInt32 address, UInt32 length, byte[] read_buffer ) {
+        UInt32 instruction;
+
+        for ( uint i = 0; i < length; i += 4 ) {
+            if ( length - i < 4 )
+                break; // derp?
+
+            instruction = BitConverter.ToUInt32( read_buffer, (int)i );
+
+            if ( !original_opcode.ContainsKey( address + i ) && !IsBreakInstruction( instruction ) ) {
+                original_opcode[ address + i ] = instruction;
+            }
+        }
+    }
+
     private static void ReadCached( UInt32 address, UInt32 length, byte[] read_buffer ) {
         UInt32 instruction;
 
@@ -571,19 +577,8 @@ public class GDBServer {
         // Just grab the whole chunk for now if we don't have the start
         if ( !original_opcode.ContainsKey( address ) ) {
             GetMemory( address, length, read_buffer );
-
-            for ( uint i = 0; i < length; i += 4 ) {
-                if ( length - i < 4 )
-                    break;
-
-                instruction = BitConverter.ToUInt32( read_buffer, (int)i );
-
-                if ( !original_opcode.ContainsKey( address + i ) && !IsBreakInstruction( instruction ) ) {
-                    original_opcode[ address + i ] = instruction;
-                }
-            }
+            PareseToCache(address, length, read_buffer );
         } else {
-            Console.WriteLine( "Reading " + length.ToString() + " bytes from cache" );
             for ( uint i = 0; i < length; i += 4 ) {
                 instruction = GetOriginalOpcode( address + i );
                 Array.Copy( BitConverter.GetBytes( instruction ), 0, read_buffer, i, 4 );

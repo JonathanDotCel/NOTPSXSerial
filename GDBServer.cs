@@ -143,7 +143,6 @@ public class GDBServer {
     public static bool enabled => _enabled;
 
     private static bool step_break_set = false;
-    private static UInt32 step_break_addr;
     private static Dictionary<UInt32, UInt32> original_opcode = new Dictionary<UInt32, UInt32>();
 
     public static bool isStepBreakSet {
@@ -433,28 +432,6 @@ public class GDBServer {
         return outBytes;
     }
 
-    private static void CacheInstruction( UInt32 addr, UInt32 instruction ) {
-        byte[] read_buffer = new byte[ 4 ];
-
-        if ( IsBreakInstruction( instruction ) ) {
-            return;
-        }
-
-        original_opcode[ addr ] = instruction;
-
-        /*if ( instruction[ 0 ] == 0x0D ) {
-            // Writing breakpoint to memory, save old opcode in our cache
-            if ( GetMemory( addr, 4, read_buffer ) ) {
-                decoded_instruction = BitConverter.ToUInt32( read_buffer, 0 );
-                // Key already exists, remove it to replace the entry
-                if ( read_buffer[ 0 ] != 0x0D ) {
-                    Console.WriteLine( "Saving original opcode " + decoded_instruction.ToString( "X8" ) + " at " + addr.ToString( "X8" ) );
-                    original_opcode[ addr ] = decoded_instruction;
-                }
-            }
-        }*/
-    }
-
     private static PrimaryOpcode GetPrimaryOpcode( UInt32 opcode ) {
         return (PrimaryOpcode)(opcode >> 26);
     }
@@ -488,21 +465,32 @@ public class GDBServer {
 
         // TODO: validate memory regions
 
-        UInt32 targetMemAddr = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
+        UInt32 address = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
 
         // Where in the string do we find the addr substring
         int sizeStart = data.IndexOf( "," ) + 1;
         int sizeEnd = data.IndexOf( ":" );
-        UInt32 targetSize = UInt32.Parse( data.Substring( sizeStart, (sizeEnd - sizeStart) ), NumberStyles.HexNumber );
+        UInt32 length = UInt32.Parse( data.Substring( sizeStart, (sizeEnd - sizeStart) ), NumberStyles.HexNumber );
+        byte[] bytes_out = ParseHexBytes( data, sizeEnd + 1, length );
+        UInt32 instruction = 0;
 
-        byte[] bytes_out = ParseHexBytes( data, sizeEnd + 1, targetSize );
+        if ( !original_opcode.ContainsKey( address ) ) {
 
-        /*if ( targetSize == 4 && bytes_out[ 0 ] != 0x0D ) {
-            CacheInstruction( targetMemAddr, bytes_out );
-        }*/
+            for ( uint i = 0; i < length; i += 4 ) {
+                if ( length - i < 4 )
+                    break; // derp?
+
+                instruction = BitConverter.ToUInt32( bytes_out, (int)i );
+
+                if ( !original_opcode.ContainsKey( address + i ) && !IsBreakInstruction(instruction) ) {
+                    original_opcode[ address + i ] = instruction;
+                }
+            }
+        }
+
 
         lock ( SerialTarget.serialLock ) {
-            TransferLogic.Command_SendBin( targetMemAddr, bytes_out );
+            TransferLogic.Command_SendBin( address, bytes_out );
         }
 
         SendGDBResponse( "OK" );
@@ -560,29 +548,10 @@ public class GDBServer {
         uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
         uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
         byte[] read_buffer = new byte[ length ];
-        UInt32 instruction = 0;
         string response = "";
 
-        if ( length == 4 ) {
-            instruction = GetOriginalOpcode( address );
-            for ( uint i = 0; i < 4; i++ ) {
-                read_buffer = BitConverter.GetBytes( instruction );
-            }
-        } else {
-            GetMemory( address, length, read_buffer );
-
-            for ( uint i = 0; i < length / 4; i += 4 ) {
-                if ( length - i < 4 )
-                    break;
-
-                instruction = BitConverter.ToUInt32( read_buffer, (int)i );
-
-                if ( IsBreakInstruction( instruction ) )
-                    continue;
-
-                CacheInstruction( address + i, instruction );
-            }
-        }
+        ReadCached( address, length, read_buffer );
+        //GetMemory( address, length, read_buffer );
 
         for ( uint i = 0; i < length; i++ ) {
             response += read_buffer[ i ].ToString( "X2" );
@@ -590,6 +559,36 @@ public class GDBServer {
 
         //Console.WriteLine( "MemoryRead @ 0x"+ address.ToString("X8") + ":" + response );
         SendGDBResponse( response );
+    }
+
+    private static void ReadCached( UInt32 address, UInt32 length, byte[] read_buffer ) {
+        UInt32 instruction;
+
+
+        // Check for data 4 bytes at a time
+        // If not found, fetch memory and push it to cache + buffer
+
+        // Just grab the whole chunk for now if we don't have the start
+        if ( !original_opcode.ContainsKey( address ) ) {
+            GetMemory( address, length, read_buffer );
+
+            for ( uint i = 0; i < length; i += 4 ) {
+                if ( length - i < 4 )
+                    break;
+
+                instruction = BitConverter.ToUInt32( read_buffer, (int)i );
+
+                if ( !original_opcode.ContainsKey( address + i ) && !IsBreakInstruction( instruction ) ) {
+                    original_opcode[ address + i ] = instruction;
+                }
+            }
+        } else {
+            Console.WriteLine( "Reading " + length.ToString() + " bytes from cache" );
+            for ( uint i = 0; i < length; i += 4 ) {
+                instruction = GetOriginalOpcode( address + i );
+                Array.Copy( BitConverter.GetBytes( instruction ), 0, read_buffer, i, 4 );
+            }
+        }
     }
 
     /// <summary>
@@ -678,7 +677,7 @@ public class GDBServer {
             if ( GetMemory( address, 4, read_buffer ) ) {
                 // To-do: Maybe grab larger chunks and parse
                 opcode = BitConverter.ToUInt32( read_buffer, 0 );
-                original_opcode[ address ] = opcode; // Cache it since we didn't have it
+                original_opcode[ address ] = opcode;
             }
         }
 
@@ -729,10 +728,6 @@ public class GDBServer {
     private static UInt32 JumpAddressFromOpcode( UInt32 opcode ) {
         UInt32 rs = GetOneRegisterLE( (opcode >> 21) & 0x1F );
         UInt32 rt = GetOneRegisterLE( (opcode >> 16) & 0x1F );
-
-        //PrimaryOpcode primary_opcode = GetPrimaryOpcode(opcode);
-        //SecondaryOpcode secondary_opcode = GetSecondaryOpcode(opcode);
-        //BCZOpcode bcz_opcode = GetBCZOpcode( opcode );
 
         UInt32 address;
 
@@ -803,7 +798,8 @@ public class GDBServer {
     /// <param name="data"></param>
     /// <returns></returns>
     private static void Step( string data ) {
-        byte[] last_opcode = new byte[ 4 ];
+        UInt32 current_pc;
+        UInt32 next_pc;
         UInt32 opcode;
 
 
@@ -816,22 +812,24 @@ public class GDBServer {
             // To-do: Test it.
             // Got memory address to step to
             Console.WriteLine( "Got memory address to step to" );
-            step_break_addr = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
+            next_pc = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
         } else {
+            // To-do: Emulate opcodes except for load and store?
             if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
                 // Not in BD, step one instruction
-                step_break_addr = tcb.regs[ (int)GPR.rapc ] += 4;
+                next_pc = tcb.regs[ (int)GPR.rapc ] += 4;
             } else {
                 // We're in a branch delay slot, So we need to emulate
                 // the previous opcode to find the next instruction.
+                // To-do: Re-purpose this to emulate other instructions
                 opcode = GetOriginalOpcode( tcb.regs[ (int)GPR.rapc ] );
-                step_break_addr = JumpAddressFromOpcode( opcode );
+                next_pc = JumpAddressFromOpcode( opcode );
 
             }
         }
 
         // Serial already locked, do our thang           
-        TransferLogic.Command_SetBreakOnExec( step_break_addr ); // To-do: Look at doing software breakpoints instead of cop0
+        TransferLogic.Command_SetBreakOnExec( next_pc ); // To-do: Look at doing software breakpoints instead of cop0
         step_break_set = true;
     }
 

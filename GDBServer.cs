@@ -14,6 +14,15 @@
 // TODO: allow reconnection
 // TODO: set running/halted state when reconnecting
 
+// TODO: Handle software breakpoints internally?
+//       If we break/step on a BD, the original branch instruction must be
+//       the next PC. We could just lie to GDB about our PC but gdb will
+//       try to shove it's software breakpoint in place.
+
+// TODO: Add 4 to the PC if we're in a branch delay slot. (see above first)
+// TODO: Split GDB server code from emulation logic, cache, etc?
+// TODO: Continue and Step both take address arguments, needs testing.
+
 using System;
 using System.Text;
 using System.IO.Ports;
@@ -144,6 +153,7 @@ public class GDBServer {
 
     private static bool emulate_steps = false;
     private static bool step_break_set = false;
+    private static UInt32 step_break_addr = 0;
     private static UInt32 branch_address = 0;
     private static bool branch_on_next_exec;
     public static bool isStepBreakSet {
@@ -537,7 +547,6 @@ public class GDBServer {
     /// </summary>
     /// <param name="data"></param>
     private static void MemoryRead( string data ) {
-        // To-do: Parse returned addresses/data into our memory cache
         string[] parts = data.Substring( 1 ).Split( ',' );
         uint address = uint.Parse( parts[ 0 ], System.Globalization.NumberStyles.HexNumber );
         uint length = uint.Parse( parts[ 1 ], System.Globalization.NumberStyles.HexNumber );
@@ -928,6 +937,9 @@ public class GDBServer {
         }
 
 
+        // This isn't really fleshed out, disabled for now.
+        // Attempt to emulate instructions internally rather than firing them on console
+        // If there is something we can't handle, 
         if ( use_emulation ) {
             opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
             if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
@@ -963,10 +975,20 @@ public class GDBServer {
             // Serial already locked, do our thang           
             SetBreakpoint( next_pc ); // To-do: Look at doing software breakpoints instead of cop0
             step_break_set = true;
+            step_break_addr = next_pc;
 
             if ( TransferLogic.Cont( false ) ) {
                 SetHaltStateInternal( HaltState.RUNNING, false );
             }
+        }
+    }
+
+    public static void StepBreakCallback() {
+        UInt32 current_pc = (tcb.regs[ (int)GPR.unknown0 ] == 0) ? tcb.regs[ (int)GPR.rapc ] : tcb.regs[ (int)GPR.rapc ] + 4;
+        TransferLogic.Unhook();
+        GDBServer.isStepBreakSet = false;
+        if( current_pc != step_break_addr) {
+            Console.WriteLine( "Stopped at unexpected step address " + current_pc.ToString( "X8" ) + " instead of " + step_break_addr.ToString( "X8" ) );
         }
     }
 

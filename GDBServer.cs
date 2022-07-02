@@ -151,14 +151,14 @@ public class TCB {
 public class GDBServer {
 
     private static bool _enabled = false;
-    public static bool enabled => _enabled;
+    public static bool IsEnabled => _enabled;
 
     private static bool emulate_steps = false;
     private static bool step_break_set = false;
     private static UInt32 step_break_addr = 0;
     private static UInt32 branch_address = 0;
     private static bool branch_on_next_exec;
-    public static bool isStepBreakSet {
+    public static bool IsStepBreakSet {
         get { return step_break_set; }
         set { step_break_set = value; }
     }
@@ -896,8 +896,8 @@ public class GDBServer {
         byte[] read_buffer = new byte[ length ];
         string response = "";
 
-        ReadCached( address, length, read_buffer );
-        //GetMemory( address, length, read_buffer );
+        //ReadCached( address, length, read_buffer );
+        GetMemory( address, length, read_buffer );
 
         for ( uint i = 0; i < length; i++ ) {
             response += read_buffer[ i ].ToString( "X2" );
@@ -923,7 +923,6 @@ public class GDBServer {
         int sizeEnd = data.IndexOf( ":" );
         UInt32 length = UInt32.Parse( data.Substring( sizeStart, (sizeEnd - sizeStart) ), NumberStyles.HexNumber );
         byte[] bytes_out = ParseHexBytes( data, sizeEnd + 1, length );
-        UInt32 instruction = 0;
 
         if ( !original_opcode.ContainsKey( address ) ) {
 
@@ -969,7 +968,7 @@ public class GDBServer {
 
         byte[] outBytes = new byte[ numBytesToRead ];
 
-        byte activeByte = 0x00;
+        byte activeByte;
         int charPos = 0;
 
         for ( int i = startChar; i < startChar + (numBytesToRead * 2); i += 2 ) {
@@ -1065,7 +1064,7 @@ public class GDBServer {
                 } else if ( data.StartsWith( "qRcmd" ) ) {
                     // To-do: Process monitor commands
                     Console.WriteLine( "Got qRcmd: " + data );
-                    SendGDBResponse( "" );
+                    SendGDBResponse( "OK" );
                 } else Unimplemented( data );
                 break;
 
@@ -1400,8 +1399,6 @@ public class GDBServer {
     /// <returns></returns>
     private static void Step( string data, bool use_emulation ) {
         UInt32 next_pc;
-        UInt32 opcode;
-
 
         if ( data.Length > 1 ) {
             Console.WriteLine( "Hrm?" );
@@ -1412,14 +1409,13 @@ public class GDBServer {
         // Attempt to emulate instructions internally rather than firing them on console
         // If there is something we can't handle, recurse with use_emulation = false
         if ( use_emulation ) {
-            opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
+            EmulateStep( GetInstructionCached( tcb.regs[ (int)GPR.rapc ] ));
             if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
-                opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
+                EmulateStep( GetInstructionCached( tcb.regs[ (int)GPR.rapc ] ));
             } else {
                 branch_on_next_exec = true;
-                opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] + 4 );
+                EmulateStep( GetInstructionCached( tcb.regs[ (int)GPR.rapc ] + 4 ));
             }
-            EmulateStep( opcode );
             // Notify GDB of "halt"?
         } else {
             if ( data.Length == 9 ) {
@@ -1437,8 +1433,7 @@ public class GDBServer {
                     // We're in a branch delay slot, So we need to emulate
                     // the previous opcode to find the next instruction.
                     // To-do: Re-purpose this to emulate other instructions
-                    opcode = GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
-                    next_pc = JumpAddressFromOpcode( opcode );
+                    next_pc = JumpAddressFromOpcode( GetInstructionCached( tcb.regs[ (int)GPR.rapc ] ) );
 
                 }
             }
@@ -1457,7 +1452,7 @@ public class GDBServer {
     public static void StepBreakCallback() {
         UInt32 current_pc = (tcb.regs[ (int)GPR.unknown0 ] == 0) ? tcb.regs[ (int)GPR.rapc ] : tcb.regs[ (int)GPR.rapc ] + 4;
         TransferLogic.Unhook();
-        GDBServer.isStepBreakSet = false;
+        GDBServer.IsStepBreakSet = false;
         if ( current_pc != step_break_addr ) {
             Console.WriteLine( "Stopped at unexpected step address " + current_pc.ToString( "X8" ) + " instead of " + step_break_addr.ToString( "X8" ) );
         }

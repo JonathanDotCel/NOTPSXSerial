@@ -96,8 +96,7 @@ public class Bridge {
 
         //Console.WriteLine( "SOCKET RCB 1 " + recvSocket );
 
-        SocketError errorCode;
-        int numBytesRead = recvSocket.EndReceive( ar, out errorCode );
+        int numBytesRead = recvSocket.EndReceive( ar, out SocketError errorCode );
 
         if( errorCode != SocketError.Success ) {
             if(errorCode == SocketError.ConnectionReset ) {
@@ -121,7 +120,7 @@ public class Bridge {
             //Console.WriteLine( "\rSOCKET: rec: " + thisPacket );
 
             if ( socketString.IndexOf( "<EOF>" ) > -1 ) {
-                Console.WriteLine( "Read {0} bytes, done!: {1}", numBytesRead, socketString );
+                //Console.WriteLine( "Read {0} bytes, done!: {1}", numBytesRead, socketString );
 
             } else {
 
@@ -154,7 +153,7 @@ public class Bridge {
 
 
         } else {
-            Console.WriteLine( "Read 0 bytes" );
+            //Console.WriteLine( "Read 0 bytes" );
             RestartListenServer( );
         }
 
@@ -193,7 +192,17 @@ public class Bridge {
 
         byte[] bytes = ASCIIEncoding.ASCII.GetBytes( inData );
 
-        inSocket.BeginSend( bytes, 0, bytes.Length, 0, new AsyncCallback( SendCallback ), inSocket );
+        inSocket.BeginSend( bytes, 0, bytes.Length, 0, out SocketError errorCode, new AsyncCallback( SendCallback ), inSocket );
+
+        if ( errorCode != SocketError.Success ) {
+            if ( errorCode == SocketError.ConnectionReset ) {
+                Console.WriteLine( "Error sending, restarting listen server" );
+                Console.WriteLine( "CTRL-C to exit" );
+                RestartListenServer();
+            }
+            Console.WriteLine( "errorCode: " + errorCode.ToString() );
+            return;
+        }
 
     }
 
@@ -203,11 +212,6 @@ public class Bridge {
         Socket whichSocket = (Socket)ar.AsyncState;
 
         int bytesSent = whichSocket.EndSend( ar );
-        Console.WriteLine( "Sent {0} bytes ", bytesSent );
-
-        //socket.Shutdown( SocketShutdown.Both );
-        //socket.Close();
-
     }
 
     //
@@ -323,7 +327,7 @@ public class Bridge {
                         
                             GDBServer.GetRegs();
                             GDBServer.DumpRegs();
-                            if ( GDBServer.isStepBreakSet ) {
+                            if ( GDBServer.IsStepBreakSet ) {
                                 GDBServer.StepBreakCallback();
                             }
                             GDBServer.SetHaltStateInternal( GDBServer.HaltState.HALT, true );
@@ -335,14 +339,13 @@ public class Bridge {
 
                 } // bytestoread > 0
 
-                if ( !GDBServer.enabled ) {
-                    SocketError errorCode;
+                if ( !GDBServer.IsEnabled ) {
                     // Send the buffer back in a big chunk if we're not waiting
                     // on an escaped byte resolving			
                     if ( bytesInBuffer > 0 && !lastByteWasEscaped ) {
                         // send it baaahk
                         if ( replySocket != null ) {
-                            replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out errorCode );
+                            replySocket.Send( responseBytes, 0, bytesInBuffer, SocketFlags.None, out SocketError errorCode );
                         }
                         bytesInBuffer = 0;
                     }

@@ -22,6 +22,8 @@
 // TODO: Add 4 to the PC if we're in a branch delay slot. (see above first)
 // TODO: Split GDB server code from emulation logic, cache, etc?
 // TODO: Continue and Step both take optional address arguments, needs testing.
+// TODO: Begin moving non-gdb-specific code to new classes
+//       i.e. CPUHelper for emulation, calculating branches, etc
 
 using System;
 using System.Text;
@@ -384,6 +386,7 @@ public class GDBServer {
 
         // Do some stuff to detach from the target
         // Close & restart server
+        ResetConnection();
 
         SendGDBResponse( "OK" );
     }
@@ -1266,6 +1269,9 @@ public class GDBServer {
         SendGDBResponse( register_data );
     }
 
+    public static void ResetConnection() {
+        ack_enabled = true;
+    }
 
     /// <summary>
     /// Send GDB a packet acknowledgement(only in ack mode)

@@ -50,6 +50,7 @@ public class Bridge {
     public static string socketString; // oh boy, this will be nuts on the GC
 
     public static Socket replySocket;
+    private static IPEndPoint localEndpoint;
 
     public static void Init( MonitorMode inMode, UInt32 localPort, string localIP = "" ) {
 
@@ -102,8 +103,7 @@ public class Bridge {
             if(errorCode == SocketError.ConnectionReset ) {
                 Console.WriteLine( "Remote connection closed, restarting listen server" );
                 Console.WriteLine( "CTRL-C to exit" );
-                recvSocket.Close();
-                recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), recvSocket );
+                RestartListenServer( );
             }
             Console.WriteLine( "errorCode: " + errorCode.ToString() );
             return;
@@ -121,7 +121,6 @@ public class Bridge {
             //Console.WriteLine( "\rSOCKET: rec: " + thisPacket );
 
             if ( socketString.IndexOf( "<EOF>" ) > -1 ) {
-
                 Console.WriteLine( "Read {0} bytes, done!: {1}", numBytesRead, socketString );
 
             } else {
@@ -155,9 +154,27 @@ public class Bridge {
 
 
         } else {
-            Console.WriteLine( "Read 0 bytes..." );
+            Console.WriteLine( "Read 0 bytes" );
+            RestartListenServer( );
         }
 
+    }
+
+    public static void RestartListenServer( ) {
+        Console.WriteLine( "Restarting listen server" );
+        socket.Close();
+        StartListenServer( );
+
+        if ( activeBridgeMode == MonitorMode.GDB ) {
+            GDBServer.ResetConnection();
+        }
+    }
+
+    public static void StartListenServer( ) {
+        socket = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
+        socket.Bind( localEndpoint );
+        socket.Listen( 2 );
+        socket.BeginAccept( new AsyncCallback( AcceptCallback ), socket );
     }
 
     public static void Send( string inData ) {
@@ -210,15 +227,9 @@ public class Bridge {
         
         Console.WriteLine( "Opening a listen server on " + ip + ":" + inPort );
 
-        IPEndPoint localEndpoint = new IPEndPoint( ip, (int)inPort );
+        localEndpoint = new IPEndPoint( ip, (int)inPort );
 
-        socket = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
-
-        socket.Bind( localEndpoint );
-
-        socket.Listen( 2 );
-
-        socket.BeginAccept( new AsyncCallback( AcceptCallback ), socket );
+        StartListenServer();
 
     }
 

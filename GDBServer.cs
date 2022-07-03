@@ -209,26 +209,28 @@ public class GDBServer {
 
     private static void Continue( string data ) {
         // TODO: specify an addr?
-        //Console.WriteLine( "Got continue request" );
+        Log.WriteLine( "Got continue request", LogType.Debug );
         if ( data.Length == 9 ) {
             // UNTESTED
             // To-do: Test it.
             // Got memory address to continue to
-            Console.WriteLine( "Got memory address to continue to" );
-            SetBreakpoint( UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber ) );
+            Log.WriteLine( "Got memory address to continue to", LogType.Debug );
+            CPU.SetHardwareBreakpoint( UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber ) );
         }
         lock ( SerialTarget.serialLock ) {
             if ( TransferLogic.Cont( false ) ) {
                 SetHaltStateInternal( CPU.HaltState.RUNNING, false );
             }
         }
+
+        SendGDBResponse( "OK" );
     }
 
     /// <summary>
     /// Respond to GDB Detach 'D' packet
     /// </summary>
     private static void Detach() {
-        Console.WriteLine( "Detaching from target..." );
+        Log.WriteLine( "Detaching from target...", LogType.Info );
 
         // Do some stuff to detach from the target
         // Close & restart server
@@ -275,11 +277,11 @@ public class GDBServer {
     /// <param name="data"></param>
     /// <returns></returns>
     public static bool GetMemory( uint address, uint length, byte[] data ) {
-        Console.WriteLine( "Getting memory from 0x{0} for {1} bytes", address.ToString( "X8" ), length );
+        Log.WriteLine( "Getting memory from 0x" + address.ToString( "X8" ) + " for " + length.ToString() + " bytes", LogType.Debug );
 
         lock ( SerialTarget.serialLock ) {
             if ( !TransferLogic.ReadBytes( address, length, data ) ) {
-                Console.WriteLine( "Couldn't read bytes from Unirom!" );
+                Log.WriteLine( "Couldn't read bytes from Unirom!", LogType.Error );
                 return false;
             }
         }
@@ -348,21 +350,21 @@ public class GDBServer {
     /// </summary>
     public static void Init() {
 
-        Console.WriteLine( "Checking if Unirom is in debug mode..." );
+        Log.WriteLine( "Checking if Unirom is in debug mode...", LogType.Debug );
 
         // if it returns true, we might enter /m (monitor) mode, etc
         if (
             !TransferLogic.ChallengeResponse( CommandMode.DEBUG )
         ) {
-            Console.WriteLine( "Couldn't determine if Unirom is in debug mode." );
+            Log.WriteLine( "Couldn't determine if Unirom is in debug mode.", LogType.Error );
             return;
         }
 
         // More of a test than a requirement...
-        Console.WriteLine( "Grabbing initial state..." );
+        Log.WriteLine( "Grabbing initial state...", LogType.Debug );
         CPU.DumpRegs();
 
-        Console.WriteLine( "GDB server initialised" );
+        Log.WriteLine( "GDB server initialised" );
         _enabled = true;
     }
 
@@ -547,7 +549,7 @@ public class GDBServer {
                     SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>" );
                 } else if ( data.StartsWith( "qRcmd" ) ) {
                     // To-do: Process monitor commands
-                    Console.WriteLine( "Got qRcmd: " + data );
+                    Log.WriteLine( "Got qRcmd: " + data, LogType.Debug );
                     SendGDBResponse( "OK" );
                 } else Unimplemented( data );
                 break;
@@ -670,12 +672,12 @@ public class GDBServer {
                     //Bridge.Send( "$" + packetData + "#" + CalculateChecksum( packetData ));
                     //ProcessPacket( packetData );
                 } else {
-                    Console.WriteLine( "Checksums don't match!" );
+                    Log.WriteLine( "Checksums don't match!", LogType.Error );
                 }
                 offset += 2;
                 size -= 3;
             } else if ( c == '-' ) {
-                Console.WriteLine( "NACK" );
+                Log.WriteLine( "Negative ACK", LogType.Error );
             }
         }
     }
@@ -779,21 +781,6 @@ public class GDBServer {
         Bridge.Send( "$l" + response + "#" + CalculateChecksum( response ) );
     }
 
-
-    /// <summary>
-    /// Set a breakpoint at the specified address
-    /// </summary>
-    /// <param name="address"></param>
-    private static void SetBreakpoint( uint address ) {
-        // To-do: Convert this to software breakpoints, not hardware?
-        // Maybe use hardware breakpoint if break request in ROM?
-        lock ( SerialTarget.serialLock ) {
-            TransferLogic.Command_SetBreakOnExec( address );
-        }
-        SendGDBResponse( "OK" );
-    }
-
-
     /// <summary>
     /// Set the console's state
     /// </summary>
@@ -818,7 +805,7 @@ public class GDBServer {
     public static void Step( string data, bool use_emulation ) {
 
         if ( data.Length > 1 ) {
-            Console.WriteLine( "Hrm?" );
+            Log.WriteLine( "Hrm?", LogType.Debug );
         }
 
 
@@ -833,7 +820,7 @@ public class GDBServer {
                 // UNTESTED
                 // To-do: Test it.
                 // Got memory address to step to
-                Console.WriteLine( "Got memory address to step to" );
+                Log.ToScreen( "Got memory address to step to", LogType.Debug );
                 next_pc = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
             } else {
                 
@@ -854,7 +841,7 @@ public class GDBServer {
     /// <param name="data"></param>
     private static void Unimplemented( string data ) {
         SendGDBResponse( "" );
-        Console.WriteLine( "Got unimplemented gdb command " + data + ", reply empty" );
+        Log.WriteLine( "Got unimplemented gdb command " + data + ", reply empty", LogType.Debug );
     }
 
     /// <summary>

@@ -59,7 +59,7 @@ public class Bridge {
 
         if ( inMode == MonitorMode.GDB ) {
             GDBServer.Init();
-            Console.WriteLine( $"Monitoring psx and accepting GDB connections on {localIP}:{localPort}" );
+            Log.WriteLine( $"Monitoring psx and accepting GDB connections on {localIP}:{localPort}" );
         }
 
         // Shared function
@@ -73,7 +73,7 @@ public class Bridge {
         Socket whichSocket = (Socket)result.AsyncState;
         Socket newSocket = socket.EndAccept( result );
 
-        Console.WriteLine( "Remote connection to local socket accepted: " + newSocket.LocalEndPoint );
+        Log.WriteLine( "Remote connection to local socket accepted: " + newSocket.LocalEndPoint );
 
         replySocket = newSocket;
 
@@ -100,11 +100,11 @@ public class Bridge {
 
         if( errorCode != SocketError.Success ) {
             if(errorCode == SocketError.ConnectionReset ) {
-                Console.WriteLine( "Remote connection closed, restarting listen server" );
-                Console.WriteLine( "CTRL-C to exit" );
+                Log.WriteLine( "Remote connection closed, restarting listen server", LogType.Warning );
+                Log.WriteLine( "CTRL-C to exit" );
                 RestartListenServer( );
             }
-            Console.WriteLine( "errorCode: " + errorCode.ToString() );
+            Log.WriteLine( "errorCode: " + errorCode.ToString(), LogType.Debug );
             return;
         }
 
@@ -146,7 +146,7 @@ public class Bridge {
                 try {
                     recvSocket.BeginReceive( socketBuffer, 0, socketBufferSize, 0, new AsyncCallback( ReceiveCallback ), recvSocket );
                 } catch ( Exception ex ) {
-                    Console.WriteLine( "SOCKET: RCB EXCEPTION: " + ex.Message );
+                    Log.WriteLine( "SOCKET: RCB EXCEPTION: " + ex.Message, LogType.Error );
                 }
 
             }
@@ -160,7 +160,7 @@ public class Bridge {
     }
 
     public static void RestartListenServer( ) {
-        Console.WriteLine( "Restarting listen server" );
+        Log.WriteLine( "Restarting listen server" );
         socket.Close();
         StartListenServer( );
 
@@ -196,11 +196,11 @@ public class Bridge {
 
         if ( errorCode != SocketError.Success ) {
             if ( errorCode == SocketError.ConnectionReset ) {
-                Console.WriteLine( "Error sending, restarting listen server" );
-                Console.WriteLine( "CTRL-C to exit" );
+                Log.WriteLine( "Error sending, restarting listen server", LogType.Warning );
+                Log.WriteLine( "CTRL-C to exit" );
                 RestartListenServer();
             }
-            Console.WriteLine( "errorCode: " + errorCode.ToString() );
+            Log.WriteLine( "errorCode: " + errorCode.ToString(), LogType.Debug );
             return;
         }
 
@@ -225,11 +225,11 @@ public class Bridge {
         if ( string.IsNullOrEmpty( localIP ) ) {
              ip = IPAddress.Parse( "127.0.0.1" );
         } else {
-            Console.WriteLine( "Binding IP " + localIP );
+            Log.WriteLine( "Binding IP " + localIP );
             ip = IPAddress.Parse( localIP );
         }
-        
-        Console.WriteLine( "Opening a listen server on " + ip + ":" + inPort );
+
+        Log.WriteLine( "Opening a listen server on " + ip + ":" + inPort );
 
         localEndpoint = new IPEndPoint( ip, (int)inPort );
 
@@ -288,7 +288,7 @@ public class Bridge {
 
                             // a properly escaped doublet can go in the buffer.
                             responseBytes[ bytesInBuffer++ ] = ESCAPECHAR;
-                            Console.Write( (char)thisByte );
+                            Log.Write( ((char)thisByte).ToString() );
 
                         } else {
 
@@ -311,7 +311,7 @@ public class Bridge {
                     if ( !thisByteIsEscapeChar ) {
 
                         responseBytes[ bytesInBuffer++ ] = (byte)thisByte;
-                        Console.Write( (char)thisByte );
+                        Log.Write( ((char)thisByte).ToString() );
 
                         // TODO: remove this unescaped method after a few versions
                         // Clunky way to do it, but there's no unboxing or reallocation
@@ -323,8 +323,8 @@ public class Bridge {
                             last4ResponseChars[ 0 ] == 'H' && last4ResponseChars[ 1 ] == 'L'
                             && last4ResponseChars[ 2 ] == 'T' && last4ResponseChars[ 3 ] == 'D'
                         ) {
-                            Console.WriteLine( "PSX may have halted (<8.0.I)!" );
-                        
+                            Log.WriteLine( "PSX may have halted (<8.0.I)!", LogType.Warning );
+
                             CPU.GetRegs();
                             CPU.DumpRegs();
                             if ( CPU.IsStepBreakSet ) {
@@ -353,7 +353,7 @@ public class Bridge {
                     if ( Console.KeyAvailable ) {
                         ConsoleKeyInfo keyVal = Console.ReadKey( true );
                         serial.Write( new byte[] { (byte)keyVal.KeyChar }, 0, 1 );
-                        Console.Write( keyVal.KeyChar );
+                        Log.Write( (keyVal.KeyChar).ToString() );
                     }
                 }
 

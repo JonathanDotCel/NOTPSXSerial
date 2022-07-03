@@ -70,9 +70,9 @@ class PCDrv {
     /// Dumps some info related to known/tracked files
     /// </summary>	
     public static void DumpTrackedFiles() {
-        Console.WriteLine( "Tracked files: " );
+        Log.WriteLine( "Tracked files: " );
         for ( int i = 0; i < activeFiles.Count; i++ ) {
-            if ( activeFiles[ i ] != null ) Console.WriteLine( $"File {i} = {activeFiles[ i ]}" );
+            if ( activeFiles[ i ] != null ) Log.WriteLine( $"File {i} = {activeFiles[ i ]}" );
         }
     }
 
@@ -137,7 +137,7 @@ class PCDrv {
 
         }
 
-        Console.WriteLine( $"No active file with handle {inHandle} to close!" );
+        Log.WriteLine( $"No active file with handle {inHandle} to close!" );
         return false;
 
     }
@@ -153,7 +153,7 @@ class PCDrv {
         // It's already tracked, open
         if ( GetOpenFile( inFile ) != null ) return;
 
-        Console.WriteLine( $"Assigned file {inFile} with handle {inHandle}..." );
+        Log.WriteLine( $"Assigned file {inFile} with handle {inHandle}..." );
 
         PCFile p = new PCFile() {
             fileName = inFile,
@@ -180,13 +180,13 @@ class PCDrv {
     /// </summary>
     public static bool ReadCommand() {
 
-        Console.WriteLine( "Got PCDRV ..." );
+        Log.WriteLine( "Got PCDRV ..." );
 
         // Wait till we get the PCDrv function code
         while ( serial.BytesToRead == 0 ) { }
         PCDrvCodes funcCode = (PCDrvCodes)TransferLogic.read32();
 
-        Console.WriteLine( "Got function code: " + funcCode );
+        Log.WriteLine( "Got function code: " + funcCode );
 
         // TODO: split these off into discrete functions?
 
@@ -211,13 +211,13 @@ class PCDrv {
 
             bool isDir = ((parameters & 16) != 0);
 
-            Console.WriteLine( $"PCCreat( {fileName}, {parameters} )" );
+            Log.WriteLine( $"PCCreat( {fileName}, {parameters} )" );
 
             PCFile pcFile = GetOpenFile( fileName );
 
             if ( pcFile != null ) {
                 // We're already tracking this file, just return it's handle
-                Console.WriteLine( "File already open, handle=" + pcFile.handle );
+                Log.WriteLine( "File already open, handle=" + pcFile.handle );
                 serial.Write( "OKAY" );
                 serial.Write( BitConverter.GetBytes( pcFile.handle ), 0, 4 );
                 return true;
@@ -235,7 +235,7 @@ class PCDrv {
                         tempStream.Close();
                         tempStream.Dispose();
                     } else {
-                        Console.WriteLine( $"File {fileName} already exists, using that..." );
+                        Log.WriteLine( $"File {fileName} already exists, using that..." );
                     }
                     fStream = new FileStream( fileName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite );
                 }
@@ -249,7 +249,7 @@ class PCDrv {
                 return true;
 
             } catch ( Exception e ) {
-                Console.WriteLine( $"Error creating file '{fileName}', ex={e}" );
+                Log.WriteLine( $"Error creating file '{fileName}', ex={e}" );
                 serial.Write( "NOPE" );
                 return false;
             }
@@ -268,7 +268,7 @@ class PCDrv {
 
             PCFileMode fileModeParams = (PCFileMode)TransferLogic.read32();
 
-            Console.WriteLine( $"PCOpen( {fileName}, {fileModeParams} )" );
+            Log.WriteLine( $"PCOpen( {fileName}, {fileModeParams} )" );
 
             PCFile f = GetOpenFile( fileName );
 
@@ -277,10 +277,10 @@ class PCDrv {
                 // just return the handle for this file...
 
                 if ( f.fileMode != fileModeParams ) {
-                    Console.WriteLine( $"File {f.handle} already open, switching params to {fileModeParams}" );
+                    Log.WriteLine( $"File {f.handle} already open, switching params to {fileModeParams}" );
                     f.fileMode = fileModeParams;
                 } else {
-                    Console.WriteLine( "File already open, handle=" + f.handle );
+                    Log.WriteLine( "File already open, handle=" + f.handle );
                 }
 
                 serial.Write( "OKAY" );
@@ -290,7 +290,7 @@ class PCDrv {
             }
 
             if ( !File.Exists( fileName ) ) {
-                Console.WriteLine( "File doesn't exist!" );
+                Log.WriteLine( "File doesn't exist!" );
                 goto nope;
             }
 
@@ -298,13 +298,13 @@ class PCDrv {
             try {
                 fs = File.Open( fileName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite );
             } catch ( Exception e ) {
-                Console.WriteLine( $"Error opening file '{fileName}', ex={e}" );
+                Log.WriteLine( $"Error opening file '{fileName}', ex={e}" );
                 goto nope;
             }
 
             UInt32 handle = NextHandle();
             TrackFile( fileName, handle, fs, fileModeParams );
-            Console.WriteLine( "Returning file, handle=" + handle );
+            Log.WriteLine( "Returning file, handle=" + handle );
 
             serial.Write( "OKAY" );
             serial.Write( BitConverter.GetBytes( handle ), 0, 4 );
@@ -312,7 +312,7 @@ class PCDrv {
 
 
             nope:;
-            Console.WriteLine( "Failed.." );
+            Log.WriteLine( "Failed.." );
             serial.Write( "NOPE" );
             return false;
 
@@ -329,19 +329,19 @@ class PCDrv {
             UInt32 unused1 = TransferLogic.read32();
             UInt32 unused2 = TransferLogic.read32();
 
-            Console.WriteLine( $"PCClose( {handle} ) unusedParams: {unused1},{unused2}" );
+            Log.WriteLine( $"PCClose( {handle} ) unusedParams: {unused1},{unused2}" );
 
             PCFile f = GetOpenFile( handle );
 
             try {
 
                 if ( f == null ) {
-                    Console.WriteLine( "No such file... great success!" );
+                    Log.WriteLine( "No such file... great success!" );
                     serial.Write( "OKAY" ); // v0
                     serial.Write( BitConverter.GetBytes( 0 ), 0, 4 );   // v1
                     return true;
                 } else {
-                    Console.WriteLine( $"Closing file {f.fileName} with handle {f.handle}..." );
+                    Log.WriteLine( $"Closing file {f.fileName} with handle {f.handle}..." );
                     serial.Write( "OKAY" ); // v0
                     serial.Write( BitConverter.GetBytes( f.handle ), 0, 4 );   // v1 let the garbage collector deal with it
                     ClosePCFile( f.handle );
@@ -349,7 +349,7 @@ class PCDrv {
                 }
 
             } catch ( Exception e ) {
-                Console.WriteLine( "Error closing file..." + e );
+                Log.WriteLine( "Error closing file..." + e );
                 serial.Write( "NOPE" ); // v0
                                         // don't need to send v1
                 return false;
@@ -380,19 +380,19 @@ class PCDrv {
             int inLength = (int)TransferLogic.read32();
             UInt32 memaddr = TransferLogic.read32();        // not used, debugging only
 
-            //Console.WriteLine( $"PCRead( {handle}, len={inLength}, dbg=0x{memaddr.ToString("X")} )" );
+            //Log.WriteLine( $"PCRead( {handle}, len={inLength}, dbg=0x{memaddr.ToString("X")} )" );
 
             PCFile pcFile = GetOpenFile( handle );
 
-            Console.WriteLine( $"PCRead( {handle}, len=0x{inLength.ToString( "X" )} ); MemAddr=0x{memaddr.ToString( "X" )}, File={pcFile}" );
+            Log.WriteLine( $"PCRead( {handle}, len=0x{inLength.ToString( "X" )} ); MemAddr=0x{memaddr.ToString( "X" )}, File={pcFile}" );
 
             if ( pcFile == null ) {
-                Console.WriteLine( $"No file with handle 0x{handle.ToString( "X" )}, returning!" );
+                Log.WriteLine( $"No file with handle 0x{handle.ToString( "X" )}, returning!" );
                 serial.Write( "NOPE" ); // v0
                                         // don't need to send v1
                 return false;
             } else {
-                Console.WriteLine( "Reading file " + pcFile.fileName );
+                Log.WriteLine( "Reading file " + pcFile.fileName );
             }
 
             long streamLength = 0;
@@ -409,7 +409,7 @@ class PCDrv {
 
                 if ( bytesRead <= 0 ) {
                     //throw new Exception( "Read 0 bytes from the file.." );
-                    Console.WriteLine( "Warning - no bytes were read from the file - returning zeros..." );
+                    Log.WriteLine( "Warning - no bytes were read from the file - returning zeros..." );
                 }
 
                 // if we returned fewer bytes than requested, no biggie, the byte array is already set
@@ -426,7 +426,7 @@ class PCDrv {
                 // and reuse some functions
 
             } catch ( Exception e ) {
-                Console.WriteLine( $"Error reading file {pcFile.fileName} at pos={pcFile.fileStream.Position}, streamLength={streamLength} e={e}" );
+                Log.WriteLine( $"Error reading file {pcFile.fileName} at pos={pcFile.fileStream.Position}, streamLength={streamLength} e={e}" );
                 serial.Write( "NOPE" );
                 return false;
             }
@@ -452,16 +452,16 @@ class PCDrv {
             PCFile pcFile = GetOpenFile( handle );
 
             if ( pcFile == null ) {
-                Console.WriteLine( $"No file with handle 0x{handle.ToString( "X" )}, returning!" );
+                Log.WriteLine( $"No file with handle 0x{handle.ToString( "X" )}, returning!" );
                 serial.Write( "NOPE" ); // v0
                                         // don't need to send v1
                 return false;
             }
 
-            Console.WriteLine( $"PCWrite( {handle}, len={inLength} ); fileName={pcFile.fileName} SourceAddr={memaddr.ToString( "X" )}, File={pcFile}" );
+            Log.WriteLine( $"PCWrite( {handle}, len={inLength} ); fileName={pcFile.fileName} SourceAddr={memaddr.ToString( "X" )}, File={pcFile}" );
 
             if ( pcFile.fileMode == PCFileMode.READONLY ) {
-                Console.WriteLine( "Error: File is readonly!" );
+                Log.WriteLine( "Error: File is readonly!" );
                 serial.Write( "NOPE" );
                 return false;
             }
@@ -478,7 +478,7 @@ class PCDrv {
                     throw new Exception( "there was an error reading the stream from the psx!" );
                 }
 
-                Console.WriteLine( $"Read {inLength} bytes, flushing to {pcFile.fileName}..." );
+                Log.WriteLine( $"Read {inLength} bytes, flushing to {pcFile.fileName}..." );
 
                 fs.Write( bytes, 0, inLength );
                 fs.Flush( true );
@@ -490,7 +490,7 @@ class PCDrv {
                 // and reuse some functions
 
             } catch ( Exception e ) {
-                Console.WriteLine( $"Error writing file {pcFile.fileName}, streamLength={inLength} e={e}" );
+                Log.WriteLine( $"Error writing file {pcFile.fileName}, streamLength={inLength} e={e}" );
                 serial.Write( "NOPE" );
                 return false;
             }
@@ -510,10 +510,10 @@ class PCDrv {
             PCFile pcFile = GetOpenFile( handle );
 
             string fileName = pcFile != null ? pcFile.fileName : "";
-            Console.WriteLine( $"PCSeek file {handle} to {seekPos}, type={seekOrigin}, fileName={fileName}" );
+            Log.WriteLine( $"PCSeek file {handle} to {seekPos}, type={seekOrigin}, fileName={fileName}" );
 
             if ( pcFile == null ) {
-                Console.WriteLine( "Error: There is no file with handle 0x" + handle.ToString( "X" ) );
+                Log.WriteLine( "Error: There is no file with handle 0x" + handle.ToString( "X" ) );
                 serial.Write( "NOPE" );
                 return false;
             }
@@ -525,13 +525,13 @@ class PCDrv {
                 //fs.Seek( pcFile.filePointer, pcFile.seekMode );
                 fs.Seek( seekPos, seekOrigin );
 
-                Console.WriteLine( "Seeked position " + fs.Position );
+                Log.WriteLine( "Seeked position " + fs.Position );
 
                 serial.Write( "OKAY" );
                 serial.Write( BitConverter.GetBytes( fs.Position ), 0, 4 );
 
             } catch ( System.Exception e ) {
-                Console.WriteLine( $"Exception when seeking file {handle}, e={e}" );
+                Log.WriteLine( $"Exception when seeking file {handle}, e={e}" );
                 serial.Write( "NOPE" );
                 return false;
             }

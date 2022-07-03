@@ -46,7 +46,7 @@ public class RingBuffer
         if (this.tail == this.head)
         {
             // Empty - bytes not written?
-            Console.WriteLine("Underflow condition tail == head on read(), Head = " + this.head + " Tail = " + tail);
+            Log.WriteLine("Underflow condition tail == head on read(), Head = " + this.head + " Tail = " + tail, LogType.Error);
             return -1;
         }
 
@@ -61,7 +61,7 @@ public class RingBuffer
         if (((this.head + 1) % this.size) == this.tail)
         {
             // Buffer full
-            Console.WriteLine("Overflow conditon, Head == tail on write(" + data + ")");
+            Log.WriteLine("Overflow conditon, Head == tail on write(" + data + ")", LogType.Error);
             return -1;
         }
 
@@ -130,7 +130,7 @@ public class TCPTarget : TargetDataPort
     {
         try
         {
-            Console.WriteLine("Opening remote connection to " + ip + ":" + remoteEndpoint.Port);
+            Log.WriteLine("Opening remote connection to " + ip + ":" + remoteEndpoint.Port);
             socket.Connect(remoteEndpoint);
 
             // Give the accepting socket time to accept the connection
@@ -143,14 +143,14 @@ public class TCPTarget : TargetDataPort
         }
         catch (Exception e)
         {
-            Console.WriteLine("Source : " + e.Source);
-            Console.WriteLine("Message : " + e.Message);
+            Log.WriteLine("Source : " + e.Source, LogType.Error);
+            Log.WriteLine("Message : " + e.Message, LogType.Error );
         }
 
         if (socket.Connected)
         {
-            Console.WriteLine("Connected to " + ip + ":" + remoteEndpoint.Port);
-            Console.WriteLine("Starting async receive task");
+            Log.WriteLine("Connected to " + ip + ":" + remoteEndpoint.Port);
+            Log.WriteLine("Starting async receive task");
             socket.BeginReceive(socketBuffer_Receive, 0, socketBufferSize, 0, new AsyncCallback(RecieveCallback), socket);
         }
         else
@@ -183,7 +183,7 @@ public class TCPTarget : TargetDataPort
             {
                 if (DateTime.Now >= delay_end_time)
                 {
-                    Console.WriteLine("ReadByte() timeout\n");
+                    Log.WriteLine("ReadByte() timeout\n", LogType.Error);
                     return -1;
                 }
             }
@@ -193,7 +193,7 @@ public class TCPTarget : TargetDataPort
 
         if (temp < 0)
         {
-            Console.WriteLine("ReadByte() temp < 0 with " + this.ringBuffer_Receive.BytesAvailable() + "bytes to read");
+            Log.WriteLine("ReadByte() temp < 0 with " + this.ringBuffer_Receive.BytesAvailable() + "bytes to read", LogType.Error);
             this.ringBuffer_Receive.Discard(); // Program closes after this but might as well tidy up
             return 0;
         }
@@ -216,7 +216,7 @@ public class TCPTarget : TargetDataPort
             {
                 if (DateTime.Now >= delay_end_time)
                 {
-                    Console.WriteLine("ReadChar() timeout\n");
+                    Log.WriteLine("ReadChar() timeout\n", LogType.Error);
                     return -1;
                 }
             }
@@ -226,7 +226,7 @@ public class TCPTarget : TargetDataPort
 
         if (temp < 0)
         {
-            Console.WriteLine("ReadChar() temp < 0 with " + this.ringBuffer_Receive.BytesAvailable() + "bytes to read");
+            Log.WriteLine("ReadChar() temp < 0 with " + this.ringBuffer_Receive.BytesAvailable() + "bytes to read", LogType.Error);
             this.ringBuffer_Receive.Discard(); // Program closes after this but might as well tidy up
             return 0;
         }
@@ -244,7 +244,7 @@ public class TCPTarget : TargetDataPort
 
         if (bytes_written != text.Length)
         {
-            Console.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + text.Length);
+            Log.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + text.Length, LogType.Error);
         }
     }
 
@@ -256,7 +256,7 @@ public class TCPTarget : TargetDataPort
 
         if (bytes_written != count)
         {
-            Console.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + count);
+            Log.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + count, LogType.Error);
         }
     }
 
@@ -268,7 +268,7 @@ public class TCPTarget : TargetDataPort
 
         if(bytes_written != count)
         {
-            Console.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + count);
+            Log.WriteLine("socket.Send mismatched byte count, wrote " + bytes_written + " expected " + count, LogType.Error);
         }
 
     }
@@ -288,7 +288,7 @@ public class TCPTarget : TargetDataPort
             int numBytesRead = recvSocket.EndReceive(ar);
             if(numBytesRead >= socketBufferSize)
             {
-                Console.WriteLine("More bytes received than buffer can hold: " + numBytesRead);
+                Log.WriteLine("More bytes received than buffer can hold: " + numBytesRead, LogType.Error);
             }
 
             if (numBytesRead > 0)
@@ -297,7 +297,7 @@ public class TCPTarget : TargetDataPort
                 {
                     if (this.ringBuffer_Receive.Write(Convert.ToByte(socketBuffer_Receive[i])) < 0)
                     {
-                        Console.WriteLine("buffer.Write() < 0");
+                        Log.WriteLine("buffer.Write() < 0", LogType.Error);
                         return;
                     }
                 }
@@ -305,7 +305,7 @@ public class TCPTarget : TargetDataPort
             }
             else
             {
-                Console.WriteLine("Read 0 bytes...");
+                Log.WriteLine("Read 0 bytes...", LogType.Error);
             }
         }
         catch (ObjectDisposedException)
@@ -314,8 +314,8 @@ public class TCPTarget : TargetDataPort
         }
         catch (Exception e)
         {
-            Console.WriteLine("Source : " + e.Source);
-            Console.WriteLine("Message : " + e.Message);
+            Log.WriteLine("Source : " + e.Source, LogType.Error);
+            Log.WriteLine("Message : " + e.Message, LogType.Error);
         }
     }
 }

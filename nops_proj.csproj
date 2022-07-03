@@ -187,6 +187,7 @@
     <Compile Include="Bridge.cs" />
     <Compile Include="GDBServer.cs" />
     <Compile Include="CPU.cs" />
+    <Compile Include="Log.cs" />
     <Compile Include="TargetDataPort.cs" />
     <Compile Include="SerialTarget.cs" />
     <Compile Include="NOTPSXSERIAL.CS" />

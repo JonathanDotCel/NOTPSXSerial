@@ -17,13 +17,13 @@ public class Utils {
         iLower = iLower.Replace( inCommand.command().ToLowerInvariant(), "" );
 
 #if DebugArgs
-        Console.WriteLine( "Parsing hexa " + inString );
+        Log.WriteLine( "Parsing hexa " + inString, LogType.Debug );
 #endif
 
         // Whatever's left should be the address
         UInt32 outAddr = (UInt32)Convert.ToInt32( iLower, 16 );
 
-        Console.Write( " - Parsed hexa: 0x" + outAddr.ToString( "X8" ) + "\n" );
+        Log.Write( " - Parsed hexa: 0x" + outAddr.ToString( "X8" ) + "\n", LogType.Debug );
 
         return outAddr;
 
@@ -131,13 +131,13 @@ public class Utils {
 
         IntPtr consoleHandle = GetStdHandle( STD_OUTPUT_HANDLE );
         if ( consoleHandle.ToInt32() == -INVALID_HANDLE_VALUE ) {
-            Console.WriteLine( "Error: invalid stdout handle value" );  
+            Log.WriteLine( "Error: invalid stdout handle value", LogType.Error );  
             return;
         }
 
         UInt32 mode = 0;
         if ( !GetConsoleMode( consoleHandle, out mode ) ) {
-            Console.WriteLine( "Error: couldn't read console mode..." );
+            Log.WriteLine( "Error: couldn't read console mode...", LogType.Error );
             return;
         }
 
@@ -145,7 +145,7 @@ public class Utils {
 
         SetConsoleMode( consoleHandle, mode );
 
-        Console.WriteLine( $"Applied console mode: 0x{mode.ToString( "X" )}" );
+        Log.WriteLine( $"Applied console mode: 0x{mode.ToString( "X" )}", LogType.Debug );
 
     }
 

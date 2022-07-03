@@ -69,8 +69,8 @@ public class TransferLogic {
 
             if ( !safe ) {
 
-                Console.WriteLine( "Hey hey hey hey! This doesn't look like a ROM. Maybe an .exe?" );
-                Console.WriteLine( "Are you sure you want to flash this?" );
+                Log.WriteLine( "Hey hey hey hey! This doesn't look like a ROM. Maybe an .exe?", LogType.Warning );
+                Log.WriteLine( "Are you sure you want to flash this?", LogType.Warning );
                 ConsoleKeyInfo c = Console.ReadKey();
                 if ( c.KeyChar.ToString().ToLowerInvariant() != "y" ) {
                     return false;
@@ -104,32 +104,32 @@ public class TransferLogic {
 
             }
 
-            Console.Write( "\r EEPROM Check: " + flashResponse );
+            Log.WriteLine( "\r EEPROM Check: " + flashResponse );
 
             if ( flashResponse == "FITS" ) {
-                Console.WriteLine( "\n\nRom will fit! \n Response: " + flashResponse + "!" );
+                Log.WriteLine( "\n\nRom will fit! \n Response: " + flashResponse + "!" );
                 break;
             }
 
             if ( flashResponse == "NOPE" ) {
-                Console.WriteLine( "\n\nThis rom is too big for the EEPROM! \n Response: " + flashResponse + "!" );
+                Log.WriteLine( "\n\nThis rom is too big for the EEPROM! \n Response: " + flashResponse + "!", LogType.Error );
                 return false;
             }
 
             if ( flashResponse == "NONE" ) {
-                Console.WriteLine( "\n\nNo EEPROM detected! \n The response was: " + flashResponse + "!" );
+                Log.WriteLine( "\n\nNo EEPROM detected! \n The response was: " + flashResponse + "!", LogType.Error );
                 return false;
             }
 
             if ( flashResponse == "UNKN" ) {
-                Console.WriteLine( "\n\nUnknown EEPROM detected! \n The response was: " + flashResponse + "!" );
+                Log.WriteLine( "\n\nUnknown EEPROM detected! \n The response was: " + flashResponse + "!", LogType.Error );
                 return false;
             }
 
 
         }
 
-        Console.WriteLine( "Checks passed; sending ROM!" );
+        Log.WriteLine("Checks passed; sending ROM!");
 
         return WriteBytes( inBytes, false );
 
@@ -146,7 +146,7 @@ public class TransferLogic {
 
         ConsoleColor oldColor = Console.ForegroundColor;
 
-        Console.WriteLine( "\nNum ELF sections: " + inElf.Sections.Count );
+        Log.WriteLine( "\nNum ELF sections: " + inElf.Sections.Count );
 
         for ( int i = 0; i < inElf.Sections.Count; i++ ) {
 
@@ -154,19 +154,19 @@ public class TransferLogic {
 
             Console.ForegroundColor = (sect.Size == 0) ? ConsoleColor.Red : oldColor;
 
-            Console.WriteLine( $"Section {i}: {sect.Name}" );
-            Console.WriteLine( $"  Addr   : 0x{sect.LoadAddress.ToString( "X" )}" );
-            Console.WriteLine( $"  Size   : 0x{sect.Size.ToString( "X" )} (0x{sect.EntrySize.ToString( "X" )})" );
-            Console.WriteLine( $"  Flags  : {sect.Flags}" );
-            Console.WriteLine( $"  Type   : {sect.Type}" );
-            Console.WriteLine( $"  Offset : 0x{sect.Offset.ToString( "X" )}" );
+            Log.WriteLine( $"Section {i}: {sect.Name}" );
+            Log.WriteLine( $"  Addr   : 0x{sect.LoadAddress.ToString( "X" )}" );
+            Log.WriteLine( $"  Size   : 0x{sect.Size.ToString( "X" )} (0x{sect.EntrySize.ToString( "X" )})" );
+            Log.WriteLine( $"  Flags  : {sect.Flags}" );
+            Log.WriteLine( $"  Type   : {sect.Type}" );
+            Log.WriteLine( $"  Offset : 0x{sect.Offset.ToString( "X" )}" );
 
             //byte[] b = sect.GetContents();
             //File.WriteAllBytes( "sect_" + sect.Name, b );
 
         }
 
-        Console.WriteLine( "\nNum ELF segments: " + inElf.Segments.Count );
+        Log.WriteLine( "\nNum ELF segments: " + inElf.Segments.Count );
 
         for ( int i = 0; i < inElf.Segments.Count; i++ ) {
 
@@ -175,12 +175,12 @@ public class TransferLogic {
             // Some segs have the .elf magic number
             Console.ForegroundColor = HasElfHeader( seg.GetFileContents() ) ? ConsoleColor.Red : oldColor;
 
-            Console.WriteLine( "Segment " + i );
-            Console.WriteLine( $"  Offset   : 0x{seg.Offset.ToString( "X" )}" );
-            Console.WriteLine( $"  Size     : 0x{seg.Size.ToString( "X" )}  (0x{seg.FileSize.ToString( "X" )})" );
-            Console.WriteLine( $"  PhysAddr : 0x{seg.PhysicalAddress.ToString( "X" )} for 0x{seg.Address.ToString( "X" )}" );
-            Console.WriteLine( $"  Flags    : " + seg.Flags );
-            Console.WriteLine( $"  Type     : " + seg.Type );
+            Log.WriteLine( "Segment " + i );
+            Log.WriteLine( $"  Offset   : 0x{seg.Offset.ToString( "X" )}" );
+            Log.WriteLine( $"  Size     : 0x{seg.Size.ToString( "X" )}  (0x{seg.FileSize.ToString( "X" )})" );
+            Log.WriteLine( $"  PhysAddr : 0x{seg.PhysicalAddress.ToString( "X" )} for 0x{seg.Address.ToString( "X" )}" );
+            Log.WriteLine( $"  Flags    : " + seg.Flags );
+            Log.WriteLine( $"  Type     : " + seg.Type );
 
             //byte[] b = seg.GetFileContents();
             //File.WriteAllBytes( "seg_" + i, b );
@@ -188,16 +188,16 @@ public class TransferLogic {
         }
 
         /*
-        Console.WriteLine( "\n" );
+        Log.ToScreen( "\n" );
 
         var sectionsToLoad = inElf.GetSections<ProgBitsSection<UInt32>>();
         foreach( ProgBitsSection<UInt32> pb in sectionsToLoad ) {
-            Console.WriteLine( $"Progbits" );
-            Console.WriteLine( $"  Offset : {pb.Offset.ToString("X")}" );
-            Console.WriteLine( $"  Size   : {pb.Size.ToString( "X" )}" );
-            Console.WriteLine( $"  Addr   : {pb.LoadAddress.ToString( "X" )}" );
-            Console.WriteLine( $"  Flags  : {pb.Flags}" );
-            Console.WriteLine( $"  Type  : {pb.Type}" );
+            Log.ToScreen( $"Progbits" );
+            Log.ToScreen( $"  Offset : {pb.Offset.ToString("X")}" );
+            Log.ToScreen( $"  Size   : {pb.Size.ToString( "X" )}" );
+            Log.ToScreen( $"  Addr   : {pb.LoadAddress.ToString( "X" )}" );
+            Log.ToScreen( $"  Flags  : {pb.Flags}" );
+            Log.ToScreen( $"  Type  : {pb.Type}" );
         }
         */
 
@@ -260,13 +260,13 @@ public class TransferLogic {
             // E.g. would nuke the full kernel area for a program at 0x80010000			
             bool segmentHasElfHeader = HasElfHeader( ss.GetFileContents() );
 
-            Console.WriteLine( "\nSending Segment " + i );
-            Console.WriteLine( $"  Offset   : 0x{ss.Offset.ToString( "X" )}  Size  : 0x{ss.Size.ToString( "X" )}" );
-            Console.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString( "X" )} for 0x{ss.Address.ToString( "X" )}" );
-            Console.WriteLine( $"  ElfHddr  : {segmentHasElfHeader}" );
+            Log.WriteLine( "\nSending Segment " + i );
+            Log.WriteLine( $"  Offset   : 0x{ss.Offset.ToString( "X" )}  Size  : 0x{ss.Size.ToString( "X" )}" );
+            Log.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString( "X" )} for 0x{ss.Address.ToString( "X" )}" );
+            Log.WriteLine( $"  ElfHddr  : {segmentHasElfHeader}" );
 
             if ( ss.Type != SegmentType.Load || ss.Size == 0 ) {
-                Console.WriteLine( "Skipping..." );
+                Log.WriteLine( "Skipping..." );
                 continue;
             }
 
@@ -274,7 +274,7 @@ public class TransferLogic {
             if ( seekPos == 0 ) {
                 byte[] header = new byte[ 0x800 ];
                 byte[] oep = BitConverter.GetBytes( (UInt32)ss.Address );
-                Console.WriteLine( $"Adding a header with entry point 0x{ss.Address.ToString( "X" )}" );
+                Log.WriteLine( $"Adding a header with entry point 0x{ss.Address.ToString( "X" )}" );
                 // same jump and copy addr
                 Buffer.BlockCopy( oep, 0, header, 16, 0x04 );
                 Buffer.BlockCopy( oep, 0, header, 24, 0x04 );
@@ -348,7 +348,7 @@ public class TransferLogic {
 #if !USE_ELFSHARP
             return Error( "Error: .ELF format not supported!" );
 #else
-            Console.WriteLine( "Detected .ELF file format..." );
+            Log.WriteLine( "Detected .ELF file format..." );
 
             byte[] check = ELF2EXE( inBytes );
             if ( check == null || check.Length == 0 ) {
@@ -368,7 +368,7 @@ public class TransferLogic {
         // 2MB max, 8MB for dev unit, the GC can handle this.
         if ( mod != 0 ) {
 
-            Console.WriteLine( "Padding to 2048 bytes...\n\n" );
+            Log.WriteLine( "Padding to 2048 bytes...\n\n", LogType.Debug );
 
             int paddingRequired = 2048 - mod;
             byte[] newArray = new byte[ inBytes.Length + paddingRequired ];
@@ -396,7 +396,7 @@ public class TransferLogic {
         activeSerial.Write( BitConverter.GetBytes( inBytes.Length - 0x800 ), 0, 4 );
 
         activeSerial.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
-        Console.WriteLine( "__DEBUG__Expected checksum: 0x" + checkSum.ToString( "X8" ) );
+        Log.WriteLine( "__DEBUG__Expected checksum: 0x" + checkSum.ToString( "X8" ), LogType.Debug );
 
         // We could send over the initial values for the fp and gp register, but 
         // GP is set via LIBSN or your Startup.s/crt0 and it's never been an issue afaik
@@ -452,7 +452,7 @@ public class TransferLogic {
             return Error( "No response from Unirom. Are you using 8.0.E or higher?" );
         }
 
-        Console.WriteLine( "Uploading card data..." );
+        Log.WriteLine( "Uploading card data..." );
 
         // send the card number
         activeSerial.Write( BitConverter.GetBytes( inCard ), 0, 4 );
@@ -461,7 +461,7 @@ public class TransferLogic {
         activeSerial.Write( BitConverter.GetBytes( CalculateChecksum( inFile ) ), 0, 4 );
 
         if ( TransferLogic.WriteBytes( inFile, false ) ) {
-            Console.WriteLine( "File uploaded, check your screen..." );
+            Log.WriteLine( "File uploaded, check your screen..." );
         } else {
             return Error( "Couldn't upload to unirom - no write attempt will be made", false );
         }
@@ -483,23 +483,23 @@ public class TransferLogic {
         // send the card number
         activeSerial.Write( BitConverter.GetBytes( inCard ), 0, 4 );
 
-        Console.WriteLine( "Reading card to ram..." );
+        Log.WriteLine( "Reading card to ram..." );
 
         // it'll send this when it's done dumping to ram
         if ( !TransferLogic.WaitResponse( "MCRD", false ) ) {
             return Error( "Please see screen or SIO for error!" );
         }
 
-        Console.WriteLine( "Ready, reading...." );
+        Log.WriteLine( "Ready, reading...." );
 
         UInt32 addr = TransferLogic.read32();
-        Console.WriteLine( "Data is 0x" + addr.ToString( "x" ) );
+        Log.WriteLine( "Data is 0x" + addr.ToString( "x" ) );
 
         UInt32 size = TransferLogic.read32();
-        Console.WriteLine( "Size is 0x" + size.ToString( "x" ) );
+        Log.WriteLine( "Size is 0x" + size.ToString( "x" ) );
 
 
-        Console.WriteLine( "Dumping..." );
+        Log.WriteLine( "Dumping..." );
 
         byte[] lastReadBytes = new byte[ size ];
         TransferLogic.ReadBytes( addr, size, lastReadBytes );
@@ -508,7 +508,7 @@ public class TransferLogic {
         if ( System.IO.File.Exists( fileName ) ) {
             string newFilename = fileName + GetSpan().TotalSeconds.ToString();
 
-            Console.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n" );
+            Log.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n", LogType.Warning );
 
             fileName = newFilename;
         }
@@ -519,8 +519,8 @@ public class TransferLogic {
             return Error( "Couldn't write to the output file + " + fileName + " !\nThe error returned was: " + e, false );
         }
 
-        Console.WriteLine( "File written to: " + fileName );
-        Console.WriteLine( "It is raw .mcd format used by PCSX-redux, no$psx, etc" );
+        Log.WriteLine( "File written to: " + fileName );
+        Log.WriteLine( "It is raw .mcd format used by PCSX-redux, no$psx, etc" );
         return true;
 
     }
@@ -551,16 +551,16 @@ public class TransferLogic {
 
         if ( System.IO.File.Exists( fileName ) ) {
             if ( allowRewrite ) {
-                Console.Write( "\n\nWARNING: Filename " + fileName + " already exists! Will overwrite!\n\n" );
+                Log.Write( "\n\nWARNING: Filename " + fileName + " already exists! Will overwrite!\n\n", LogType.Warning );
             } else {
                 string newFilename = fileName.Substring( 0, fileName.Length - 4 ) + "_" + GetSpan().TotalSeconds.ToString() + ".bin";
-                Console.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n" );
+                Log.Write( "\n\nWARNING: Filename " + fileName + " already exists! - Dumping to " + newFilename + " instead!\n\n", LogType.Warning );
                 fileName = newFilename;
             }
         }
 
         try {
-            Console.Write( "\n\nWriting dump to: " + fileName + " (overwrite:" + allowRewrite + ")\n\n" );
+            Log.Write( "\n\nWriting dump to: " + fileName + " (overwrite:" + allowRewrite + ")\n\n" );
             File.WriteAllBytes( fileName, lastReadBytes );
 
         } catch ( Exception e ) {
@@ -589,7 +589,7 @@ public class TransferLogic {
             CPU.DumpRegs();
             return true;
         } else {
-            Console.WriteLine( "Failed to get PSX regs - is it in debug mode?" );
+            Log.WriteLine( "Failed to get PSX regs - is it in debug mode?", LogType.Warning );
             return false;
         }
 
@@ -608,7 +608,7 @@ public class TransferLogic {
             }
         }
 
-        Console.WriteLine( "Unknown register: " + inReg );
+        Log.WriteLine( "Unknown register: " + inReg, LogType.Debug );
         return false;
 
     }
@@ -627,10 +627,10 @@ public class TransferLogic {
     /// </summary>
     public static bool Command_SetReg( CPU.GPR inReg, UInt32 inValue ) {
 
-        Console.WriteLine( "---- Getting a copy of current registers ----" );
+        Log.WriteLine( "---- Getting a copy of current registers ----", LogType.Debug );
 
         if ( !CPU.GetRegs() ) {
-            Console.WriteLine( "Couldn't get regs to modify - is the PSX in debug mode?" );
+            Log.WriteLine( "Couldn't get regs to modify - is the PSX in debug mode?", LogType.Warning );
             return false;
         }
 
@@ -638,7 +638,7 @@ public class TransferLogic {
         // even if it is static
         CPU.tcb.regs[ (int)inReg ] = inValue;
 
-        Console.WriteLine( "---- Done, writing regs back ----" );
+        Log.WriteLine( "---- Done, writing regs back ----", LogType.Debug );
 
         return CPU.SetRegs();
 
@@ -670,7 +670,7 @@ public class TransferLogic {
         string responseBuffer = "";
 
         if ( verbose )
-            Console.WriteLine( "Waiting for response or protocol negotiation: " );
+            Log.WriteLine( "Waiting for response or protocol negotiation: ", LogType.Debug );
 
         DateTime timeoutStartTime = DateTime.Now;
         DateTime timeoutEndTime = timeoutStartTime.AddMilliseconds( timeoutMillis );
@@ -687,22 +687,22 @@ public class TransferLogic {
                     responseBuffer = responseBuffer.Remove( 0, 1 );
 
                 if ( verbose )
-                    Console.Write( "\r InputBuffer: " + responseBuffer );
+                    Log.Write( "\r InputBuffer: " + responseBuffer, LogType.Debug );
 
                 // command unsupported in debug mode
                 if ( responseBuffer == "UNSP" ) {
-                    Console.WriteLine( "\nNot supported while Unirom is in debug mode!" );
+                    Log.WriteLine( "\nNot supported while Unirom is in debug mode!", LogType.Error );
                     return false;
                 }
 
                 if ( responseBuffer == "HECK" ) {
-                    Console.WriteLine( "\nCouldn't read the memory card!" );
+                    Log.WriteLine( "\nCouldn't read the memory card!", LogType.Error );
                     return false;
                 }
 
                 if ( responseBuffer == "ONLY" ) {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine( "\nOnly supported while Unirom is in debug mode!" );
+                    Log.WriteLine( "\nOnly supported while Unirom is in debug mode!", LogType.Error );
                     return false;
                 }
 
@@ -713,17 +713,17 @@ public class TransferLogic {
                     && (byte)responseBuffer[ 3 ] > (byte)'2'
                 ) {
                     didShowUpgradewarning = true;
-                    Console.WriteLine();
-                    Console.Write( "================================================================================\n" );
-                    Console.Write( "   Just a heads up!\n" );
-                    Console.Write( "   This version of Unirom appears to be much newer than your version of NoPS.\n" );
-                    Console.Write( "   Time for an upgrade? github.com/JonathanDotCel/ \n" );
-                    Console.Write( "================================================================================\n" );
+                    Log.WriteLine();
+                    Log.Write( "================================================================================\n", LogType.Warning );
+                    Log.Write( "   Just a heads up!\n" );
+                    Log.Write( "   This version of Unirom appears to be much newer than your version of NoPS.\n", LogType.Warning );
+                    Log.Write( "   Time for an upgrade? github.com/JonathanDotCel/ \n", LogType.Warning );
+                    Log.Write( "================================================================================\n", LogType.Warning );
                 }
 
                 // upgrade to V2 with individual checksum
                 if ( responseBuffer == "OKV2" && Program.protocolVersion == 1 ) {
-                    Console.WriteLine( "\nUpgraded to protocol V2!" );
+                    Log.WriteLine( "\nUpgraded to protocol V2!", LogType.Debug );
                     activeSerial.Write( "UPV2" );
                     Program.protocolVersion = 2;
                 }
@@ -731,7 +731,7 @@ public class TransferLogic {
                 // now whether we've upgraded protocol or not:
                 if ( responseBuffer == inResponse ) {
                     if ( verbose )
-                        Console.WriteLine( "\nGot response: " + responseBuffer );
+                        Log.WriteLine( "\nGot response: " + responseBuffer, LogType.Debug );
                     break;
                 }
 
@@ -790,7 +790,7 @@ public class TransferLogic {
     public static bool ChallengeResponse( string inChallenge, string expectedResponse, int timeoutMillis = 0 ) {
 
         // Now send the challenge code and wait
-        Console.WriteLine( "Waiting for the PS1, C/R={0}/{1}....\n\n", inChallenge, expectedResponse );
+        Log.WriteLine( "Waiting for the PS1, C/R=" + inChallenge + "/" + expectedResponse + "....\n\n", LogType.Debug );
 
         WriteChallenge( inChallenge );
 
@@ -860,7 +860,7 @@ public class TransferLogic {
                 // Format change as of 8.0.C
                 // every 2k, we'll send back a "MORE" from Unirom
 
-                Console.Write( " ... " );
+                Log.Write( " ... " );
 
                 string cmdBuffer = "";
 
@@ -880,7 +880,7 @@ public class TransferLogic {
                 // did it ask for a checksum?
                 if ( cmdBuffer == "CHEK" ) {
 
-                    Console.Write( "Sending checksum..." );
+                    Log.Write( "Sending checksum...", LogType.Debug );
 
                     activeSerial.Write( BitConverter.GetBytes( chunkChecksum ), 0, 4 );
                     Thread.Sleep( 1 );
@@ -892,7 +892,7 @@ public class TransferLogic {
                         if ( activeSerial.BytesToRead != 0 ) {
                             char readVal = (char)activeSerial.ReadByte();
                             cmdBuffer += readVal;
-                            Console.Write( readVal );
+                            Log.Write( readVal.ToString() );
                         }
                         while ( cmdBuffer.Length > 4 ) {
                             cmdBuffer = cmdBuffer.Remove( 0, 1 );
@@ -901,7 +901,7 @@ public class TransferLogic {
                     }
 
                     if ( cmdBuffer == "ERR!" ) {
-                        Console.WriteLine( "... Retrying\n" );
+                        Log.WriteLine( "... Retrying\n", LogType.Warning );
                         goto retryThisChunk;
                     }
 
@@ -916,12 +916,12 @@ public class TransferLogic {
 
             } // corrective transfer
 
-            Console.Write( " DONE\n" );
+            Log.Write( " DONE\n" );
 
         }
 
         // might have to terminate previous line
-        Console.WriteLine( "\nSend finished!\n" );
+        Log.WriteLine( "\nSend finished!\n" );
 
         return true;
 
@@ -981,7 +981,7 @@ public class TransferLogic {
 
                 if ( arrayPos % 1024 == 0 ) {
                     long percent = (arrayPos * 100) / inSize;
-                    Console.Write( "\r Offset {0} of {1} ({2})%\n", arrayPos, inSize, percent );
+                    Log.Write( $"\r Offset {arrayPos} of {inSize} ({percent})%\n");
                 }
 
                 if ( arrayPos >= inBytes.Length ) {
@@ -1005,7 +1005,7 @@ public class TransferLogic {
 
         }
 
-        Console.WriteLine( "Read Complete!" );
+        Log.WriteLine( "Read Complete!", LogType.Debug );
 
         // Read 4 more bytes for the checksum
 
@@ -1014,7 +1014,7 @@ public class TransferLogic {
         int expectedChecksum = 0;
 
         SetDefaultColour();
-        Console.WriteLine( "Checksumming the checksums for checksummyness.\n" );
+        Log.WriteLine( "Checksumming the checksums for checksummyness.\n", LogType.Debug );
 
         try {
 
@@ -1026,7 +1026,7 @@ public class TransferLogic {
 
                     if ( (currentSpan - lastSpan).TotalMilliseconds > 2000 ) {
                         Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine( "Error reading checksum byte " + i + " of 4!" );
+                        Log.WriteLine( "Error reading checksum byte " + i + " of 4!", LogType.Error );
                         break;
                     }
 
@@ -1055,7 +1055,7 @@ public class TransferLogic {
             return false;
         } else {
             SetDefaultColour();
-            Console.WriteLine( " Checksums match: " + expectedChecksum.ToString( "X8" ) + "\n" );
+            Log.WriteLine( " Checksums match: " + expectedChecksum.ToString( "X8" ) + "\n", LogType.Debug );
         }
 
 
@@ -1083,7 +1083,7 @@ public class TransferLogic {
             || inMode == CommandMode.HOOKEXEC
         ) {
             if ( ChallengeResponse( inMode ) )
-                Console.WriteLine( "GOT HOOK REQUEST FOR ADDRESS 0x" + inAddr.ToString( "X8" ) );
+                Log.WriteLine( "GOT HOOK REQUEST FOR ADDRESS 0x" + inAddr.ToString( "X8" ), LogType.Debug );
             activeSerial.Write( BitConverter.GetBytes( inAddr ), 0, 4 );
             return true;
         }
@@ -1098,7 +1098,7 @@ public class TransferLogic {
     public static bool Unhook(){
 
         if ( ChallengeResponse( CommandMode.UNHOOK ) ) {
-            Console.WriteLine( "Unhooked!" );
+            Log.WriteLine( "Unhooked!", LogType.Debug );
             return true;
         }
 
@@ -1145,12 +1145,12 @@ public class TransferLogic {
                 if ( arrayPos >= lastReadBytes.Length ) {
 
                     Console.Clear();
-                    Console.Write( "Watching address range 0x" + inAddr.ToString( "X8" ) + " to 0x" + (inAddr + inSize).ToString( "X8" ) + "\n" );
-                    Console.Write( "Bytes read " + bytesRead + "\n\n" );
+                    Log.Write( "Watching address range 0x" + inAddr.ToString( "X8" ) + " to 0x" + (inAddr + inSize).ToString( "X8" ) + "\n", LogType.Debug );
+                    Log.Write( "Bytes read " + bytesRead + "\n\n", LogType.Debug );
 
                     for ( int i = 0; i < lastReadBytes.Length; i++ ) {
 
-                        Console.Write( lastReadBytes[ i ].ToString( "X2" ) + " " );
+                        Log.Write( lastReadBytes[ i ].ToString( "X2" ) + " " );
 
                         // Such a janky way to do it, but is saves appending
                         // tons and tons of strings together
@@ -1160,24 +1160,24 @@ public class TransferLogic {
 
                             for ( int j = i - 15; j <= i; j++ ) {
 
-                                Console.Write( " " + (char)lastReadBytes[ j ] );
+                                Log.Write( " " + (char)lastReadBytes[ j ] );
 
                             }
 
                             // then draw the character data								
-                            Console.Write( "\n" );
+                            Log.Write( "\n" );
 
                         }
 
                     }
 
                     if ( activeSerial.BytesToRead != 0 ) {
-                        Console.Write( "\nTerminator bytes: " );
+                        Log.Write( "\nTerminator bytes: " );
                         while ( activeSerial.BytesToRead != 0 ) {
                             int x = activeSerial.ReadByte();
-                            Console.Write( x.ToString( "X2" ) + " " );
+                            Log.Write( x.ToString( "X2" ) + " " );
                         }
-                        Console.Write( "\n" );
+                        Log.Write( "\n" );
                     }
 
 
@@ -1284,7 +1284,7 @@ public class TransferLogic {
         if (
             !TransferLogic.ChallengeResponse( CommandMode.DEBUG )
         ) {
-            Console.WriteLine( "Couldn't determine if Unirom is in debug mode." );
+            Log.WriteLine( "Couldn't determine if Unirom is in debug mode.", LogType.Warning );
             return false;
         }
 

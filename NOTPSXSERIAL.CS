@@ -317,97 +317,97 @@ internal partial class Program {
 
         // assuming 80 columns
 
-        Console.Write( "\n" );
-        Console.Write( "================================================================================\n" );
-        Console.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
-        Console.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
-        Console.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
-        Console.Write( "            Nicolas Noble, T0fuZ & Arthur!\n" );
-        Console.Write( "================================================================================\n" );
-        Console.Write( "\n" );
+        Log.Write( "\n" );
+        Log.Write( "================================================================================\n" );
+        Log.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
+        Log.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
+        Log.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
+        Log.Write( "            Nicolas Noble, T0fuZ & Arthur!\n" );
+        Log.Write( "================================================================================\n" );
+        Log.Write( "\n" );
 
-        Console.Write( "	Note: You may have to install mono and launch via 'mono nops.exe /args' if...\n" );
-        Console.Write( "      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
-        Console.Write( "      - You are using a Sharklink/Net Yaroze cable\n" );
-        Console.Write( "      - Any flavour of *nix/OSX\n" );
-        Console.Write( "\n\n" );
+        Log.Write( "	Note: You may have to install mono and launch via 'mono nops.exe /args' if...\n" );
+        Log.Write( "      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
+        Log.Write( "      - You are using a Sharklink/Net Yaroze cable\n" );
+        Log.Write( "      - Any flavour of *nix/OSX\n" );
+        Log.Write( "\n\n" );
 
         if ( justTheTip ) return;
 
         // COM8, /dev/tty*, /dev/cu.usbserial*, etc
         suggestedComPort = SampleCOMPortForEnvironment;
 
-        Console.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [COMPORT]\n" );
-        Console.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [IPADDRESS:PORT]\n\n" );
+        Log.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [COMPORT]\n" );
+        Log.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [IPADDRESS:PORT]\n\n" );
 
-        Console.Write( "    Bridge: NOPS.EXE /bridge [LOCALIP:PORT] [COMPORT]\n" );
-        Console.Write( "            bridges e.g. a local serial device and port, allowing remote connections\n" );
-        Console.Write( "\n\n" );
+        Log.Write( "    Bridge: NOPS.EXE /bridge [LOCALIP:PORT] [COMPORT]\n" );
+        Log.Write( "            bridges e.g. a local serial device and port, allowing remote connections\n" );
+        Log.Write( "\n\n" );
 
-        Console.Write( "      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {0}\n\n", suggestedComPort );
+        Log.Write( $"      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {suggestedComPort}\n\n" );
 
-        Console.Write( "      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> {0}\n\n", suggestedComPort );
+        Log.Write( $"      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> {suggestedComPort}\n\n" );
 
-        Console.Write( "      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {0}\n\n", suggestedComPort );
+        Log.Write( $"      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {suggestedComPort}\n\n" );
 
-        Console.Write( "      Jump addr (jr) :  NOPS.EXE /jmp 0xADDRESS0 {0}\n", suggestedComPort );
-        Console.Write( "      Call addr (jal):  NOPS.EXE /jal 0xADDRESS0 {0}\n\n", suggestedComPort );
+        Log.Write( $"      Jump addr (jr) :  NOPS.EXE /jmp 0xADDRESS0 {suggestedComPort}\n" );
+        Log.Write( $"      Call addr (jal):  NOPS.EXE /jal 0xADDRESS0 {suggestedComPort}\n\n" );
 
-        Console.Write( "    Dumpy Stuff:\n" );
-        Console.Write( "                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 <DUMP.BIN> {0}\n", suggestedComPort );
-        Console.Write( "                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  <DUMP.BIN> {0}\n", suggestedComPort );
-        Console.Write( "                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  <DUMP.BIN> {0}\n", suggestedComPort );
-        Console.Write( "                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  <DUMP.BIN> {0}\n", suggestedComPort );
-        Console.Write( "                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  <DUMP.BIN> {0}\n", suggestedComPort );
-        Console.Write( "                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    <DUMP.BIN> {0}\n\n", suggestedComPort );
-        Console.Write( "                WARNING! If named dump file already exist it will be overwritten!\n" );
-        Console.Write( "                Also note that you can use * for <DUMP.BIN> to have automagically generated filename\n\n" );
+        Log.Write($"    Dumpy Stuff:\n");
+        Log.Write($"                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 <DUMP.BIN> {suggestedComPort}\n");
+        Log.Write($"                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  <DUMP.BIN> {suggestedComPort}\n");
+        Log.Write($"                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  <DUMP.BIN> {suggestedComPort}\n");
+        Log.Write($"                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  <DUMP.BIN> {suggestedComPort}\n");
+        Log.Write($"                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  <DUMP.BIN> {suggestedComPort}\n");
+        Log.Write($"                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    <DUMP.BIN> {suggestedComPort}\n\n");
+        Log.Write($"                WARNING! If named dump file already exist it will be overwritten!\n");
+        Log.Write($"                Also note that you can use * for <DUMP.BIN> to have automagically generated filename\n\n");
 
-        Console.Write( "    Memory Cards:\n" );
-        Console.Write( "               MC0->File :  NOPS.EXE /mcdown 0 filename.mcr {0}\n", suggestedComPort );
-        Console.Write( "               MC1->File :  NOPS.EXE /mcdown 1 filename.mcr {0}\n", suggestedComPort );
-        Console.Write( "               File->MC0 :  NOPS.EXE /mcup 0 filename.mcr {0}\n\n", suggestedComPort );
-
-
-        Console.Write( "    Pokey Poke:\n" );
-        Console.Write( "                 8 bits :  NOPS.exe /poke8 0x80100001 0x01 {0}\n", suggestedComPort );
-        Console.Write( "                16 bits :  NOPS.exe /poke16 0x80100002 0x0202 {0}\n", suggestedComPort );
-        Console.Write( "                32 bits :  NOPS.exe /poke32 0x80100004 0x04040404 {0}\n\n", suggestedComPort );
-
-        Console.Write( "    Continuous Hex Dump (to screen):\n" );
-        Console.Write( "                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {0}\n\n", suggestedComPort );
-
-        Console.Write( "    Extra switches:\n" );
-        Console.Write( "                /m to open the Serial IO monitor (can be used /m {0} alone)\n", suggestedComPort );
-        Console.Write( "                /fast to enable or continue using 500k baud\n" );
-        Console.Write( "                /debug to enable experimental /bin & /dump during gameplay\n" );
-        Console.Write( "\n" );
-
-        Console.Write( "    Examples:\n" );
-        Console.Write( "                nops /fast /rom unirom_b.rom COM14\n" );
-        Console.Write( "                nops /exe mything.exe /m COM14\n" );
-        Console.Write( "                nops /fast /poke8 0x80100000 0x04 COM14\n" );
-        Console.Write( "\n" );
-
-        Console.Write( "   Debug Functions:   (Must be in debug mode via L1+Square or nops /debug)\n" );
-        Console.Write( "                Halt the PSX                       : nops /halt\n" );
-        Console.Write( "                Continue from halt/exeception/hook : nops /cont\n" );
-        Console.Write( "                Show registers from last interrupt : nops /regs\n" );
-        Console.Write( "                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n" );
-        Console.Write( "                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n" );
-        Console.Write( "                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n" );
-        Console.Write( "                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n" );
-        Console.Write( "                Unhook (read/write/exec)           : nops /unhook\n" );
-        Console.Write( "                * = Resume with nops /cont\n" );
-        Console.Write( "\n" );
-
-        Console.Write( "  STDIN Functions:\n" );
-        Console.Write( "                Types a string into stdin  : nops /type \"something\"\n" );
-        Console.Write( "                at about 1 char per frame  : nops /type 'something'\n" );
+        Log.Write($"    Memory Cards:\n");
+        Log.Write($"               MC0->File :  NOPS.EXE /mcdown 0 filename.mcr {suggestedComPort}\n");
+        Log.Write($"               MC1->File :  NOPS.EXE /mcdown 1 filename.mcr {suggestedComPort}\n");
+        Log.Write($"               File->MC0 :  NOPS.EXE /mcup 0 filename.mcr {suggestedComPort}\n\n");
 
 
+        Log.Write($"    Pokey Poke:\n");
+        Log.Write($"                 8 bits :  NOPS.exe /poke8 0x80100001 0x01 {suggestedComPort}\n");
+        Log.Write($"                16 bits :  NOPS.exe /poke16 0x80100002 0x0202 {suggestedComPort}\n");
+        Log.Write($"                32 bits :  NOPS.exe /poke32 0x80100004 0x04040404 {suggestedComPort}\n\n");
 
-        Console.Write( "\n" );
+        Log.Write($"    Continuous Hex Dump (to screen):\n");
+        Log.Write($"                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {suggestedComPort}\n\n");
+
+        Log.Write($"    Extra switches:\n");
+        Log.Write($"                /m to open the Serial IO monitor (can be used /m {suggestedComPort} alone)\n");
+        Log.Write( "                /fast to enable or continue using 500k baud\n" );
+        Log.Write( "                /debug to enable experimental /bin & /dump during gameplay\n" );
+        Log.Write( "\n" );
+
+        Log.Write( "    Examples:\n" );
+        Log.Write( "                nops /fast /rom unirom_b.rom COM14\n" );
+        Log.Write( "                nops /exe mything.exe /m COM14\n" );
+        Log.Write( "                nops /fast /poke8 0x80100000 0x04 COM14\n" );
+        Log.Write( "\n" );
+
+        Log.Write( "   Debug Functions:   (Must be in debug mode via L1+Square or nops /debug)\n" );
+        Log.Write( "                Halt the PSX                       : nops /halt\n" );
+        Log.Write( "                Continue from halt/exeception/hook : nops /cont\n" );
+        Log.Write( "                Show registers from last interrupt : nops /regs\n" );
+        Log.Write( "                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n" );
+        Log.Write( "                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n" );
+        Log.Write( "                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n" );
+        Log.Write( "                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n" );
+        Log.Write( "                Unhook (read/write/exec)           : nops /unhook\n" );
+        Log.Write( "                * = Resume with nops /cont\n" );
+        Log.Write( "\n" );
+
+        Log.Write( "  STDIN Functions:\n" );
+        Log.Write( "                Types a string into stdin  : nops /type \"something\"\n" );
+        Log.Write( "                at about 1 char per frame  : nops /type 'something'\n" );
+
+
+
+        Log.Write( "\n" );
 
     }
 
@@ -492,7 +492,7 @@ internal partial class Program {
         // Specified a com port?
 
 #if DebugArgs
-        Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
+        Log.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug );
 #endif
 
         // Remove the arg for the com port: COM* or /dev/tty*
@@ -521,13 +521,13 @@ internal partial class Program {
                     readVal = File.ReadAllText( "comport.txt" );
                 }
             } catch ( System.Exception e ) {
-                Console.Write( "Error checking for cached com port...\n" + e );
+                Log.WriteLine( "Error checking for cached com port...\n" + e, LogType.Error );
             }
 
             if ( ValidIPAddress( readVal, ref argTargetDevice, ref argtargetPort ) ) {
-                Console.Write( $"Using address and port: {argTargetDevice}:{argtargetPort}" );
+                Log.WriteLine( $"Using address and port: {argTargetDevice}:{argtargetPort}" );
             } else if ( ValidTargetDevice( readVal, ref argTargetDevice ) ) {
-                Console.Write( $"Using device {argTargetDevice}" );
+                Log.WriteLine( $"Using device {argTargetDevice}" );
             } else {
                 // I think the GC can manage the hit on this one :)
                 return Error( $"\nERROR! Please specify a device or COM port in the format: {SampleCOMPortForEnvironment} or 127.0.0.1:1234, etc\ngot: {argCommand}" );
@@ -542,7 +542,7 @@ internal partial class Program {
                 string savedTarget = argtargetPort != 0 ? (argTargetDevice + ":" + argtargetPort) : argTargetDevice;
                 File.WriteAllText( "comport.txt", savedTarget );
             } catch ( System.Exception e ) {
-                Console.Write( "Error writing cached com port!\n" + e );
+                Log.WriteLine( "Error writing cached com port!\n" + e, LogType.Error );
             }
 
         }
@@ -578,13 +578,13 @@ internal partial class Program {
 
 
 #if DebugArgs
-        Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-        Console.WriteLine( "__DEBUG__TARGDEVICE: " + argTargetDevice );
-        Console.WriteLine( "__DEBUG__TARGPORT: " + argtargetPort );
-        Console.WriteLine( "__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort );
-        Console.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort );
-        Console.WriteLine( "__DEBUG__FAST: " + enterFastMode );
-        Console.WriteLine( "__DEBUG__SLOW: " + enterSlowMode );
+        Log.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug );
+        Log.WriteLine( "__DEBUG__TARGDEVICE: " + argTargetDevice, LogType.Debug);
+        Log.WriteLine( "__DEBUG__TARGPORT: " + argtargetPort, LogType.Debug);
+        Log.WriteLine( "__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort, LogType.Debug);
+        Log.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort, LogType.Debug);
+        Log.WriteLine( "__DEBUG__FAST: " + enterFastMode, LogType.Debug);
+        Log.WriteLine( "__DEBUG__SLOW: " + enterSlowMode, LogType.Debug);
 #endif
 
         // Not really transferring anything, let's go
@@ -623,7 +623,7 @@ internal partial class Program {
                         }
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires an address " );
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires an address ", LogType.Debug );
 #endif
 
                         // reassign it
@@ -644,9 +644,7 @@ internal partial class Program {
                     // Do we need a register?
                     if ( argCommand.hasAttribute<NeedsRegisterAttribute>() ) {
 
-#if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires a register " );
-#endif
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires a register ", LogType.Debug );
 
                         // reassign it
                         param = remainingArgs[ paramIndex ].ToLowerInvariant();
@@ -664,7 +662,7 @@ internal partial class Program {
                     if ( argCommand.hasAttribute<NeedsSizeAttribute>() ) {
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires a size parameter " );
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires a size parameter ", LogType.Debug );
 #endif
 
                         // reassign it
@@ -686,7 +684,7 @@ internal partial class Program {
                     if ( argCommand.hasAttribute<NeedsValueAttribute>() ) {
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires a value parameter " );
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires a value parameter ", LogType.Debug );
 #endif
 
                         // reassign it
@@ -711,7 +709,7 @@ internal partial class Program {
                     ) {
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires an IP:PORT combo" );
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires an IP:PORT combo", LogType.Debug );
 #endif
 
                         if ( remainingArgs.Count == 0 ) {
@@ -732,7 +730,7 @@ internal partial class Program {
                         if ( argCommand.hasAttribute<NeedsIPAttribute>() ) {
 
 #if DebugArgs
-                            Console.WriteLine( "__DEBUG__Command " + c + " requires an IP/host parameter!" );
+                            Log.WriteLine( "__DEBUG__Command " + c + " requires an IP/host parameter!", LogType.Debug );
 #endif
                             argIP = param;
                             remainingArgs.RemoveAt( paramIndex );
@@ -743,7 +741,7 @@ internal partial class Program {
                         if ( argCommand.hasAttribute<NeedsPortAttribute>() ) {
 
 #if DebugArgs
-                            Console.WriteLine( "__DEBUG__Command " + c + " requires a local/remote port!" );
+                            Log.WriteLine( "__DEBUG__Command " + c + " requires a local/remote port!", LogType.Debug);
 #endif
 
                             if ( remainingArgs.Count == 0 ) {
@@ -766,7 +764,7 @@ internal partial class Program {
                     if ( argCommand.hasAttribute<NeedsStringAttribute>() ) {
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires a memcard parameter " );
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires a memcard parameter ", LogType.Debug);
 #endif
 
                         argString = remainingArgs[ paramIndex ];
@@ -780,7 +778,7 @@ internal partial class Program {
                     if ( argCommand.hasAttribute<NeedsCardNumberAttribute>() ) {
 
 #if DebugArgs
-                        Console.WriteLine( "__DEBUG__Command " + c + " requires a memcard parameter " );
+                        Log.WriteLine( "__DEBUG__Command " + c + " requires a memcard parameter ", LogType.Debug);
 #endif
 
                         // reassign it
@@ -811,13 +809,13 @@ internal partial class Program {
 
         } // outer loop
 
-#if DebugArgs
-        Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-        Console.WriteLine( "__DEBUG__COM: " + argTargetDevice );
-        Console.WriteLine( "__DEBUG__COMMAND: " + argCommand );
-        Console.WriteLine( "__DEBUG__ADDR: " + argAddr.ToString( "X8" ) );
-        Console.WriteLine( "__DEBUG__VALUE: " + argValue.ToString( "X8" ) );
-#endif
+
+        Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
+        Log.WriteLine( "__DEBUG__COM: " + argTargetDevice, LogType.Debug );
+        Log.WriteLine("__DEBUG__COMMAND: " + argCommand, LogType.Debug );
+        Log.WriteLine("__DEBUG__ADDR: " + argAddr.ToString( "X8" ), LogType.Debug);
+        Log.WriteLine("__DEBUG__VALUE: " + argValue.ToString( "X8" ), LogType.Debug);
+
 
         if ( argCommand == CommandMode.NOT_SET ) {
             return Error( "Please specify a command - e.g. /r, /e /b, etc!\n\n" );
@@ -885,10 +883,10 @@ internal partial class Program {
 
 
 #if DebugArgs
-        Console.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count );
-        Console.WriteLine( "__DEBUG__FILENAME: " + argFileName );
-        Console.WriteLine( "__DEBUG__INPUTFILE: " + inFile );
-        Console.WriteLine( "__DEBUG__stringArg: " + argString );
+        Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
+        Log.WriteLine("__DEBUG__FILENAME: " + argFileName, LogType.Debug);
+        Log.WriteLine("__DEBUG__INPUTFILE: " + inFile, LogType.Debug);
+        Log.WriteLine("__DEBUG__stringArg: " + argString, LogType.Debug);
 #endif
 
         // there shouldn't be any arguments left!
@@ -915,6 +913,8 @@ internal partial class Program {
     private static void Main( string[] args ) {
 
         ApplyConsoleMode();
+
+        Log.SetLevel(LogType.Info | LogType.Error);
 
         // Verify all the required args are present and parsed properly
         if ( !VerifyArgs( args ) ) {
@@ -968,8 +968,8 @@ internal partial class Program {
         try {
             activeSerial.Open();
         } catch ( System.Exception exception ) {
-            Console.WriteLine( "Error opening temporary serial port on " + argTargetDevice + " speed=" + inSpeed + "!" );
-            Console.WriteLine( exception.Message );
+            Log.WriteLine( "Error opening temporary serial port on " + argTargetDevice + " speed=" + inSpeed + "!", LogType.Error );
+            Log.WriteLine( exception.Message, LogType.Error );
             return false;
         }
 
@@ -1031,7 +1031,7 @@ internal partial class Program {
                 Error( "This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!" );
                 return false;
             } else {
-                Console.WriteLine( "Forced flat mode..." );
+                Log.WriteLine( "Forced flat mode...", LogType.Info );
             }
         }
         if ( forceGappedMode ){
@@ -1040,7 +1040,7 @@ internal partial class Program {
                 Error( "This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!" );
                 return false;
             } else {
-                Console.WriteLine( "Forced gapped mode..." );
+                Log.WriteLine( "Forced gapped mode..." );
             }
         }
         
@@ -1059,16 +1059,16 @@ internal partial class Program {
         //
 
         if ( usingCachedPortOrAddress ) {
-            Console.WriteLine( "Using port " + argTargetDevice + " from comport.txt\n" );
+            Log.WriteLine( "Using port " + argTargetDevice + " from comport.txt\n" );
         }
 
         // Clear the SIO buffer incase the last program has been spamming
 
-        Console.WriteLine( "Emptying buffer... " );
+        Log.WriteLine( "Emptying buffer... ", LogType.Debug );
         while ( activeSerial.BytesToRead != 0 ) {
-            Console.Write( "" + (char)activeSerial.ReadByte() );
+            Log.Write( "" + (char)activeSerial.ReadByte(), LogType.Debug );
         }
-        Console.WriteLine( "...done!\n\n" );
+        Log.WriteLine( "...done!\n\n", LogType.Debug);
 
 
         //
@@ -1216,7 +1216,7 @@ internal partial class Program {
             // or you cold type at a speed that gives you
             // the chance to catch a few key strokes without
             // entering a tight while loop.
-            Console.WriteLine( "Writing raw string: " + argString );
+            Log.WriteLine( "Writing raw string: " + argString );
             byte[] bytes = System.Text.Encoding.ASCII.GetBytes( argString );
 
             for ( int i = 0; i < bytes.Length; i++ ) {
@@ -1246,7 +1246,7 @@ internal partial class Program {
         if ( monitorComms ) {
             Bridge.MonitorSerial();
         } else {
-            Console.WriteLine( "\n Bye!" );
+            Log.WriteLine( "\n Bye!" );
             activeSerial.Close();
         }
 
@@ -1435,7 +1435,7 @@ public static class CommandModeExtensions {
             (CommandAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( CommandAttribute ), false );
 
         if ( attributes.Length == 0 ) {
-            Console.WriteLine( "internal error" );
+            Log.WriteLine( "internal error", LogType.Error );
             return "";
         } else {
             return attributes[ 0 ].commandText;
@@ -1449,7 +1449,7 @@ public static class CommandModeExtensions {
             (ChallengeAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( ChallengeAttribute ), false );
 
         if ( attributes.Length == 0 ) {
-            //Console.WriteLine( "internal error" );
+            //Log.ToScreen( "internal error", LogType.Error );
             return "";
         } else {
             return attributes[ 0 ].challenge;
@@ -1463,7 +1463,7 @@ public static class CommandModeExtensions {
             (ResponseAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( ResponseAttribute ), false );
 
         if ( attributes.Length == 0 ) {
-            Console.WriteLine( "internal error" );
+            Log.WriteLine( "internal error", LogType.Error);
             return "";
         } else {
             return attributes[ 0 ].response;

@@ -272,7 +272,7 @@ public class CPU {
             SetRegs();
             GDBServer.SetHaltStateInternal( HaltState.HALT, true );
         } else {
-            Console.WriteLine( "Un-emulated opcode: " + opcode.ToString( "X8" ) );
+            Log.WriteLine( "Un-emulated opcode: " + opcode.ToString( "X8" ), LogType.Debug );
             if ( branch_on_next_exec ) {
                 branch_on_next_exec = false;
                 GDBServer.Step( "", false );
@@ -303,50 +303,50 @@ public class CPU {
         int tab = 0;
 
         for ( int i = 0; i < (int)GPR.COUNT - 8; i++ ) {
-            Console.Write( "\t {0} =0x{1}", ((GPR)i).ToString().PadLeft( 4 ), tcb.regs[ i ].ToString( "X8" ) );
+            Log.Write( "\t " + ((GPR)i).ToString().PadLeft( 4 ) + " = 0x" + tcb.regs[ i ].ToString( "X8" ), LogType.Debug );
             // this format won't change, so there's no issue hardcoding them
             if ( tab++ % 4 == 3 || i == 1 || i == 33 || i == 34 ) {
-                Console.WriteLine();
+                Log.WriteLine("", LogType.Debug);
                 tab = 0;
             }
         }
-        Console.WriteLine();
+        Log.WriteLine("", LogType.Debug);
 
-        Console.Write( "BD = 0x{0}\n", tcb.regs[ (int)GPR.unknown0 ].ToString( "X" ) );
+        Log.WriteLine( "BD = 0x" + tcb.regs[ (int)GPR.unknown0 ].ToString( "X" ), LogType.Debug );
 
         UInt32 cause = (tcb.regs[ (int)GPR.caus ] >> 2) & 0xFF;
 
         switch ( cause ) {
             case 0x04:
-                Console.WriteLine( "AdEL - Data Load or instr fetch (0x{0})\n", cause );
+                Log.WriteLine( "AdEL - Data Load or instr fetch (0x"+ cause +")\n", LogType.Debug );
                 break;
             case 0x05:
-                Console.WriteLine( "AdES - Data Store (unaligned?) (0x{0})\n", cause );
+                Log.WriteLine( "AdES - Data Store (unaligned?) (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x06:
-                Console.WriteLine( "IBE - Bus Error on instr fetch (0x{0})\n", cause );
+                Log.WriteLine( "IBE - Bus Error on instr fetch (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x07:
-                Console.WriteLine( "DBE - Bus Error on data load/store (0x{0})\n", cause );
+                Log.WriteLine( "DBE - Bus Error on data load/store (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x08:
-                Console.WriteLine( "SYS - Unconditional Syscall (0x{0})\n", cause );
+                Log.WriteLine( "SYS - Unconditional Syscall (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x09:
-                Console.WriteLine( "BP - Break! (0x{0})\n", cause );
+                Log.WriteLine( "BP - Break! (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x0A:
-                Console.WriteLine( "RI - Reserved Instruction (0x{0})\n", cause );
+                Log.WriteLine( "RI - Reserved Instruction (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x0B:
-                Console.WriteLine( "CpU - Coprocessor unavailable (0x{0})\n", cause );
+                Log.WriteLine( "CpU - Coprocessor unavailable (0x" + cause + ")\n", LogType.Debug );
                 break;
             case 0x0C:
-                Console.WriteLine( "Ov - Arithmetic overflow (0x{0})\n", cause );
+                Log.WriteLine( "Ov - Arithmetic overflow (0x" + cause + ")\n", LogType.Debug );
                 break;
 
             default:
-                Console.WriteLine( "Code {0}!\n", cause );
+                Log.WriteLine( "Code " + cause +"!\n", LogType.Debug);
                 break;
         }
     }
@@ -626,7 +626,7 @@ public class CPU {
     /// <param name="opcode"></param>
     /// <returns></returns>
     private static UInt32 SkipJumpInstruction( UInt32 opcode ) {
-        Console.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ) );
+        Log.WriteLine( "Unknown instruction above delay slot: " + opcode.ToString( "X8" ), LogType.Debug );
         return tcb.regs[ (int)GPR.rapc ] += 8;
     }
 
@@ -635,7 +635,7 @@ public class CPU {
         TransferLogic.Unhook();
         step_break_set = false;
         if ( current_pc != step_break_addr ) {
-            Console.WriteLine( "Stopped at unexpected step address " + current_pc.ToString( "X8" ) + " instead of " + step_break_addr.ToString( "X8" ) );
+            Log.WriteLine( "Stopped at unexpected step address " + current_pc.ToString( "X8" ) + " instead of " + step_break_addr.ToString( "X8" ), LogType.Debug );
         }
     }
 }

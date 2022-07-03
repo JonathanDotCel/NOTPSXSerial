@@ -104,7 +104,7 @@ public class TransferLogic {
 
             }
 
-            Log.WriteLine( "\r EEPROM Check: " + flashResponse );
+            Log.Write( "\r EEPROM Check: " + flashResponse );
 
             if ( flashResponse == "FITS" ) {
                 Log.WriteLine( "\n\nRom will fit! \n Response: " + flashResponse + "!" );

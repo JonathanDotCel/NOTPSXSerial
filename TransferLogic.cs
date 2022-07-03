@@ -585,8 +585,8 @@ public class TransferLogic {
     /// </summary>	
     public static bool Command_DumpRegs() {
 
-        if ( GDBServer.GetRegs() ) {
-            GDBServer.DumpRegs();
+        if ( CPU.GetRegs() ) {
+            CPU.DumpRegs();
             return true;
         } else {
             Console.WriteLine( "Failed to get PSX regs - is it in debug mode?" );
@@ -602,9 +602,9 @@ public class TransferLogic {
     public static bool Command_SetReg( string inReg, UInt32 inValue ) {
 
         // Find the index of the string value and call that specific method
-        for ( int i = 0; i < (int)GPR.COUNT; i++ ) {
-            if ( inReg.ToLowerInvariant() == ((GPR)i).ToString().ToLowerInvariant() ) {
-                return Command_SetReg( (GPR)i, inValue );
+        for ( int i = 0; i < (int)CPU.GPR.COUNT; i++ ) {
+            if ( inReg.ToLowerInvariant() == ((CPU.GPR)i).ToString().ToLowerInvariant() ) {
+                return Command_SetReg( (CPU.GPR)i, inValue );
             }
         }
 
@@ -625,22 +625,22 @@ public class TransferLogic {
     /// <summary>
     ///  As above but typed
     /// </summary>
-    public static bool Command_SetReg( GPR inReg, UInt32 inValue ) {
+    public static bool Command_SetReg( CPU.GPR inReg, UInt32 inValue ) {
 
         Console.WriteLine( "---- Getting a copy of current registers ----" );
 
-        if ( !GDBServer.GetRegs() ) {
+        if ( !CPU.GetRegs() ) {
             Console.WriteLine( "Couldn't get regs to modify - is the PSX in debug mode?" );
             return false;
         }
 
         // TODO: shouldn't really be modifying shit in another class
         // even if it is static
-        GDBServer.tcb.regs[ (int)inReg ] = inValue;
+        CPU.tcb.regs[ (int)inReg ] = inValue;
 
         Console.WriteLine( "---- Done, writing regs back ----" );
 
-        return GDBServer.SetRegs();
+        return CPU.SetRegs();
 
     }
 
@@ -757,7 +757,7 @@ public class TransferLogic {
         lock ( SerialTarget.serialLock ) {
             bool rVal = ChallengeResponse( CommandMode.HALT, timeoutMillis );
             if ( rVal && notifyGDB ) {
-                GDBServer.SetHaltStateInternal( GDBServer.HaltState.HALT, notifyGDB );
+                GDBServer.SetHaltStateInternal( CPU.HaltState.HALT, notifyGDB );
             }
             return rVal;
         }
@@ -772,7 +772,7 @@ public class TransferLogic {
         lock ( SerialTarget.serialLock ) {
             bool rVal = ChallengeResponse( CommandMode.CONT, timeoutMillis );
             if ( rVal && notifyGDB ){
-                GDBServer.SetHaltStateInternal( GDBServer.HaltState.RUNNING, notifyGDB );
+                GDBServer.SetHaltStateInternal( CPU.HaltState.RUNNING, notifyGDB );
             }
             return rVal;
         }

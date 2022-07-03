@@ -325,12 +325,12 @@ public class Bridge {
                         ) {
                             Console.WriteLine( "PSX may have halted (<8.0.I)!" );
                         
-                            GDBServer.GetRegs();
-                            GDBServer.DumpRegs();
-                            if ( GDBServer.IsStepBreakSet ) {
-                                GDBServer.StepBreakCallback();
+                            CPU.GetRegs();
+                            CPU.DumpRegs();
+                            if ( CPU.IsStepBreakSet ) {
+                                CPU.StepBreakCallback();
                             }
-                            GDBServer.SetHaltStateInternal( GDBServer.HaltState.HALT, true );
+                            GDBServer.SetHaltStateInternal( CPU.HaltState.HALT, true );
                         }
 
                     }

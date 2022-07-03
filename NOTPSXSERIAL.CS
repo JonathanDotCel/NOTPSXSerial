@@ -911,10 +911,9 @@ internal partial class Program {
 
     // Quite satisfyingly small
     private static void Main( string[] args ) {
+        Log.SetLevel(LogType.Info | LogType.Error);
 
         ApplyConsoleMode();
-
-        Log.SetLevel(LogType.Info | LogType.Error);
 
         // Verify all the required args are present and parsed properly
         if ( !VerifyArgs( args ) ) {

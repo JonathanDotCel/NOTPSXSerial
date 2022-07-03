@@ -911,7 +911,7 @@ internal partial class Program {
 
     // Quite satisfyingly small
     private static void Main( string[] args ) {
-        Log.SetLevel(LogType.Info | LogType.Error);
+        Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error);
 
         ApplyConsoleMode();
 

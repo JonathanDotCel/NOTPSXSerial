@@ -10,6 +10,11 @@
 // While all of the basic debug functionality is present, the GDB
 // bridge is still very much a work in progress!
 //
+// Many thanks to Nicolas "Pixel" Noble
+// This GDB server is heavily based on his GDB server implementation
+// in PCSX-Redux. Some bits were borrowed and wisdom called upon
+// when things broke.
+// -John "Skitchin" Baumann
 
 // TODO: set running/halted state when reconnecting
 

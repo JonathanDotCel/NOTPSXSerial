@@ -2,9 +2,17 @@
 ![](social_card_PNG.png)
 
 # NoPS - NotPsxSerial
-Feb 2020 - github.com/JonathanDotCel
+Aug 2022 - github.com/JonathanDotCel
 
 Serial transfer suite for Playstation 1 / Unirom
+
+
+# Links
+
+Up to date instructions can be found at https:\\unirom.github.io
+
+Don't forget to swing by our discord at https:\\psx.dev
+
 
 # Features
 

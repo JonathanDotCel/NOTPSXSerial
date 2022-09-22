@@ -11,7 +11,7 @@ Serial transfer suite for Playstation 1 / Unirom
 Discord: https://psx.dev
 Twitter: https://twitter.com/jonathandotcel
 
-More detailed instructions: https:\\unirom.github.io
+More detailed instructions: https:///unirom.github.io
 (Including GDB, debugging, etc)
 
 

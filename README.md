@@ -6,6 +6,8 @@ Aug 2022 - github.com/JonathanDotCel
 
 Serial transfer suite for Playstation 1 / Unirom
 
+Discord: https://psx.dev
+Twitter: https://twitter.com/jonathandotcel
 
 # Links
 

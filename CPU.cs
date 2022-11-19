@@ -298,55 +298,55 @@ public class CPU {
     /// <summary>
     /// Print out the current register values in TCB(retrieved by GetRegs)
     /// </summary>
-    public static void DumpRegs() {
+    public static void DumpRegs( LogType logType = LogType.Debug ) {
 
         int tab = 0;
 
         for ( int i = 0; i < (int)GPR.COUNT - 8; i++ ) {
-            Log.Write( "\t " + ((GPR)i).ToString().PadLeft( 4 ) + " = 0x" + tcb.regs[ i ].ToString( "X8" ), LogType.Debug );
+            Log.Write( "\t " + ((GPR)i).ToString().PadLeft( 4 ) + " = 0x" + tcb.regs[ i ].ToString( "X8" ), logType );
             // this format won't change, so there's no issue hardcoding them
             if ( tab++ % 4 == 3 || i == 1 || i == 33 || i == 34 ) {
-                Log.WriteLine("", LogType.Debug);
+                Log.WriteLine("", logType);
                 tab = 0;
             }
         }
-        Log.WriteLine("", LogType.Debug);
+        Log.WriteLine("", logType );
 
-        Log.WriteLine( "BD = 0x" + tcb.regs[ (int)GPR.unknown0 ].ToString( "X" ), LogType.Debug );
+        Log.WriteLine( "BD = 0x" + tcb.regs[ (int)GPR.unknown0 ].ToString( "X" ), logType );
 
         UInt32 cause = (tcb.regs[ (int)GPR.caus ] >> 2) & 0xFF;
 
         switch ( cause ) {
             case 0x04:
-                Log.WriteLine( "AdEL - Data Load or instr fetch (0x"+ cause +")\n", LogType.Debug );
+                Log.WriteLine( "AdEL - Data Load or instr fetch (0x"+ cause +")\n", logType );
                 break;
             case 0x05:
-                Log.WriteLine( "AdES - Data Store (unaligned?) (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "AdES - Data Store (unaligned?) (0x" + cause + ")\n", logType );
                 break;
             case 0x06:
-                Log.WriteLine( "IBE - Bus Error on instr fetch (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "IBE - Bus Error on instr fetch (0x" + cause + ")\n", logType );
                 break;
             case 0x07:
-                Log.WriteLine( "DBE - Bus Error on data load/store (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "DBE - Bus Error on data load/store (0x" + cause + ")\n", logType );
                 break;
             case 0x08:
-                Log.WriteLine( "SYS - Unconditional Syscall (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "SYS - Unconditional Syscall (0x" + cause + ")\n", logType );
                 break;
             case 0x09:
-                Log.WriteLine( "BP - Break! (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "BP - Break! (0x" + cause + ")\n", logType );
                 break;
             case 0x0A:
-                Log.WriteLine( "RI - Reserved Instruction (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "RI - Reserved Instruction (0x" + cause + ")\n", logType );
                 break;
             case 0x0B:
-                Log.WriteLine( "CpU - Coprocessor unavailable (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "CpU - Coprocessor unavailable (0x" + cause + ")\n", logType );
                 break;
             case 0x0C:
-                Log.WriteLine( "Ov - Arithmetic overflow (0x" + cause + ")\n", LogType.Debug );
+                Log.WriteLine( "Ov - Arithmetic overflow (0x" + cause + ")\n", logType ); ;
                 break;
 
             default:
-                Log.WriteLine( "Code " + cause +"!\n", LogType.Debug);
+                Log.WriteLine( "Code " + cause +"!\n", logType );
                 break;
         }
     }

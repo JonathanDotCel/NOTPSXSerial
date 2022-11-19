@@ -586,7 +586,7 @@ public class TransferLogic {
     public static bool Command_DumpRegs() {
 
         if ( CPU.GetRegs() ) {
-            CPU.DumpRegs();
+            CPU.DumpRegs( LogType.Info );
             return true;
         } else {
             Log.WriteLine( "Failed to get PSX regs - is it in debug mode?", LogType.Warning );

@@ -480,6 +480,19 @@ public class CPU {
         step_break_addr = address;
     }
 
+    public static bool IsBranchInstruction( UInt32 opcode ) {
+        PrimaryOpcode primary_opcode;
+        SecondaryOpcode secondary_opcode;
+
+        primary_opcode = GetPrimaryOpcode( opcode );
+        secondary_opcode = GetSecondaryOpcode( opcode );
+
+        if ( primary_opcode == PrimaryOpcode.SPECIAL && secondary_opcode == SecondaryOpcode.BREAK )
+            return true;
+
+        return false;
+    }
+
     public static bool IsBreakInstruction( UInt32 opcode ) {
         PrimaryOpcode primary_opcode;
         SecondaryOpcode secondary_opcode;

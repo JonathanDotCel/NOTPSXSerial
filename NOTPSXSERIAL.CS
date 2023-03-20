@@ -80,6 +80,9 @@
 //   - /Bridge mode now takes an IP so you can bind e.g. 192.168.0.4
 //
 
+// 28_08_2022 - Release 16 - (~8.0.K)
+//  - Skitchin's GDB stuff
+
 // See github for further release info.
 
 
@@ -331,6 +334,9 @@ internal partial class Program {
         Log.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
         Log.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
         Log.Write( "            Nicolas Noble, T0fuZ & Arthur!\n" );
+        Log.Write( "\n" );
+        Log.Write( "            Instructions :  http://unirom.github.io\n" );
+        Log.Write( "            Discord      :  http://psx.dev\n" );
         Log.Write( "================================================================================\n" );
         Log.Write( "\n" );
 

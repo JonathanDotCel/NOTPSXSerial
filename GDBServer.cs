@@ -51,6 +51,7 @@ public class GDBServer {
     public static TargetDataPort serial => Program.activeSerial;
 
     private static bool ack_enabled = true;
+    private static bool manifest_enabled = true;
 
     const string memoryMap = @"<?xml version=""1.0""?>
 <memory-map>
@@ -244,12 +245,20 @@ public class GDBServer {
         SendGDBResponse( "OK" );
     }
 
+    public static void DisableManifest() {
+        manifest_enabled = false;
+    }
+
     /// <summary>
     /// Respond to GDB Extended Mode '!' packet
     /// </summary>
     private static void EnableExtendedMode() {
         SendGDBResponse( "OK" );
     }
+
+    /*public static void EnableManifest() {
+        manifest_enabled = true;
+    }*/
 
     /// <summary>
     /// Attempt to locate an instruction from cache,
@@ -407,7 +416,7 @@ public class GDBServer {
 
         // TODO: validate memory regions
 
-        UInt32 address = UInt32.Parse( data.Substring( 1, 8 ), NumberStyles.HexNumber );
+        UInt32 address = UInt32.Parse( data.Substring( 1, data.IndexOf(",") - 1 ), NumberStyles.HexNumber );
 
         // Where in the string do we find the addr substring
         int sizeStart = data.IndexOf( "," ) + 1;
@@ -545,8 +554,13 @@ public class GDBServer {
                     // Get Thread ID, always 00
                     SendGDBResponse( "QC00" );
                 } else if ( data.StartsWith( "qSupported" ) ) {
-                    SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
-                } else if ( data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
+                    if ( manifest_enabled ) {
+                        SendGDBResponse( "PacketSize=4000;qXfer:features:read+;qXfer:threads:read+;qXfer:memory-map:read+;QStartNoAckMode+" );
+                    } else {
+                        SendGDBResponse( "PacketSize=4000;qXfer:threads:read+;QStartNoAckMode+" );
+                    }
+                    
+                } else if ( manifest_enabled && data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
                     SendPagedResponse( targetXML );
                 } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
                     SendPagedResponse( memoryMap );
@@ -554,8 +568,7 @@ public class GDBServer {
                     SendPagedResponse( "<?xml version=\"1.0\"?><threads></threads>" );
                 } else if ( data.StartsWith( "qRcmd" ) ) {
                     // To-do: Process monitor commands
-                    Log.WriteLine( "Got qRcmd: " + data, LogType.Debug );
-                    SendGDBResponse( "OK" );
+                    ProcessMonitorCommand( data );
                 } else Unimplemented( data );
                 break;
 
@@ -685,6 +698,11 @@ public class GDBServer {
                 Log.WriteLine( "Negative ACK", LogType.Error );
             }
         }
+    }
+
+    private static void ProcessMonitorCommand( string data ) {
+        Log.WriteLine( "Got qRcmd: " + data, LogType.Debug );
+        SendGDBResponse( "OK" );
     }
 
 

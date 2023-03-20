@@ -212,6 +212,14 @@ public enum CommandMode {
     [Response( "OKAY" )]
     GDB,
 
+    // don't send manifest, mainly for IDA
+    [Command("/nomanifest")]
+    NOMANIFEST,
+
+    // Verbose logging
+    [Command("/v")]
+    VERBOSE,
+
     [Command( "/halt" )]
     [Challenge( "HALT" )]
     [Response( "HLTD" )]
@@ -387,12 +395,13 @@ internal partial class Program {
         Log.Write($"                /m to open the Serial IO monitor (can be used /m {suggestedComPort} alone)\n");
         Log.Write( "                /fast to enable or continue using 500k baud\n" );
         Log.Write( "                /debug to enable experimental /bin & /dump during gameplay\n" );
+        Log.Write( "                /v Verbose logging\n" );
         Log.Write( "\n" );
 
         Log.Write( "    Examples:\n" );
-        Log.Write( "                nops /fast /rom unirom_b.rom COM14\n" );
-        Log.Write( "                nops /exe mything.exe /m COM14\n" );
-        Log.Write( "                nops /fast /poke8 0x80100000 0x04 COM14\n" );
+        Log.Write($"                nops /fast /rom unirom_b.rom {suggestedComPort}\n" );
+        Log.Write($"                nops /exe mything.exe /m {suggestedComPort}\n" );
+        Log.Write($"                nops /fast /poke8 0x80100000 0x04 {suggestedComPort}\n" );
         Log.Write( "\n" );
 
         Log.Write( "   Debug Functions:   (Must be in debug mode via L1+Square or nops /debug)\n" );
@@ -406,6 +415,14 @@ internal partial class Program {
         Log.Write( "                Unhook (read/write/exec)           : nops /unhook\n" );
         Log.Write( "                * = Resume with nops /cont\n" );
         Log.Write( "\n" );
+
+        Log.Write( "   GDB Server:\n" );
+        Log.Write( "                /gdb Starts a GDB listen server. Requires IP:port and com port\n" );
+        Log.Write( "                     It's highly recommended to start the server with /fast\n" );
+        Log.Write($"                     i.e. nops /fast /gdb 127.0.0.1:3333 {suggestedComPort}\n" );
+        Log.Write( "                     You can then connect to the server with a GDB client\n" );
+        Log.Write( "                     such as GDB or Visual Studio Code\n" );
+        Log.Write( "                /nomanifest Don't send manifest to GDB client, may be required for IDA\n" );
 
         Log.Write( "  STDIN Functions:\n" );
         Log.Write( "                Types a string into stdin  : nops /type \"something\"\n" );
@@ -576,7 +593,18 @@ internal partial class Program {
             } else if ( lower == "/gaps" ){
                 forceGappedMode = true;
                 remainingArgs.RemoveAt(i);
-            } else{
+            }
+            else if (lower == "/v")
+            {
+                Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+                remainingArgs.RemoveAt(i);
+            }
+            else if (lower == "/nomanifest")
+            {
+                GDBServer.DisableManifest();
+                remainingArgs.RemoveAt(i);
+            } else
+            {
                 allArgsAreSecondary = false;
             }
 
@@ -1144,18 +1172,22 @@ internal partial class Program {
         }
 
         if ( argCommand == CommandMode.HALT ) {
+            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
             TransferLogic.Halt( false );
         }
 
         if ( argCommand == CommandMode.CONT ) {
+            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
             TransferLogic.Cont( false );
         }
 
         if ( argCommand == CommandMode.REGS ) {
+            Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
             TransferLogic.Command_DumpRegs();
         }
 
         if ( argCommand == CommandMode.SETREG ) {
+            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
             if ( !TransferLogic.Command_SetReg( argRegister, argValue ) ) {
                 return Error( "Couldn't set reg " + argRegister + " to " + argValue, false );
             }
@@ -1170,10 +1202,12 @@ internal partial class Program {
             || argCommand == CommandMode.HOOKWRITE
             || argCommand == CommandMode.HOOKEXEC
         ) {
+            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
             TransferLogic.HookAddr( argCommand, argAddr );
         }
 
         if ( argCommand == CommandMode.UNHOOK ){
+            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
             TransferLogic.Unhook();
         }
 

@@ -1140,7 +1140,7 @@ internal partial class Program {
         }
 
         if ( argCommand == CommandMode.POKE16 ) {
-            short shorty = (byte)(argValue & 0xFFFF);
+            short shorty = (short)(argValue & 0xFFFF);
             byte[] bytes = BitConverter.GetBytes( shorty );
             TransferLogic.Command_SendBin( argAddr, bytes );
         }

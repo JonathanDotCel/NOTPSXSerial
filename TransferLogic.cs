@@ -854,8 +854,8 @@ public class TransferLogic {
 
             SetDefaultColour();
 
-
-            if ( Program.protocolVersion == 2 || forceProtocolV2 ) {
+            bool useCorrective = (Program.protocolVersion == 2 || forceProtocolV2) && !activeSerial.SkipAcks;
+            if ( useCorrective ) {
 
                 // Format change as of 8.0.C
                 // every 2k, we'll send back a "MORE" from Unirom

@@ -9,8 +9,8 @@ using System.IO.Ports;
 
 abstract public class TargetDataPort
 {
-	public TargetDataPort(string portName, int baudRate, Parity parity, int dataBits, StopBits stopBits) { }
-	public TargetDataPort(string remoteHost, UInt32 remotePort) { }
+    public TargetDataPort(string portName, SIOSPEED connectionType, int baudRate, Parity parity, int dataBits, StopBits stopBits) { }
+	public TargetDataPort(string remoteHost, UInt32 remotePort, SIOSPEED connectionType ) { }
 
 	abstract public int BytesToRead { get; }
 	abstract public int BytesToWrite { get; }
@@ -19,6 +19,8 @@ abstract public class TargetDataPort
 	abstract public bool RtsEnable { get; set; }
 	abstract public int ReadTimeout { get; set; }
 	abstract public int WriteTimeout { get; set; }
+
+    abstract public bool SkipAcks{ get; }
 
 	abstract public void Open();
 	abstract public void Close();

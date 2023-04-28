@@ -310,10 +310,15 @@ public enum CommandMode {
 
 };
 
+public enum SIOSPEED { 
+    SLOW,  // default 115200 baud
+    FAST,  // about half a meg
+    FTDI   // using the FTDI mod for the Power Replay carts
+}
 
 internal partial class Program {
 
-    const string VERSION = "v14 (8.0.J)";
+    const string VERSION = "v15 (8.0.L)";
     const int TIMEOUT = 500;
 
     public static void PrintUsage( bool justTheTip = false ) {
@@ -462,6 +467,7 @@ internal partial class Program {
     // standalone/modifiers such as /fast, /slow, /m, etc
     static bool allArgsAreSecondary = false;
 
+
     // Input validation
     static bool satisfiedAddressRequirements = false;
     static bool satisfiedSizeRequirements = false;
@@ -478,6 +484,7 @@ internal partial class Program {
     static byte[] inFile;
     static bool enterFastMode = false;
     static bool enterSlowMode = false;
+    static bool enterFTDIMode = false;
     // Force gapped datel V2 model via SIO
     // (or force it off in the case of homebrew carts triggering auto detect)
     static bool forceFlatMode = false;
@@ -587,6 +594,9 @@ internal partial class Program {
             } else if ( lower == "/slow" ) {
                 enterSlowMode = true;
                 remainingArgs.RemoveAt( i );
+            }  else if ( lower == "/ftdi" ){
+                enterFTDIMode = true;
+                remainingArgs.RemoveAt( i );
             } else if ( lower == "/flat" ){
                 forceFlatMode = true;
                 remainingArgs.RemoveAt(i);
@@ -619,6 +629,7 @@ internal partial class Program {
         Log.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort, LogType.Debug);
         Log.WriteLine( "__DEBUG__FAST: " + enterFastMode, LogType.Debug);
         Log.WriteLine( "__DEBUG__SLOW: " + enterSlowMode, LogType.Debug);
+        Log.WriteLine( "__DEBUG__FTDI: " + enterFTDIMode, LogType.Debug );
 #endif
 
         // Not really transferring anything, let's go
@@ -959,9 +970,6 @@ internal partial class Program {
 
     }
 
-
-    public enum SIOSPEED { SLOW, FAST }
-
     /// <summary>
     /// Set up a new serial connection on the port we parsed earlier
     /// </summary>
@@ -969,6 +977,7 @@ internal partial class Program {
     private static bool NewSIO( SIOSPEED inSpeed ) {
 
         if ( activeSerial != null ) activeSerial.Close();
+                
 
         // We need to find a suitable overlap in frequencies which can be divided
         // from the Playstation's clock and from the FTDI/clone, with some wiggle room.
@@ -984,12 +993,18 @@ internal partial class Program {
         //
         // note: psx @ 518400, pc @ 510000
         //
-        int baud = (inSpeed == SIOSPEED.FAST ? 510000 : 115200);
+        int baud;
+        switch( inSpeed )
+        {
+            default: baud = 115200; break;
+            case SIOSPEED.FAST: baud = 510000; break;
+            case SIOSPEED.FTDI: baud = 1000000; break;
+        }
 
         if ( argtargetPort != 0 ) {
-            activeSerial = new TCPTarget( argTargetDevice, argtargetPort );
+            activeSerial = new TCPTarget( argTargetDevice, argtargetPort, inSpeed );
         } else {
-            activeSerial = new SerialTarget( argTargetDevice, baud, Parity.None, 8, StopBits.Two );
+            activeSerial = new SerialTarget( argTargetDevice, inSpeed, baud, Parity.None, 8, StopBits.Two );
         }
         // Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
         activeSerial.Handshake = Handshake.None;
@@ -1024,7 +1039,11 @@ internal partial class Program {
         // /fast, /slow, /m, etc
         //
 
-        if ( enterFastMode ) {
+        if ( enterFTDIMode ){
+
+            if ( !NewSIO( SIOSPEED.FTDI ) ) return false;
+
+        } else  if ( enterFastMode ) {
 
             // start in normal mode and send a "FAST" command
             // unirom doesn't have to respond, so if it's already in fast mode, no biggie

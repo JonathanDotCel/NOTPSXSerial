@@ -1284,6 +1284,14 @@ internal partial class Program {
 
         }
 
+        // The user probs wants to upload in fast mode
+        // then switch back to slow mode as uni loads by default
+        // this sort of thing should be fixed with V3 protocol
+        if ( enterFastMode && enterSlowMode ){
+            NewSIO( SIOSPEED.SLOW );
+        }
+
+
         //
         // Major work in progress
         //

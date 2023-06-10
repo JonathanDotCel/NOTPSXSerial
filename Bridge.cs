@@ -288,7 +288,7 @@ public class Bridge {
 
                             // a properly escaped doublet can go in the buffer.
                             responseBytes[ bytesInBuffer++ ] = ESCAPECHAR;
-                            Log.Write( ((char)thisByte).ToString() );
+                            Log.Write( ((char)thisByte).ToString(), LogType.Stream );
 
                         } else {
 
@@ -311,7 +311,7 @@ public class Bridge {
                     if ( !thisByteIsEscapeChar ) {
 
                         responseBytes[ bytesInBuffer++ ] = (byte)thisByte;
-                        Log.Write( ((char)thisByte).ToString() );
+                        Log.Write( ((char)thisByte).ToString(), LogType.Stream );
 
                         // TODO: remove this unescaped method after a few versions
                         // Clunky way to do it, but there's no unboxing or reallocation
@@ -353,7 +353,7 @@ public class Bridge {
                     if ( Console.KeyAvailable ) {
                         ConsoleKeyInfo keyVal = Console.ReadKey( true );
                         serial.Write( new byte[] { (byte)keyVal.KeyChar }, 0, 1 );
-                        Log.Write( (keyVal.KeyChar).ToString() );
+                        Log.Write( (keyVal.KeyChar).ToString(), LogType.Stream );
                     }
                 }
 

@@ -1118,7 +1118,7 @@ internal partial class Program {
 
         Log.WriteLine( "Emptying buffer... ", LogType.Debug );
         while ( activeSerial.BytesToRead != 0 ) {
-            Log.Write( "" + (char)activeSerial.ReadByte(), LogType.Debug );
+            Log.Write( "" + (char)activeSerial.ReadByte(), LogType.Stream );
         }
         Log.WriteLine( "...done!\n\n", LogType.Debug);
 

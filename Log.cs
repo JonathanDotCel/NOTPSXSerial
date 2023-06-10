@@ -9,23 +9,31 @@ public enum LogType : byte {
     Debug = (1 << 0),
     Info = (1 << 1),
     Warning = (1 << 2),
-    Error = (1 << 3)
+    Error = (1 << 3),
+    // Set the Log type to Stream to avoid overriding any colours from
+    // the incoming stream.
+    Stream = (1 << 4),
 };
 
 public class Log {
 
 
     // All events enabled by default
-    private static LogType SubscribedEvents = LogType.Debug | LogType.Info | LogType.Warning | LogType.Error;
+    private static LogType SubscribedEvents = LogType.Debug | LogType.Info | LogType.Warning | LogType.Error | LogType.Stream;
 
-    public static void SetLevel(LogType LogTypes) {
-        SubscribedEvents = LogTypes;
+    public static void SetLevel(LogType logTypes) {
+        SubscribedEvents = logTypes | LogType.Stream;
     }
 
-    private static void SetColorByLogType( LogType LogType ) {
+    private static void SetColorByLogType( LogType inType ) {
+
+        if ( inType == LogType.Stream ){
+            return;
+        }
+
         ConsoleColor logColor;
 
-        switch ( LogType ) {
+        switch ( inType ) {
             case LogType.Debug: logColor = ConsoleColor.DarkGreen; break;
             case LogType.Info: logColor = ConsoleColor.White; break;
             case LogType.Warning: logColor = ConsoleColor.DarkYellow; break;
@@ -35,30 +43,37 @@ public class Log {
         Console.ForegroundColor = logColor;
     }
 
-    public static void Write( string Message = "", LogType LogType = LogType.Info ) {
-        ConsoleColor original_color = Console.ForegroundColor;
+    public static void Write( string inMessage = "", LogType inType = LogType.Info ) {
 
-        if ( (SubscribedEvents & LogType) == 0 )
+        ConsoleColor originalColor = Console.ForegroundColor;
+
+        if ( (SubscribedEvents & inType) == 0 )
             return;
 
-        SetColorByLogType( LogType );
+        SetColorByLogType( inType );
 
-        Console.Write( Message );
+        Console.Write( inMessage );
 
-        Console.ForegroundColor = original_color;
+        if ( (inType & LogType.Stream) == 0 ){
+            Console.ForegroundColor = originalColor;
+        }
     }
 
-    public static void WriteLine( string Message = "", LogType LogType = LogType.Info ) {
-        ConsoleColor original_color = Console.ForegroundColor;
+    public static void WriteLine( string inMessage = "", LogType inType = LogType.Info ) {
 
-        if ( (SubscribedEvents & LogType) == 0 )
+        ConsoleColor originalColor = Console.ForegroundColor;
+
+        if ( (SubscribedEvents & inType) == 0 )
             return;
 
-        SetColorByLogType(LogType);
+        SetColorByLogType(inType);
 
-        Console.WriteLine( Message );
+        Console.WriteLine( inMessage );
 
-        Console.ForegroundColor = original_color;
+        if ( (inType & LogType.Stream) == 0 ) {
+            Console.ForegroundColor = originalColor;
+        }
+
     }
 
     public static void TestMessage() {

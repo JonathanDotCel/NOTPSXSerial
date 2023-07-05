@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 
 [Flags]
 public enum LogType : byte {
@@ -20,6 +20,12 @@ public class Log {
 
     // All events enabled by default
     private static LogType SubscribedEvents = LogType.Debug | LogType.Info | LogType.Warning | LogType.Error | LogType.Stream;
+
+    // buffered output
+    private static ConsoleColor originalColor = Console.ForegroundColor; // not sure whether that works here
+    private static byte[] byteCache = new byte[ 256 ];
+    private static int byteCount = 0;
+    private static Timer flushTimer;
 
     public static void SetLevel(LogType logTypes) {
         SubscribedEvents = logTypes | LogType.Stream;
@@ -43,21 +49,62 @@ public class Log {
         Console.ForegroundColor = logColor;
     }
 
+    //public static void Write( string inMessage = "", LogType inType = LogType.Info ) {
+
+    //    ConsoleColor originalColor = Console.ForegroundColor;
+
+    //    if ( (SubscribedEvents & inType) == 0 )
+    //        return;
+
+    //    SetColorByLogType( inType );
+
+    //    Console.Write( inMessage );
+
+    //    if ( (inType & LogType.Stream) == 0 ){
+    //        Console.ForegroundColor = originalColor;
+    //    }
+    //}
+
+    // buffered output version, force flushed on timeout (only Write for now)
     public static void Write( string inMessage = "", LogType inType = LogType.Info ) {
-
-        ConsoleColor originalColor = Console.ForegroundColor;
-
         if ( (SubscribedEvents & inType) == 0 )
             return;
 
         SetColorByLogType( inType );
 
-        Console.Write( inMessage );
+        byte[] messageBytes = Encoding.ASCII.GetBytes( inMessage ); // hmm
+        int messageLength = messageBytes.Length;
 
-        if ( (inType & LogType.Stream) == 0 ){
+        for ( int i = 0; i < messageLength; i++ ) {
+            byteCache[ byteCount++ ] = messageBytes[ i ];
+
+            if ( byteCount == 256 ) {
+                Console.Write( Encoding.ASCII.GetString( byteCache ) );
+                byteCount = 0;
+            }
+        }
+
+        if ( (inType & LogType.Stream) == 0 ) {
             Console.ForegroundColor = originalColor;
         }
+
+        ResetFlushTimer();
     }
+
+    private static void FlushBuffer( object state ) {
+        if ( byteCount > 0 ) {
+            Console.Write( Encoding.ASCII.GetString( byteCache, 0, byteCount ) );
+            byteCount = 0;
+        }
+    }
+
+    private static void ResetFlushTimer() {
+        flushTimer?.Dispose(); // Dispose previous timer instance if it exists
+
+        // force flush every 16 millis, which is a bit quick, but maybe it helps to stay under a PSX Vsync tick
+        flushTimer = new Timer( FlushBuffer, null, 16, Timeout.Infinite );
+    }
+    // END AI stuff
 
     public static void WriteLine( string inMessage = "", LogType inType = LogType.Info ) {
 

@@ -25,6 +25,7 @@ public class Log {
     private static ConsoleColor originalColor = Console.ForegroundColor; // not sure whether that works here
     private static byte[] byteCache = new byte[ 256 ];
     private static int byteCount = 0;
+    private static int currentlyFlushing = 0;
     private static Timer flushTimer;
 
     public static void SetLevel(LogType logTypes) {
@@ -75,6 +76,10 @@ public class Log {
         byte[] messageBytes = Encoding.ASCII.GetBytes( inMessage ); // hmm
         int messageLength = messageBytes.Length;
 
+        while ( currentlyFlushing == 1 ) {
+            Thread.Sleep( 1 );
+        }
+
         for ( int i = 0; i < messageLength; i++ ) {
             byteCache[ byteCount++ ] = messageBytes[ i ];
 
@@ -93,7 +98,9 @@ public class Log {
 
     private static void FlushBuffer( object state ) {
         if ( byteCount > 0 ) {
+            currentlyFlushing = 1;
             Console.Write( Encoding.ASCII.GetString( byteCache, 0, byteCount ) );
+            currentlyFlushing = 0;
             byteCount = 0;
         }
     }
@@ -101,8 +108,8 @@ public class Log {
     private static void ResetFlushTimer() {
         flushTimer?.Dispose(); // Dispose previous timer instance if it exists
 
-        // force flush every 16 millis, which is a bit quick, but maybe it helps to stay under a PSX Vsync tick
-        flushTimer = new Timer( FlushBuffer, null, 16, Timeout.Infinite );
+        // force flush every 15 millis, stays a bit under a PSX vsync interval
+        flushTimer = new Timer( FlushBuffer, null, 15, Timeout.Infinite );
     }
     // END AI stuff
 

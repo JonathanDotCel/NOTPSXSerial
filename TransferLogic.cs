@@ -723,14 +723,14 @@ public class TransferLogic {
 
                 // upgrade to V3 with the DJB2 checksum algo
                 if ( responseBuffer == "OKV3" && Program.protocolVersion == 1 ){
-                    Log.WriteLine( "\nUpgraded to protocol V3!");
+                    Log.WriteLine( "\nUpgraded connection to protocol V3!");
                     activeSerial.Write("UPV3");
                     Program.protocolVersion = 3;
                 }
 
                 // upgrade to V2 with individual checksum
                 if ( responseBuffer == "OKV2" && Program.protocolVersion == 1 ) {
-                    Log.WriteLine( "\nUpgraded to protocol V2!");
+                    Log.WriteLine( "\nUpgraded connection to protocol V2!");
                     activeSerial.Write( "UPV2" );
                     Program.protocolVersion = 2;
                 }

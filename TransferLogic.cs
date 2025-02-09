@@ -39,10 +39,10 @@ public class TransferLogic {
     /// </summary>
     public static bool Command_SendBin( UInt32 inAddr, byte[] inBytes ) {
 
-        UInt32 checkSum = CalculateChecksum( inBytes );
-
         if ( !ChallengeResponse( CommandMode.SEND_BIN ) )
             return false;
+
+        UInt32 checkSum = CalculateChecksum( inBytes );
 
         activeSerial.Write( BitConverter.GetBytes( inAddr ), 0, 4 );
         activeSerial.Write( BitConverter.GetBytes( inBytes.Length ), 0, 4 );
@@ -80,10 +80,10 @@ public class TransferLogic {
 
         }
 
-        UInt32 checkSum = CalculateChecksum( inBytes );
-
         if ( !ChallengeResponse( CommandMode.SEND_ROM ) )
             return false;
+
+        UInt32 checkSum = CalculateChecksum( inBytes );
 
         activeSerial.Write( BitConverter.GetBytes( inBytes.Length ), 0, 4 );
         activeSerial.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
@@ -360,8 +360,6 @@ public class TransferLogic {
 
         }
 
-        UInt32 checkSum = CalculateChecksum( inBytes, true );
-
         int mod = inBytes.Length % 2048;
 
         // Pad .PS-EXE files up to the 2k sector boundary
@@ -382,6 +380,8 @@ public class TransferLogic {
 
         if ( !ChallengeResponse( CommandMode.SEND_EXE ) )
             return false;
+
+        UInt32 checkSum = CalculateChecksum( inBytes, true );
 
         // An .exe with in-tact header sends the actual header over
         // followed by some choice meta data.
@@ -538,7 +538,7 @@ public class TransferLogic {
         byte[] lastReadBytes = new byte[ inSize ];
 
         if ( !ReadBytes( inAddr, inSize, lastReadBytes ) ) {
-            return Error( "Couldn't read bytes from Unirom!" );
+            return Error( "Failed reading from Unirom!", false );
         }
 
         if ( inFileName == "*" ) {
@@ -589,7 +589,7 @@ public class TransferLogic {
             CPU.DumpRegs( LogType.Info );
             return true;
         } else {
-            Log.WriteLine( "Failed to get PSX regs - is it in debug mode?", LogType.Warning );
+            Log.WriteLine( "Failed to get PSX regs - is it halted & in debug mode?", LogType.Warning );
             return false;
         }
 
@@ -710,7 +710,7 @@ public class TransferLogic {
                     !didShowUpgradewarning
                     && responseBuffer.Length >= 4
                     && responseBuffer.Substring( 0, 3 ) == "OKV"
-                    && (byte)responseBuffer[ 3 ] > (byte)'2'
+                    && (byte)responseBuffer[ 3 ] > (byte)'3'
                 ) {
                     didShowUpgradewarning = true;
                     Log.WriteLine();
@@ -721,9 +721,16 @@ public class TransferLogic {
                     Log.Write( "================================================================================\n", LogType.Warning );
                 }
 
+                // upgrade to V3 with the DJB2 checksum algo
+                if ( responseBuffer == "OKV3" && Program.protocolVersion == 1 ){
+                    Log.WriteLine( "\nUpgraded connection to protocol V3!");
+                    activeSerial.Write("UPV3");
+                    Program.protocolVersion = 3;
+                }
+
                 // upgrade to V2 with individual checksum
                 if ( responseBuffer == "OKV2" && Program.protocolVersion == 1 ) {
-                    Log.WriteLine( "\nUpgraded to protocol V2!", LogType.Debug );
+                    Log.WriteLine( "\nUpgraded connection to protocol V2!");
                     activeSerial.Write( "UPV2" );
                     Program.protocolVersion = 2;
                 }
@@ -797,17 +804,18 @@ public class TransferLogic {
         // TODO: could this be an issue when connecting over TCP?
         Thread.Sleep( 50 );
 
-        return WaitResponse( expectedResponse, false, timeoutMillis );
+        bool returnVal = WaitResponse( expectedResponse, false, timeoutMillis );
+        Log.WriteLine( "Response: " + returnVal );
+        return returnVal;
 
     }
-
 
 
     // HEY!
     // Remember to tell the PSX to expect bytes first... BIN, ROM, EXE, etc
     // as this will attempt to use the V2 protocol rather than just spamming 
     // bytes into the void
-    public static bool WriteBytes( byte[] inBytes, bool skipFirstSector, bool forceProtocolV2 = false ) {
+    public static bool WriteBytes( byte[] inBytes, bool skipFirstSector, bool forceProtocolV3 = false ) {
 
 
         // .exe files go [ header ][ meta ][ data @ write address ]
@@ -836,8 +844,10 @@ public class TransferLogic {
                 chunkSize = inBytes.Length - i;
 
             // write 1 chunk worth of bytes
-            activeSerial.Write( inBytes, i, chunkSize );
-            //Console.WriteLine( " " + i + " of " + inBytes.Length + " " + skipFirstSector );
+            for( int j = 0; j < chunkSize; j+= 1 ){
+                activeSerial.Write( inBytes, i + j, 1 );
+                //Console.WriteLine( " " + i + " of " + inBytes.Length + " " + skipFirstSector );
+            }
 
             // update the expected checksum value
             for ( int j = 0; j < chunkSize; j++ ) {
@@ -854,11 +864,13 @@ public class TransferLogic {
 
             SetDefaultColour();
 
-            bool useCorrective = (Program.protocolVersion == 2 || forceProtocolV2) && !activeSerial.SkipAcks;
+            bool useCorrective = (Program.protocolVersion >= 2 || forceProtocolV3) && !activeSerial.SkipAcks;
             if ( useCorrective ) {
 
                 // Format change as of 8.0.C
                 // every 2k, we'll send back a "MORE" from Unirom
+                // Checksum change as of 8.0.L
+                // every 2k, we'll use a DJB checksum, instead of summing bytes
 
                 Log.Write( " ... " );
 
@@ -958,7 +970,8 @@ public class TransferLogic {
         TimeSpan lastSpan = GetSpan();
         TimeSpan currentSpan = GetSpan();
 
-        UInt32 checkSum = 0;
+        UInt32 checksumV2 = 0;
+        UInt32 checksumV3 = 5381;
 
         while ( true ) {
 
@@ -973,7 +986,8 @@ public class TransferLogic {
 
                 arrayPos++;
 
-                checkSum += (UInt32)responseByte;
+                checksumV2 += (UInt32)responseByte;
+                checksumV3 = ((checksumV3 << 5) + checksumV3) ^ responseByte;
 
                 if ( arrayPos % 2048 == 0 ) {
                     activeSerial.Write( "MORE" );
@@ -1011,7 +1025,7 @@ public class TransferLogic {
 
         // Let the loop time out if something gets a bit fucky.			
         lastSpan = GetSpan();
-        int expectedChecksum = 0;
+        UInt32 expectedChecksum = 0;
 
         SetDefaultColour();
         Log.WriteLine( "Checksumming the checksums for checksummyness.\n", LogType.Debug );
@@ -1037,7 +1051,7 @@ public class TransferLogic {
                 byte inByte = (byte)activeSerial.ReadByte();
 
                 // and shift it ino the expected checksum
-                expectedChecksum |= (inByte << (i * 8));
+                expectedChecksum |= (UInt32)(inByte << (i * 8));
 
             }
 
@@ -1048,10 +1062,10 @@ public class TransferLogic {
 
         }
 
-        if ( expectedChecksum != checkSum ) {
+        if ( (expectedChecksum != checksumV2) && (expectedChecksum != checksumV3) ) {
             Console.ForegroundColor = ConsoleColor.Red;
-            Error( "Checksum missmatch! Expected: " + expectedChecksum.ToString( "X8" ) + "    Calced: %x\n" + checkSum.ToString( "X8" ), false );
-            Error( " WILL ATTEMPT TO CONTINUE\n", false );
+            Error( "Checksum missmatch!\n    Expected    : 0x" + expectedChecksum.ToString( "X8" ) + "\n    Calced (V2) : 0x" + checksumV2.ToString( "X8" ) + "\n    Calced (V3) : 0x" + checksumV3.ToString( "X8" ), false );
+            Log.WriteLine( "    May attempt to continue..." );
             return false;
         } else {
             SetDefaultColour();
@@ -1304,16 +1318,26 @@ public class TransferLogic {
     }
 
     /// <summary>
-    /// Returns a (weak) checksum for the given bytes
+    /// Returns a checksum for the given bytes based on the current protocol version
     /// </summary>	
     /// <param name="skipFirstSector">Skip the first 0x800 header sector on an .exe as it won't be sent over SIO</param>	
     public static UInt32 CalculateChecksum( byte[] inBytes, bool skipFirstSector = false ) {
-
-        UInt32 returnVal = 0;
-        for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {
-            returnVal += (UInt32)inBytes[ i ];
+        
+        if ( Program.protocolVersion == 3){            
+            // Less weak checksum
+            UInt32 returnVal = 5381;
+            for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {
+                returnVal = ((returnVal << 5) + returnVal) ^ inBytes[ i ];
+            }            
+            return returnVal;
+        } else {            
+            // Weak checksum
+            UInt32 returnVal = 0;
+            for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {
+                returnVal += (UInt32)inBytes[ i ];
+            }
+            return returnVal;
         }
-        return returnVal;
 
     }
 

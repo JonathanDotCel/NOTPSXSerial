@@ -589,7 +589,7 @@ public class TransferLogic {
             CPU.DumpRegs( LogType.Info );
             return true;
         } else {
-            Log.WriteLine( "Failed to get PSX regs - is it in debug mode?", LogType.Warning );
+            Log.WriteLine( "Failed to get PSX regs - is it halted & in debug mode?", LogType.Warning );
             return false;
         }
 
@@ -804,7 +804,9 @@ public class TransferLogic {
         // TODO: could this be an issue when connecting over TCP?
         Thread.Sleep( 50 );
 
-        return WaitResponse( expectedResponse, false, timeoutMillis );
+        bool returnVal = WaitResponse( expectedResponse, false, timeoutMillis );
+        Log.WriteLine( "Response: " + returnVal );
+        return returnVal;
 
     }
 

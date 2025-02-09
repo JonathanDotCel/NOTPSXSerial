@@ -538,7 +538,7 @@ public class TransferLogic {
         byte[] lastReadBytes = new byte[ inSize ];
 
         if ( !ReadBytes( inAddr, inSize, lastReadBytes ) ) {
-            return Error( "Couldn't read bytes from Unirom!" );
+            return Error( "Failed reading from Unirom!", false );
         }
 
         if ( inFileName == "*" ) {
@@ -970,7 +970,8 @@ public class TransferLogic {
         TimeSpan lastSpan = GetSpan();
         TimeSpan currentSpan = GetSpan();
 
-        UInt32 checkSum = 0;
+        UInt32 checksumV2 = 0;
+        UInt32 checksumV3 = 5381;
 
         while ( true ) {
 
@@ -985,7 +986,8 @@ public class TransferLogic {
 
                 arrayPos++;
 
-                checkSum += (UInt32)responseByte;
+                checksumV2 += (UInt32)responseByte;
+                checksumV3 = ((checksumV3 << 5) + checksumV3) ^ responseByte;
 
                 if ( arrayPos % 2048 == 0 ) {
                     activeSerial.Write( "MORE" );
@@ -1023,7 +1025,7 @@ public class TransferLogic {
 
         // Let the loop time out if something gets a bit fucky.			
         lastSpan = GetSpan();
-        int expectedChecksum = 0;
+        UInt32 expectedChecksum = 0;
 
         SetDefaultColour();
         Log.WriteLine( "Checksumming the checksums for checksummyness.\n", LogType.Debug );
@@ -1049,7 +1051,7 @@ public class TransferLogic {
                 byte inByte = (byte)activeSerial.ReadByte();
 
                 // and shift it ino the expected checksum
-                expectedChecksum |= (inByte << (i * 8));
+                expectedChecksum |= (UInt32)(inByte << (i * 8));
 
             }
 
@@ -1060,10 +1062,10 @@ public class TransferLogic {
 
         }
 
-        if ( expectedChecksum != checkSum ) {
+        if ( (expectedChecksum != checksumV2) && (expectedChecksum != checksumV3) ) {
             Console.ForegroundColor = ConsoleColor.Red;
-            Error( "Checksum missmatch! Expected: " + expectedChecksum.ToString( "X8" ) + "    Calced: %x\n" + checkSum.ToString( "X8" ), false );
-            Error( " WILL ATTEMPT TO CONTINUE\n", false );
+            Error( "Checksum missmatch!\n    Expected    : 0x" + expectedChecksum.ToString( "X8" ) + "\n    Calced (V2) : 0x" + checksumV2.ToString( "X8" ) + "\n    Calced (V3) : 0x" + checksumV3.ToString( "X8" ), false );
+            Log.WriteLine( "    May attempt to continue..." );
             return false;
         } else {
             SetDefaultColour();
@@ -1321,14 +1323,14 @@ public class TransferLogic {
     /// <param name="skipFirstSector">Skip the first 0x800 header sector on an .exe as it won't be sent over SIO</param>	
     public static UInt32 CalculateChecksum( byte[] inBytes, bool skipFirstSector = false ) {
         
-        if ( Program.protocolVersion == 3){
+        if ( Program.protocolVersion == 3){            
             // Less weak checksum
             UInt32 returnVal = 5381;
             for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {
-                returnVal = ((returnVal << 5) + returnVal) ^ inBytes[ i ];                
+                returnVal = ((returnVal << 5) + returnVal) ^ inBytes[ i ];
             }            
             return returnVal;
-        } else {
+        } else {            
             // Weak checksum
             UInt32 returnVal = 0;
             for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {

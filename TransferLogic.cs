@@ -232,8 +232,23 @@ public class TransferLogic {
 
         for ( int i = 0; i < elfy.Segments.Count; i++ ) {
             Segment<UInt32> seg = elfy.Segments[ i ] as Segment<UInt32>;
-            if ( seg.Type != SegmentType.Load || seg.Size == 0 )
+            if ( seg.Type != SegmentType.Load || seg.FileSize == 0 ) {
                 continue;
+            }
+
+            if ( seg.PhysicalAddress < 0x80010000 ) {
+                Log.WriteLine( $"Skipping segment {i} @ phys addr < 0x80010000, presumed .exe header" );
+                continue;
+            }
+
+            if ( HasElfHeader( seg.GetFileContents() ) ) {
+                // Note: with the nugget build system, this is a 0x1000 length chunk
+                // with an ELF header, then the actual PSX.EXE header in the middle
+                // at about 0x800 into that offset.
+                // We'll skip that and use our own
+                Log.WriteLine( $"Skipping segment {i} with ELF header" );
+                continue;
+            }
 
             segmentsToLoad.Add( seg );
 
@@ -242,13 +257,16 @@ public class TransferLogic {
                 Log.WriteLine( "New lowest segment at 0x" + seg.PhysicalAddress.ToString( "X" ) );
             }
 
-            if ( seg.PhysicalAddress + seg.Size > highestAddr ) {
-                Log.WriteLine( "New highest segment at 0x" + (seg.PhysicalAddress + seg.Size).ToString( "X" ) );
-                highestAddr = seg.PhysicalAddress + seg.Size;
+            if ( seg.PhysicalAddress + seg.FileSize > highestAddr ) {
+                Log.WriteLine( "New highest segment at 0x" + (seg.PhysicalAddress + seg.FileSize).ToString( "X" ) );
+                highestAddr = seg.PhysicalAddress + (UInt32)seg.FileSize;
             }
         }
 
         UInt32 dataLength = highestAddr - lowestAddr;
+        // round it up to a multiple of 0x800
+        dataLength = (UInt32)((dataLength + 0x7FF) & ~0x7FF);
+
         byte[] progBytes = new byte[ dataLength ];
 
         for ( int i = 0; i < segmentsToLoad.Count; i++ ) {
@@ -271,13 +289,20 @@ public class TransferLogic {
         byte[] headerBytes = new byte[ headerLength ];
 
         UInt32 entryPoint = (elfy as ELF<UInt32>).EntryPoint;
+        UInt32 stackPointer = 0x801FFF00; // something kinda sensible looking
+        byte[] magicBytes = System.Text.Encoding.ASCII.GetBytes( "PS-X EXE" );
         byte[] epBytes = BitConverter.GetBytes( entryPoint );
         byte[] destAddrBytes = BitConverter.GetBytes( lowestAddr );
+        byte[] stackPointerBytes = BitConverter.GetBytes( stackPointer );
+        byte[] fileSizeBytes = BitConverter.GetBytes( dataLength );
 
-        Log.WriteLine( $"Adding a header with entry point 0x{entryPoint.ToString( "X" )}" );
+        Log.WriteLine( $"Adding a header with entry point 0x{entryPoint.ToString( "X" )} and copy dest 0x{lowestAddr.ToString( "X" )}" );
         // same jump and copy addr
-        Buffer.BlockCopy( epBytes, 0, headerBytes, 16, 0x04 );
-        Buffer.BlockCopy( destAddrBytes, 0, headerBytes, 24, 0x04 );
+        Buffer.BlockCopy( magicBytes, 0, headerBytes, 0x00, 0x08 );        // 0d
+        Buffer.BlockCopy( epBytes, 0, headerBytes, 0x10, 0x04 );           // 16d
+        Buffer.BlockCopy( destAddrBytes, 0, headerBytes, 0x18, 0x04 );     // 24d
+        Buffer.BlockCopy( fileSizeBytes, 0, headerBytes, 0x1C, 0x04 );     // 28d
+        Buffer.BlockCopy( stackPointerBytes, 0, headerBytes, 0x30, 0x04 ); // 48d
 
         //
         // Whole thing
@@ -290,6 +315,9 @@ public class TransferLogic {
         byte[] outBytes = new byte[ headerLength + progBytes.Length ];
         Buffer.BlockCopy( headerBytes, 0, outBytes, 0, (int)headerLength );
         Buffer.BlockCopy( progBytes, 0, outBytes, (int)headerLength, progBytes.Length );
+        
+        // To dump the output to a file:
+        // File.WriteAllBytes( "NOPS_ELF2EXE.EXE", outBytes );
 
         return outBytes;
 

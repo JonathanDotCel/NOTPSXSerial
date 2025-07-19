@@ -338,7 +338,7 @@ internal partial class Program {
         Log.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
         Log.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
         Log.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
-        Log.Write( "            Nicolas Noble, T0fuZ & Arthur!\n" );
+        Log.Write( "            Nicolas Noble, T0fuZ, Arthur & spicyjpeg!\n" );
         Log.Write( "\n" );
         Log.Write( "            Instructions :  http://unirom.github.io\n" );
         Log.Write( "            Discord      :  http://psx.dev\n" );

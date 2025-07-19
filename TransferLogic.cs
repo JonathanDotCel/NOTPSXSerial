@@ -855,10 +855,7 @@ public class TransferLogic {
                 chunkSize = inBytes.Length - i;
 
             // write 1 chunk worth of bytes
-            for ( int j = 0; j < chunkSize; j += 1 ) {
-                activeSerial.Write( inBytes, i + j, 1 );
-                //Console.WriteLine( " " + i + " of " + inBytes.Length + " " + skipFirstSector );
-            }
+            activeSerial.Write( inBytes, i, chunkSize );
 
             // update the expected checksum value
             for ( int j = 0; j < chunkSize; j++ ) {

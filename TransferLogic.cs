@@ -7,6 +7,10 @@ using System.Threading;
 using System.IO;
 using System.Text;
 using static Utils;
+using System.Collections.Generic;
+using System.Runtime.Remoting.Messaging;
+
+
 #if USE_ELFSHARP
 using ELFSharp.ELF;
 using ELFSharp.ELF.Sections;
@@ -129,7 +133,7 @@ public class TransferLogic {
 
         }
 
-        Log.WriteLine("Checks passed; sending ROM!");
+        Log.WriteLine( "Checks passed; sending ROM!" );
 
         return WriteBytes( inBytes, false );
 
@@ -187,19 +191,8 @@ public class TransferLogic {
 
         }
 
-        /*
-        Log.ToScreen( "\n" );
-
-        var sectionsToLoad = inElf.GetSections<ProgBitsSection<UInt32>>();
-        foreach( ProgBitsSection<UInt32> pb in sectionsToLoad ) {
-            Log.ToScreen( $"Progbits" );
-            Log.ToScreen( $"  Offset : {pb.Offset.ToString("X")}" );
-            Log.ToScreen( $"  Size   : {pb.Size.ToString( "X" )}" );
-            Log.ToScreen( $"  Addr   : {pb.LoadAddress.ToString( "X" )}" );
-            Log.ToScreen( $"  Flags  : {pb.Flags}" );
-            Log.ToScreen( $"  Type  : {pb.Type}" );
-        }
-        */
+        UInt32 entryPoint = (inElf as ELF<UInt32>).EntryPoint;
+        Log.WriteLine( $"\nEntry Point: 0x{entryPoint.ToString( "X" )}" );
 
         Console.ForegroundColor = oldColor;
 
@@ -223,90 +216,80 @@ public class TransferLogic {
 
         DumpElfInfo( elfy );
 
-        // TODO: allow for larger RAM mods?		
-        UInt32 ramLength = 0x80200000 - 0x80000000;
+        //
+        // Generate program bytes
+        //
 
-        // Let's build an .exe!
-        UInt32 seekPos = 0;
-        byte[] outBytes = new byte[ ramLength ];
+        // iterate through segs to find the lowest and highest bound
+        // and grab the entry point from the elf, rather than looking for a header
+        // thanks to SpicyJPEG for this method
+        // reference: https://github.com/spicyjpeg/ps1-bare-metal/blob/main/tools/convertExecutable.py#L87-L107
 
-        // Start with the header section:
+        UInt32 lowestAddr = 0xFFFFFFFF;
+        UInt32 highestAddr = 0;
 
-        for ( int i = 0; i < elfy.Sections.Count; i++ ) {
-
-            Section<UInt32> sect = elfy.Sections[ i ] as Section<UInt32>;
-
-            // Assume it's the header, since the 'PS-EXE' ASCII isn't guaranteed
-            if ( sect.Size == 0x800 ) {
-
-                sect.GetContents().CopyTo( outBytes, seekPos );
-                seekPos += sect.Size;
-                break;
-
-            }
-
-        }
-
-        UInt32 fileLength = 0;
-        Segment<UInt32> lastAddedSegment = null;
-
-        // Add the relevant segments:
+        List<Segment<UInt32>> segmentsToLoad = new List<Segment<UInt32>>();
 
         for ( int i = 0; i < elfy.Segments.Count; i++ ) {
-
-            Segment<UInt32> ss = elfy.Segments[ i ] as Segment<UInt32>;
-
-            // Usually 0x00010000 lower than the .exe starts
-            // E.g. would nuke the full kernel area for a program at 0x80010000			
-            bool segmentHasElfHeader = HasElfHeader( ss.GetFileContents() );
-
-            Log.WriteLine( "\nSending Segment " + i );
-            Log.WriteLine( $"  Offset   : 0x{ss.Offset.ToString( "X" )}  Size  : 0x{ss.Size.ToString( "X" )}" );
-            Log.WriteLine( $"  PhysAddr : 0x{ss.PhysicalAddress.ToString( "X" )} for 0x{ss.Address.ToString( "X" )}" );
-            Log.WriteLine( $"  ElfHddr  : {segmentHasElfHeader}" );
-
-            if ( ss.Type != SegmentType.Load || ss.Size == 0 ) {
-                Log.WriteLine( "Skipping..." );
+            Segment<UInt32> seg = elfy.Segments[ i ] as Segment<UInt32>;
+            if ( seg.Type != SegmentType.Load || seg.Size == 0 )
                 continue;
+
+            segmentsToLoad.Add( seg );
+
+            if ( lowestAddr == 0xFFFFFFFF || seg.PhysicalAddress < lowestAddr ) {
+                lowestAddr = seg.PhysicalAddress;
+                Log.WriteLine( "New lowest segment at 0x" + seg.PhysicalAddress.ToString( "X" ) );
             }
 
-            // is this the first one? Quickly ram a header in place
-            if ( seekPos == 0 ) {
-                byte[] header = new byte[ 0x800 ];
-                byte[] oep = BitConverter.GetBytes( (UInt32)ss.Address );
-                Log.WriteLine( $"Adding a header with entry point 0x{ss.Address.ToString( "X" )}" );
-                // same jump and copy addr
-                Buffer.BlockCopy( oep, 0, header, 16, 0x04 );
-                Buffer.BlockCopy( oep, 0, header, 24, 0x04 );
-                Buffer.BlockCopy( header, 0, outBytes, 0, 0x800 );
-                seekPos += 0x800;
+            if ( seg.PhysicalAddress + seg.Size > highestAddr ) {
+                Log.WriteLine( "New highest segment at 0x" + (seg.PhysicalAddress + seg.Size).ToString( "X" ) );
+                highestAddr = seg.PhysicalAddress + seg.Size;
             }
+        }
 
-            if ( lastAddedSegment == null ) {
-                // First segment always goes right on the end of the header
-            } else {
-                // Else we'll judge the next segment start based on the disance between
-                // their physAddrs. So if there's a gap, it doesn't matter.
-                // E.g. when nextSeg.Start is bigger than (lastSeg.Start + lastSeg.Length)
-                seekPos += (ss.PhysicalAddress - lastAddedSegment.PhysicalAddress);
-            }
+        UInt32 dataLength = highestAddr - lowestAddr;
+        byte[] progBytes = new byte[ dataLength ];
 
-            ss.GetFileContents().CopyTo( outBytes, seekPos );
-            lastAddedSegment = ss;
+        for ( int i = 0; i < segmentsToLoad.Count; i++ ) {
+            Segment<UInt32> seg = segmentsToLoad[ i ];
+
+            // find the offset relative to the highest/lowest addr
+            // lowest will be [0] in the out buffer
+            UInt32 offset = seg.PhysicalAddress - lowestAddr;
+            Log.WriteLine( $"Segment {i} at 0x{seg.PhysicalAddress.ToString( "X" )} has offset 0x{offset.ToString( "X" )}" );
+
+            seg.GetFileContents().CopyTo( progBytes, offset );
 
         }
 
-        if ( lastAddedSegment == null ) {
-            Error( "Couldn't find any segments to send!" );
-            return null;
-        }
+        //
+        // Generate header bytes
+        //
 
-        fileLength = seekPos + lastAddedSegment.Size;
+        const UInt32 headerLength = 0x800;
+        byte[] headerBytes = new byte[ headerLength ];
 
+        UInt32 entryPoint = (elfy as ELF<UInt32>).EntryPoint;
+        byte[] epBytes = BitConverter.GetBytes( entryPoint );
+        byte[] destAddrBytes = BitConverter.GetBytes( lowestAddr );
 
+        Log.WriteLine( $"Adding a header with entry point 0x{entryPoint.ToString( "X" )}" );
+        // same jump and copy addr
+        Buffer.BlockCopy( epBytes, 0, headerBytes, 16, 0x04 );
+        Buffer.BlockCopy( destAddrBytes, 0, headerBytes, 24, 0x04 );
 
-        // Trim the array to use only as long as the .exe requires.
-        Array.Resize<byte>( ref outBytes, (int)fileLength );
+        //
+        // Whole thing
+        //
+        // Backwards compat note:
+        // Uni doesn't *write* the .exe header, but it is expecting it to be sent
+        // So we don't need to strip the header even if the code starts at 0x80010000
+        // 
+
+        byte[] outBytes = new byte[ headerLength + progBytes.Length ];
+        Buffer.BlockCopy( headerBytes, 0, outBytes, 0, (int)headerLength );
+        Buffer.BlockCopy( progBytes, 0, outBytes, (int)headerLength, progBytes.Length );
 
         return outBytes;
 
@@ -390,9 +373,9 @@ public class TransferLogic {
 
         // Write in the header		
         activeSerial.Write( inBytes, 16, 4 );      // the .exe jump address
-        activeSerial.Write( inBytes, 24, 4 );      // the base/write address, e.g. where the linker org'd it
-                                                   //serialPort.Write( inFile, 28, 4 );		// size
-                                                   // let's not use the header-defined length, instead the actual file length minus the header
+        activeSerial.Write( inBytes, 24, 4 );      // the base/write address,
+
+        // let's not use the header-defined length, instead the actual file length minus the header
         activeSerial.Write( BitConverter.GetBytes( inBytes.Length - 0x800 ), 0, 4 );
 
         activeSerial.Write( BitConverter.GetBytes( checkSum ), 0, 4 );
@@ -615,7 +598,7 @@ public class TransferLogic {
 
     public static bool Command_SetBreakOnExec( UInt32 inAddr ) {
         if ( ChallengeResponse( CommandMode.HOOKEXEC ) ) {
-            activeSerial.Write( BitConverter.GetBytes(inAddr ), 0, 4 );
+            activeSerial.Write( BitConverter.GetBytes( inAddr ), 0, 4 );
             return true;
         }
 
@@ -722,15 +705,15 @@ public class TransferLogic {
                 }
 
                 // upgrade to V3 with the DJB2 checksum algo
-                if ( responseBuffer == "OKV3" && Program.protocolVersion == 1 ){
-                    Log.WriteLine( "\nUpgraded connection to protocol V3!");
-                    activeSerial.Write("UPV3");
+                if ( responseBuffer == "OKV3" && Program.protocolVersion == 1 ) {
+                    Log.WriteLine( "\nUpgraded connection to protocol V3!" );
+                    activeSerial.Write( "UPV3" );
                     Program.protocolVersion = 3;
                 }
 
                 // upgrade to V2 with individual checksum
                 if ( responseBuffer == "OKV2" && Program.protocolVersion == 1 ) {
-                    Log.WriteLine( "\nUpgraded connection to protocol V2!");
+                    Log.WriteLine( "\nUpgraded connection to protocol V2!" );
                     activeSerial.Write( "UPV2" );
                     Program.protocolVersion = 2;
                 }
@@ -759,7 +742,7 @@ public class TransferLogic {
     // Halt the PSX (if debug stub is installed)
     // Holds it in a tight wait loop in an exception/int/crit state
     //
-    public static bool Halt( bool notifyGDB, int timeoutMillis = 0 ){
+    public static bool Halt( bool notifyGDB, int timeoutMillis = 0 ) {
 
         lock ( SerialTarget.serialLock ) {
             bool rVal = ChallengeResponse( CommandMode.HALT, timeoutMillis );
@@ -774,11 +757,11 @@ public class TransferLogic {
     //
     // Continue the PSX from a halted state or exception
     //
-    public static bool Cont( bool notifyGDB, int timeoutMillis = 0 ){
+    public static bool Cont( bool notifyGDB, int timeoutMillis = 0 ) {
 
         lock ( SerialTarget.serialLock ) {
             bool rVal = ChallengeResponse( CommandMode.CONT, timeoutMillis );
-            if ( rVal && notifyGDB ){
+            if ( rVal && notifyGDB ) {
                 GDBServer.SetHaltStateInternal( CPU.HaltState.RUNNING, notifyGDB );
             }
             return rVal;
@@ -844,7 +827,7 @@ public class TransferLogic {
                 chunkSize = inBytes.Length - i;
 
             // write 1 chunk worth of bytes
-            for( int j = 0; j < chunkSize; j+= 1 ){
+            for ( int j = 0; j < chunkSize; j += 1 ) {
                 activeSerial.Write( inBytes, i + j, 1 );
                 //Console.WriteLine( " " + i + " of " + inBytes.Length + " " + skipFirstSector );
             }
@@ -995,7 +978,7 @@ public class TransferLogic {
 
                 if ( arrayPos % 1024 == 0 ) {
                     long percent = (arrayPos * 100) / inSize;
-                    Log.Write( $"\r Offset {arrayPos} of {inSize} ({percent})%\n");
+                    Log.Write( $"\r Offset {arrayPos} of {inSize} ({percent})%\n" );
                 }
 
                 if ( arrayPos >= inBytes.Length ) {
@@ -1089,7 +1072,7 @@ public class TransferLogic {
     /// The CPU supports 1 hook address (1-3 types on it)
     /// The protocol supports 1 address/type combo
     /// </summary>
-    public static bool HookAddr( CommandMode inMode, UInt32 inAddr ){
+    public static bool HookAddr( CommandMode inMode, UInt32 inAddr ) {
 
         if (
             inMode == CommandMode.HOOKREAD
@@ -1109,7 +1092,7 @@ public class TransferLogic {
     /// <summary>
     /// Remove an existing hook installed by HookAddr or otherwise. 
     /// </summary>
-    public static bool Unhook(){
+    public static bool Unhook() {
 
         if ( ChallengeResponse( CommandMode.UNHOOK ) ) {
             Log.WriteLine( "Unhooked!", LogType.Debug );
@@ -1322,15 +1305,15 @@ public class TransferLogic {
     /// </summary>	
     /// <param name="skipFirstSector">Skip the first 0x800 header sector on an .exe as it won't be sent over SIO</param>	
     public static UInt32 CalculateChecksum( byte[] inBytes, bool skipFirstSector = false ) {
-        
-        if ( Program.protocolVersion == 3){            
+
+        if ( Program.protocolVersion == 3 ) {
             // Less weak checksum
             UInt32 returnVal = 5381;
             for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {
                 returnVal = ((returnVal << 5) + returnVal) ^ inBytes[ i ];
-            }            
+            }
             return returnVal;
-        } else {            
+        } else {
             // Weak checksum
             UInt32 returnVal = 0;
             for ( int i = (skipFirstSector ? 2048 : 0); i < inBytes.Length; i++ ) {

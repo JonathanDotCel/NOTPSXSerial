@@ -252,7 +252,7 @@ You can switch back and forth in most cases with the following (If you're sick o
 
 ## I'm looking at the regs, now what?
 
-To continue from a `nops /halt`` or a crash
+To continue from a `nops /halt` or a crash
 `/nops /cont`
 
 I need to see the regs again!
@@ -295,3 +295,4 @@ Like `nops /bridge` but runs `nops /debug` first.
 
     
  
+

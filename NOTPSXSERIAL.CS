@@ -83,6 +83,11 @@
 // 28_08_2022 - Release 16 - (~8.0.K)
 //  - Skitchin's GDB stuff
 
+// 25_06_2026 - Release 17 - (~8.0.M)
+// - USBMod tweaks (ty dan)
+// - Add /medi speed (ty nic)
+// - Fixed switching back to 115200 after using /fast and /slow
+
 // See github for further release info.
 
 
@@ -92,8 +97,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
-using System.Threading;
 using System.Linq;
+using System.Threading;
 using static Utils;
 
 public enum CommandMode {
@@ -310,15 +315,37 @@ public enum CommandMode {
 
 };
 
-public enum SIOSPEED { 
-    SLOW,  // default 115200 baud
-    FAST,  // about half a meg
-    FTDI   // using the FTDI mod for the Power Replay carts
+public enum SIOSpeed : UInt32 {
+    UNINIT = 0,     // uninitialised or null
+    SLOW = 115200,  // 115200 on PSX side
+    MEDI = 414720,  // 414720 on PSX side
+    FAST = 510000,  // 518400 on PSX side
+    FTDI = 1000000, // fake/placeholder value, using dan's FTDI mod for the Power Replay carts
+}
+
+public static class SIOSpeedExtensions {
+    public static UInt32 ToCommand( this SIOSpeed inSpeed ) {
+        switch ( inSpeed ) {
+
+            default:
+                return 0;
+            // ascii chars for "SLOW"
+            case SIOSpeed.SLOW:
+                return 0x574F4C53;
+            // ascii chars for "MEDI"
+            case SIOSpeed.MEDI:
+                return 0x4944454D;
+            // ascii chars for "FAST"
+            case SIOSpeed.FAST:
+                return 0x54534146;
+
+        }
+    }
 }
 
 internal partial class Program {
 
-    const string VERSION = "v15 (8.0.L)";
+    const string VERSION = "v17 (8.0.M)";
     const int TIMEOUT = 500;
 
     public static void PrintUsage( bool justTheTip = false ) {
@@ -335,7 +362,7 @@ internal partial class Program {
 
         Log.Write( "\n" );
         Log.Write( "================================================================================\n" );
-        Log.Write( "    Totally NOtPsxSerial " + VERSION + "\n" );
+        Log.Write( "    NOPS " + VERSION + "\n" );
         Log.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
         Log.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
         Log.Write( "            Nicolas Noble, T0fuZ, Arthur & spicyjpeg!\n" );
@@ -482,8 +509,10 @@ internal partial class Program {
 
     // Misc
     static byte[] inFile;
-    static bool enterFastMode = false;
-    static bool enterSlowMode = false;
+    static SIOSpeed pendingSpeedChange = SIOSpeed.UNINIT;
+    // user did like `nops /fast /exe something.exe /slow /m`
+    // i.e. to upload quickly, then drop back to default comms speed to monitor
+    static bool switchBackToSlowModeWhenFinished = false;
     static bool enterFTDIMode = false;
     // Force gapped datel V2 model via SIO
     // (or force it off in the case of homebrew carts triggering auto detect)
@@ -589,32 +618,44 @@ internal partial class Program {
                 monitorComms = true;
                 remainingArgs.RemoveAt( i );
             } else if ( lower == "/fast" ) {
-                enterFastMode = true;
+                if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
+                    // See var decl for explanation
+                    switchBackToSlowModeWhenFinished = true;
+                }
+                pendingSpeedChange = SIOSpeed.FAST;
+                remainingArgs.RemoveAt( i );
+            } else if ( lower == "/medi" ) {
+                if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
+                    // See var decl for explanation
+                    switchBackToSlowModeWhenFinished = true;
+                }
+                pendingSpeedChange = SIOSpeed.MEDI;
                 remainingArgs.RemoveAt( i );
             } else if ( lower == "/slow" ) {
-                enterSlowMode = true;
+                if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
+                    // See var decl for explanation
+                    switchBackToSlowModeWhenFinished = true;
+                } else {
+                    // don't overwrite /fast, but switch *after* upload, etc
+                    pendingSpeedChange = SIOSpeed.SLOW;
+                }
                 remainingArgs.RemoveAt( i );
-            }  else if ( lower == "/ftdi" ){
+            } else if ( lower == "/ftdi" ) {
                 enterFTDIMode = true;
                 remainingArgs.RemoveAt( i );
-            } else if ( lower == "/flat" ){
+            } else if ( lower == "/flat" ) {
                 forceFlatMode = true;
-                remainingArgs.RemoveAt(i);
-            } else if ( lower == "/gaps" ){
+                remainingArgs.RemoveAt( i );
+            } else if ( lower == "/gaps" ) {
                 forceGappedMode = true;
-                remainingArgs.RemoveAt(i);
-            }
-            else if (lower == "/v")
-            {
-                Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
-                remainingArgs.RemoveAt(i);
-            }
-            else if (lower == "/nomanifest")
-            {
+                remainingArgs.RemoveAt( i );
+            } else if ( lower == "/v" ) {
+                Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
+                remainingArgs.RemoveAt( i );
+            } else if ( lower == "/nomanifest" ) {
                 GDBServer.DisableManifest();
-                remainingArgs.RemoveAt(i);
-            } else
-            {
+                remainingArgs.RemoveAt( i );
+            } else {
                 allArgsAreSecondary = false;
             }
 
@@ -623,12 +664,11 @@ internal partial class Program {
 
 #if DebugArgs
         Log.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug );
-        Log.WriteLine( "__DEBUG__TARGDEVICE: " + argTargetDevice, LogType.Debug);
-        Log.WriteLine( "__DEBUG__TARGPORT: " + argtargetPort, LogType.Debug);
-        Log.WriteLine( "__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort, LogType.Debug);
-        Log.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort, LogType.Debug);
-        Log.WriteLine( "__DEBUG__FAST: " + enterFastMode, LogType.Debug);
-        Log.WriteLine( "__DEBUG__SLOW: " + enterSlowMode, LogType.Debug);
+        Log.WriteLine( "__DEBUG__TARGDEVICE: " + argTargetDevice, LogType.Debug );
+        Log.WriteLine( "__DEBUG__TARGPORT: " + argtargetPort, LogType.Debug );
+        Log.WriteLine( "__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort, LogType.Debug );
+        Log.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort, LogType.Debug );
+        Log.WriteLine( "__DEBUG__PENDINGSPEED: " + pendingSpeedChange, LogType.Debug );
         Log.WriteLine( "__DEBUG__FTDI: " + enterFTDIMode, LogType.Debug );
 #endif
 
@@ -974,10 +1014,10 @@ internal partial class Program {
     /// Set up a new serial connection on the port we parsed earlier
     /// </summary>
     /// <param name="inSpeed">Go fast or not go fast</param>	
-    private static bool NewSIO( SIOSPEED inSpeed ) {
+    private static bool NewSIO( SIOSpeed inSpeed ) {
 
         if ( activeSerial != null ) activeSerial.Close();
-                
+
 
         // We need to find a suitable overlap in frequencies which can be divided
         // from the Playstation's clock and from the FTDI/clone, with some wiggle room.
@@ -993,18 +1033,12 @@ internal partial class Program {
         //
         // note: psx @ 518400, pc @ 510000
         //
-        int baud;
-        switch( inSpeed )
-        {
-            default: baud = 115200; break;
-            case SIOSPEED.FAST: baud = 510000; break;
-            case SIOSPEED.FTDI: baud = 1000000; break;
-        }
+
 
         if ( argtargetPort != 0 ) {
             activeSerial = new TCPTarget( argTargetDevice, argtargetPort, inSpeed );
         } else {
-            activeSerial = new SerialTarget( argTargetDevice, inSpeed, baud, Parity.None, 8, StopBits.Two );
+            activeSerial = new SerialTarget( argTargetDevice, inSpeed, (int)inSpeed, Parity.None, 8, StopBits.One );
         }
         // Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
         activeSerial.Handshake = Handshake.None;
@@ -1039,40 +1073,51 @@ internal partial class Program {
         // /fast, /slow, /m, etc
         //
 
-        if ( enterFTDIMode ){
+        if ( enterFTDIMode ) {
 
-            if ( !NewSIO( SIOSPEED.FTDI ) ) return false;
+            if ( !NewSIO( SIOSpeed.FTDI ) ) return false;
 
-        } else  if ( enterFastMode ) {
+        } else if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
 
-            // start in normal mode and send a "FAST" command
-            // unirom doesn't have to respond, so if it's already in fast mode, no biggie
-            if ( !NewSIO( SIOSPEED.SLOW ) ) return false;
+            if ( pendingSpeedChange == SIOSpeed.FAST || pendingSpeedChange == SIOSpeed.MEDI ) {
+                // switch to slow/default and then send a "FAST" or "MEDI"
+                // uni doesn't have to respond, so if it's already in fast/medi mode, no problem
+                if ( !NewSIO( SIOSpeed.SLOW ) ) return false;
 
-            // The bytes "FAST" with no null terminator
-            activeSerial.Write( BitConverter.GetBytes( 0x54534146 ), 0, 4 );
-            Thread.Sleep( 100 );
+                // the raw bytes for "FAST" or "MEDI"
+                activeSerial.Write( BitConverter.GetBytes( pendingSpeedChange.ToCommand() ), 0, 4 );
+                Thread.Sleep( 100 );
 
-            // Switch to fast
-            if ( !NewSIO( SIOSPEED.FAST ) ) return false;
+                // then switch to the pending speed
+                if ( !NewSIO( pendingSpeedChange ) ) return false;
 
-        } else if ( enterSlowMode ) {
+            } else {
 
-            // As above, but returns to 115200 so you don't have to 'nops /fast' all the time		
+                // default to slow mode
+                // e.g. so you can upload something in FAST but then return to SLOW
 
-            // going to assume Unirom's in fast mode.. so start there and negotiate back down
-            if ( !NewSIO( SIOSPEED.FAST ) ) return false;
+                // Try to return FAST mode to SLOW
+                if ( !NewSIO( SIOSpeed.FAST ) ) return false;
+                // The bytes "SLOW" with no null terminator
+                activeSerial.Write( BitConverter.GetBytes( SIOSpeed.SLOW.ToCommand() ), 0, 4 );
+                Thread.Sleep( 100 );
 
-            // The bytes "FAST" with no null terminator
-            activeSerial.Write( BitConverter.GetBytes( 0x574F4C53 ), 0, 4 );
-            Thread.Sleep( 100 );
+                // Try to return MEDI mode to SLOW
+                if ( !NewSIO( SIOSpeed.MEDI ) ) return false;
+                // The bytes "MEDI" with no null terminator
+                activeSerial.Write( BitConverter.GetBytes( SIOSpeed.SLOW.ToCommand() ), 0, 4 );
+                Thread.Sleep( 100 );
 
-            // Now switch back
-            if ( !NewSIO( SIOSPEED.SLOW ) ) return false;
+                // Hopefully uni is in SLOW mode now, so finally
+                // switch NOPS over to match                
+                if ( !NewSIO( SIOSpeed.SLOW ) ) return false;
+
+
+            }
 
         } else {
 
-            if ( !NewSIO( SIOSPEED.SLOW ) ) return false;
+            if ( !NewSIO( SIOSpeed.SLOW ) ) return false;
 
         }
 
@@ -1287,8 +1332,12 @@ internal partial class Program {
         // The user probs wants to upload in fast mode
         // then switch back to slow mode as uni loads by default
         // this sort of thing should be fixed with V3 protocol
-        if ( enterFastMode && enterSlowMode ){
-            NewSIO( SIOSPEED.SLOW );
+        if ( switchBackToSlowModeWhenFinished ) {
+            if ( NewSIO( SIOSpeed.SLOW ) ) {
+                Console.WriteLine( $"Switched back to {(int)SIOSpeed.SLOW} baud..." );
+            } else {
+                Error( $"Failed to switch back to {(int)SIOSpeed.SLOW} baud..." );
+            }
         }
 
 

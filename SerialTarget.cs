@@ -4,17 +4,17 @@
 
 using System.IO.Ports;
 
-public class SerialTarget : TargetDataPort
-{
-	private static SerialPort properSerial;
+public class SerialTarget : TargetDataPort {
+    private static SerialPort properSerial;
 
     // barrier to prevent the monitor going nuts and 
     // eating our serial data when we're trying to do
     // comms on another thread, initiated by socket callbacks
     public static object serialLock = new object();
-    protected SIOSPEED connectionType;
+    protected SIOSpeed connectionType;
 
-	public SerialTarget(string portName, SIOSPEED connectionType, int baudRate, Parity parity, int dataBits, StopBits stopBits) 
+    // TODO: merge the connection types?
+	public SerialTarget(string portName, SIOSpeed connectionType, int baudRate, Parity parity, int dataBits, StopBits stopBits) 
         : base(portName, connectionType, baudRate, parity, dataBits, stopBits)
 	{
 		properSerial = new SerialPort(portName, baudRate, parity, dataBits, stopBits);
@@ -59,7 +59,7 @@ public class SerialTarget : TargetDataPort
 		set { properSerial.WriteTimeout = value; }
 	}
 
-    public override bool SkipAcks => connectionType == SIOSPEED.FTDI;
+    public override bool SkipAcks => connectionType == SIOSpeed.FTDI;
 
     public override void Open()
 	{ properSerial.Open(); }

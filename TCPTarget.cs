@@ -86,7 +86,7 @@ public class TCPTarget : TargetDataPort
     public static byte[] socketBuffer_Receive = new byte[socketBufferSize];
 
     public RingBuffer ringBuffer_Receive = new RingBuffer(ringBufferSize);
-    protected SIOSPEED connectionType;
+    protected SIOSpeed connectionType;
 
     override public int BytesToRead
     {
@@ -127,7 +127,7 @@ public class TCPTarget : TargetDataPort
     static IPEndPoint remoteEndpoint;
     static IPAddress ip;
 
-    public override bool SkipAcks => connectionType == SIOSPEED.FTDI;
+    public override bool SkipAcks => connectionType == SIOSpeed.FTDI;
 
     public override void Open()
     {
@@ -276,7 +276,7 @@ public class TCPTarget : TargetDataPort
 
     }
 
-    public TCPTarget(string remoteHost, UInt32 remotePort, SIOSPEED connectionType ) : base(remoteHost, remotePort, connectionType)
+    public TCPTarget(string remoteHost, UInt32 remotePort, SIOSpeed connectionType ) : base(remoteHost, remotePort, connectionType)
     {
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         ip = IPAddress.Parse(remoteHost);

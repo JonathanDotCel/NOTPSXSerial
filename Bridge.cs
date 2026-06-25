@@ -12,19 +12,18 @@
 //
 
 using System;
-using System.Text;
-using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 
-public enum MonitorMode { 
+public enum MonitorMode {
     // serial is monitored for printf, pcdrv, halt events, etc
-    MONITOR_OR_PCDRV, 
+    MONITOR_OR_PCDRV,
     // as MONITOR_OR_PCDRV, but also forwarded to a socket
     SERIALBRIDGE,
     // as MONITOR_OR_PCDRV, but for GDB
-    GDB 
+    GDB
 };
 
 /// <summary>
@@ -98,11 +97,11 @@ public class Bridge {
 
         int numBytesRead = recvSocket.EndReceive( ar, out SocketError errorCode );
 
-        if( errorCode != SocketError.Success ) {
-            if(errorCode == SocketError.ConnectionReset ) {
+        if ( errorCode != SocketError.Success ) {
+            if ( errorCode == SocketError.ConnectionReset ) {
                 Log.WriteLine( "Remote connection closed, restarting listen server", LogType.Warning );
                 Log.WriteLine( "CTRL-C to exit" );
-                RestartListenServer( );
+                RestartListenServer();
             }
             Log.WriteLine( "errorCode: " + errorCode.ToString(), LogType.Debug );
             return;
@@ -154,22 +153,22 @@ public class Bridge {
 
         } else {
             //Console.WriteLine( "Read 0 bytes" );
-            RestartListenServer( );
+            RestartListenServer();
         }
 
     }
 
-    public static void RestartListenServer( ) {
+    public static void RestartListenServer() {
         Log.WriteLine( "Restarting listen server" );
         socket.Close();
-        StartListenServer( );
+        StartListenServer();
 
         if ( activeBridgeMode == MonitorMode.GDB ) {
             GDBServer.ResetConnection();
         }
     }
 
-    public static void StartListenServer( ) {
+    public static void StartListenServer() {
         socket = new Socket( AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp );
         socket.Bind( localEndpoint );
         socket.Listen( 2 );
@@ -223,7 +222,7 @@ public class Bridge {
         IPAddress ip;
 
         if ( string.IsNullOrEmpty( localIP ) ) {
-             ip = IPAddress.Parse( "127.0.0.1" );
+            ip = IPAddress.Parse( "127.0.0.1" );
         } else {
             Log.WriteLine( "Binding IP " + localIP );
             ip = IPAddress.Parse( localIP );
@@ -271,7 +270,7 @@ public class Bridge {
 
             // Ensure that socket threads aren't trying
             // to e.g. read/write memory at the same time
-            lock( SerialTarget.serialLock ) {
+            lock ( SerialTarget.serialLock ) {
 
                 while ( serial.BytesToRead > 0 && bytesInBuffer < responseBytes.Length ) {
 

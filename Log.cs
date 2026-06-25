@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -28,13 +26,13 @@ public class Log {
     private static int currentlyFlushing = 0;
     private static Timer flushTimer;
 
-    public static void SetLevel(LogType logTypes) {
+    public static void SetLevel( LogType logTypes ) {
         SubscribedEvents = logTypes | LogType.Stream;
     }
 
     private static void SetColorByLogType( LogType inType ) {
 
-        if ( inType == LogType.Stream ){
+        if ( inType == LogType.Stream ) {
             return;
         }
 
@@ -120,7 +118,7 @@ public class Log {
         if ( (SubscribedEvents & inType) == 0 )
             return;
 
-        SetColorByLogType(inType);
+        SetColorByLogType( inType );
 
         Console.WriteLine( inMessage );
 

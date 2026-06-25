@@ -101,206 +101,207 @@ using System.Linq;
 using System.Threading;
 using static Utils;
 
-public enum CommandMode {
+public enum CommandMode
+{
 
-    NOT_SET,
+	NOT_SET,
 
-    // Upload
+	// Upload
 
-    [Command( "/bin" )]
-    [NeedsInputFile]
-    [NeedsAddress]
-    [Challenge( "SBIN" )]
-    [Response( "OKAY" )]
-    SEND_BIN,
+	[Command("/bin")]
+	[NeedsInputFile]
+	[NeedsAddress]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	SEND_BIN,
 
-    [Command( "/rom" )]
-    [NeedsInputFile]
-    [Challenge( "SROM" )]
-    [Response( "OKAY" )]
-    SEND_ROM,
+	[Command("/rom")]
+	[NeedsInputFile]
+	[Challenge("SROM")]
+	[Response("OKAY")]
+	SEND_ROM,
 
-    // Flow control
+	// Flow control
 
-    [Command( "/exe" )]
-    [NeedsInputFile]
-    [Challenge( "SEXE" )]
-    [Response( "OKAY" )]
-    SEND_EXE,
-
-
-    [Command( "/jmp" )]
-    [Challenge( "JUMP" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    JUMP_JMP,
-
-    [Command( "/jal" )]
-    [Challenge( "CALL" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    JUMP_CALL,
-
-    [Command( "/dump" )]
-    [Challenge( "DUMP" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    [NeedsSize]
-    [NeedsOutputFile]
-    DUMP,
-
-    // Poke commands
-
-    [Command( "/poke8" )]
-    [Challenge( "SBIN" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    [NeedsValue]
-    POKE8,
-
-    [Command( "/poke16" )]
-    [Challenge( "SBIN" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    [NeedsValue]
-    POKE16,
-
-    [Command( "/poke32" )]
-    [Challenge( "SBIN" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    [NeedsValue]
-    POKE32,
-
-    // Peek
-
-    [Command( "/watch" )]
-    [Challenge( "HEXD" )]
-    [Response( "OKAY" )]
-    [NeedsAddress]
-    [NeedsSize]
-    WATCH,
-
-    // Various
-
-    [Command( "/reset" )]
-    [Challenge( "REST" )]
-    [Response( "OKAY" )]
-    RESET,
-
-    [Command( "/ping" )]
-    [Challenge( "PING" )]
-    [Response( "PONG" )]
-    PING,
-
-    // Debug mode functions
-
-    // install Unirom kernel-resident debug SIO
-    [Command( "/debug" )]
-    [Challenge( "DEBG" )]
-    [Response( "OKAY" )]
-    DEBUG,
-
-    // UART-TCP bridge
-    [Command( "/bridge" )]
-    [NeedsIP]
-    [NeedsPort]
-    [Challenge( "NONE" )]
-    [Response( "OKAY" )]
-    BRIDGE,
-
-    // combines /debug and /bridge
-    [Command( "/gdb" )]
-    [NeedsIP]
-    [NeedsPort]
-    [Challenge( "DEBG" )]
-    [Response( "OKAY" )]
-    GDB,
-
-    // don't send manifest, mainly for IDA
-    [Command("/nomanifest")]
-    NOMANIFEST,
-
-    // Verbose logging
-    [Command("/v")]
-    VERBOSE,
-
-    [Command( "/halt" )]
-    [Challenge( "HALT" )]
-    [Response( "HLTD" )]
-    HALT,
-
-    [Command( "/cont" )]
-    [Challenge( "CONT" )]
-    [Response( "OKAY" )]
-    CONT,
-
-    [Command( "/regs" )]
-    REGS,
-
-    [Command( "/setreg" )]
-    [NeedsRegister]
-    [NeedsValue]        // abused as a 32bit hexa value
-    SETREG,
-
-    // Debug hooks
-
-    [Command( "/hookread" )]
-    [NeedsAddress]
-    [Challenge( "HKRD" )]
-    [Response( "OKAY" )]
-    HOOKREAD,
-
-    [Command( "/hookwrite" )]
-    [NeedsAddress]
-    [Challenge( "HKWR" )]
-    [Response( "OKAY" )]
-    HOOKWRITE,
-
-    [Command( "/hookex" )]
-    [NeedsAddress]
-    [Challenge( "HKEX" )]
-    [Response( "OKAY" )]
-    HOOKEXEC,
-
-    [Command( "/unhook" )]
-    [Challenge( "UNHK" )]
-    [Response( "OKAY" )]
-    UNHOOK,
-
-    // Memcard
-
-    [Command( "/mcdown" )]
-    [NeedsCardNumber]
-    [NeedsOutputFile]
-    [Challenge( "MCDN" )]
-    [Response( "OKAY" )]
-    MCDOWN,
-
-    [Command( "/mcup" )]
-    [NeedsCardNumber]
-    [NeedsInputFile]
-    [Challenge( "MCUP" )]
-    [Response( "OKAY" )]
-    MCUP,
-
-    [Command( "/wipemem" )]
-    [NeedsValue]
-    [NeedsAddress]
-    WIPEMEM,
-
-    [Command( "/stdin" )]
-    [NeedsString]
-    [Challenge( "STDI" )]
-    [Response( "STOK" )]
-    STDIN,
-
-    [Command( "/type" )]
-    [NeedsString]
-    TYPESTRING,
+	[Command("/exe")]
+	[NeedsInputFile]
+	[Challenge("SEXE")]
+	[Response("OKAY")]
+	SEND_EXE,
 
 
-    /*
+	[Command("/jmp")]
+	[Challenge("JUMP")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	JUMP_JMP,
+
+	[Command("/jal")]
+	[Challenge("CALL")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	JUMP_CALL,
+
+	[Command("/dump")]
+	[Challenge("DUMP")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsSize]
+	[NeedsOutputFile]
+	DUMP,
+
+	// Poke commands
+
+	[Command("/poke8")]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsValue]
+	POKE8,
+
+	[Command("/poke16")]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsValue]
+	POKE16,
+
+	[Command("/poke32")]
+	[Challenge("SBIN")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsValue]
+	POKE32,
+
+	// Peek
+
+	[Command("/watch")]
+	[Challenge("HEXD")]
+	[Response("OKAY")]
+	[NeedsAddress]
+	[NeedsSize]
+	WATCH,
+
+	// Various
+
+	[Command("/reset")]
+	[Challenge("REST")]
+	[Response("OKAY")]
+	RESET,
+
+	[Command("/ping")]
+	[Challenge("PING")]
+	[Response("PONG")]
+	PING,
+
+	// Debug mode functions
+
+	// install Unirom kernel-resident debug SIO
+	[Command("/debug")]
+	[Challenge("DEBG")]
+	[Response("OKAY")]
+	DEBUG,
+
+	// UART-TCP bridge
+	[Command("/bridge")]
+	[NeedsIP]
+	[NeedsPort]
+	[Challenge("NONE")]
+	[Response("OKAY")]
+	BRIDGE,
+
+	// combines /debug and /bridge
+	[Command("/gdb")]
+	[NeedsIP]
+	[NeedsPort]
+	[Challenge("DEBG")]
+	[Response("OKAY")]
+	GDB,
+
+	// don't send manifest, mainly for IDA
+	[Command("/nomanifest")]
+	NOMANIFEST,
+
+	// Verbose logging
+	[Command("/v")]
+	VERBOSE,
+
+	[Command("/halt")]
+	[Challenge("HALT")]
+	[Response("HLTD")]
+	HALT,
+
+	[Command("/cont")]
+	[Challenge("CONT")]
+	[Response("OKAY")]
+	CONT,
+
+	[Command("/regs")]
+	REGS,
+
+	[Command("/setreg")]
+	[NeedsRegister]
+	[NeedsValue]        // abused as a 32bit hexa value
+	SETREG,
+
+	// Debug hooks
+
+	[Command("/hookread")]
+	[NeedsAddress]
+	[Challenge("HKRD")]
+	[Response("OKAY")]
+	HOOKREAD,
+
+	[Command("/hookwrite")]
+	[NeedsAddress]
+	[Challenge("HKWR")]
+	[Response("OKAY")]
+	HOOKWRITE,
+
+	[Command("/hookex")]
+	[NeedsAddress]
+	[Challenge("HKEX")]
+	[Response("OKAY")]
+	HOOKEXEC,
+
+	[Command("/unhook")]
+	[Challenge("UNHK")]
+	[Response("OKAY")]
+	UNHOOK,
+
+	// Memcard
+
+	[Command("/mcdown")]
+	[NeedsCardNumber]
+	[NeedsOutputFile]
+	[Challenge("MCDN")]
+	[Response("OKAY")]
+	MCDOWN,
+
+	[Command("/mcup")]
+	[NeedsCardNumber]
+	[NeedsInputFile]
+	[Challenge("MCUP")]
+	[Response("OKAY")]
+	MCUP,
+
+	[Command("/wipemem")]
+	[NeedsValue]
+	[NeedsAddress]
+	WIPEMEM,
+
+	[Command("/stdin")]
+	[NeedsString]
+	[Challenge("STDI")]
+	[Response("STOK")]
+	STDIN,
+
+	[Command("/type")]
+	[NeedsString]
+	TYPESTRING,
+
+
+	/*
     // Deprecated as of 8.0.C's self-correcting algo
     [Command( "/verify" )]
     [Challenge("SBIN")]
@@ -311,44 +312,50 @@ public enum CommandMode {
     */
 
 
-    COUNT
+	COUNT
 
 };
 
-public enum SIOSpeed : UInt32 {
-    UNINIT = 0,     // uninitialised or null
-    SLOW = 115200,  // 115200 on PSX side
-    MEDI = 414720,  // 414720 on PSX side
-    FAST = 510000,  // 518400 on PSX side
-    FTDI = 1000000, // fake/placeholder value, using dan's FTDI mod for the Power Replay carts
+public enum SIOSpeed : UInt32
+{
+	UNINIT = 0,     // uninitialised or null
+	SLOW = 115200,  // 115200 on PSX side
+	MEDI = 414720,  // 414720 on PSX side
+	FAST = 510000,  // 518400 on PSX side
+	FTDI = 1000000, // fake/placeholder value, using dan's FTDI mod for the Power Replay carts
 }
 
-public static class SIOSpeedExtensions {
-    public static UInt32 ToCommand( this SIOSpeed inSpeed ) {
-        switch ( inSpeed ) {
+public static class SIOSpeedExtensions
+{
+	public static UInt32 ToCommand(this SIOSpeed inSpeed)
+	{
+		switch (inSpeed)
+		{
 
-            default:
-                return 0;
-            // ascii chars for "SLOW"
-            case SIOSpeed.SLOW:
-                return 0x574F4C53;
-            // ascii chars for "MEDI"
-            case SIOSpeed.MEDI:
-                return 0x4944454D;
-            // ascii chars for "FAST"
-            case SIOSpeed.FAST:
-                return 0x54534146;
+			default:
+				return 0;
+			// ascii chars for "SLOW"
+			case SIOSpeed.SLOW:
+				return 0x574F4C53;
+			// ascii chars for "MEDI"
+			case SIOSpeed.MEDI:
+				return 0x4944454D;
+			// ascii chars for "FAST"
+			case SIOSpeed.FAST:
+				return 0x54534146;
 
-        }
-    }
+		}
+	}
 }
 
-internal partial class Program {
+internal partial class Program
+{
 
-    const string VERSION = "v17 (8.0.M)";
-    const int TIMEOUT = 500;
+	const string VERSION = "v17 (8.0.M)";
+	const int TIMEOUT = 500;
 
-    public static void PrintUsage( bool justTheTip = false ) {
+	public static void PrintUsage(bool justTheTip = false)
+	{
 
 #if !DebugArgs
         if( !justTheTip ){
@@ -356,522 +363,595 @@ internal partial class Program {
         }
 #endif
 
-        SetDefaultColour();
+		SetDefaultColour();
 
-        // assuming 80 columns
+		// assuming 80 columns
 
-        Log.Write( "\n" );
-        Log.Write( "================================================================================\n" );
-        Log.Write( "    NOPS " + VERSION + "\n" );
-        Log.Write( "    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n" );
-        Log.Write( "            r0r0, Skitchin, danhans42, Schnappy, \n" );
-        Log.Write( "            Nicolas Noble, T0fuZ, Arthur & spicyjpeg!\n" );
-        Log.Write( "\n" );
-        Log.Write( "            Instructions :  http://unirom.github.io\n" );
-        Log.Write( "            Discord      :  http://psx.dev\n" );
-        Log.Write( "================================================================================\n" );
-        Log.Write( "\n" );
+		Log.Write("\n");
+		Log.Write("================================================================================\n");
+		Log.Write("    NOPS " + VERSION + "\n");
+		Log.Write("    Thanks: Jihad of HITMEN, Shendo, Type79, Dax, \n");
+		Log.Write("            r0r0, Skitchin, danhans42, Schnappy, \n");
+		Log.Write("            Nicolas Noble, T0fuZ, Arthur & spicyjpeg!\n");
+		Log.Write("\n");
+		Log.Write("            Instructions :  http://unirom.github.io\n");
+		Log.Write("            Discord      :  http://psx.dev\n");
+		Log.Write("================================================================================\n");
+		Log.Write("\n");
 
-        Log.Write( "	Note: You may have to install mono and launch via 'mono nops.exe /args' if...\n" );
-        Log.Write( "      - Windows cant put your serial device (FTDI, etc) into 115200baud\n" );
-        Log.Write( "      - You are using a Sharklink/Net Yaroze cable\n" );
-        Log.Write( "      - Any flavour of *nix/OSX\n" );
-        Log.Write( "\n\n" );
+		Log.Write("	Note: You may have to install mono and launch via 'mono nops.exe /args' if...\n");
+		Log.Write("      - Windows cant put your serial device (FTDI, etc) into 115200baud\n");
+		Log.Write("      - You are using a Sharklink/Net Yaroze cable\n");
+		Log.Write("      - Any flavour of *nix/OSX\n");
+		Log.Write("\n\n");
 
-        if ( justTheTip ) return;
+		if (justTheTip) return;
 
-        // COM8, /dev/tty*, /dev/cu.usbserial*, etc
-        suggestedComPort = SampleCOMPortForEnvironment;
+		// COM8, /dev/tty*, /dev/cu.usbserial*, etc
+		suggestedComPort = SampleCOMPortForEnvironment;
 
-        Log.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [COMPORT]\n" );
-        Log.Write( "    Usage : NOPS.EXE [/args] [FILENAME] [IPADDRESS:PORT]\n\n" );
+		Log.Write("    Usage : NOPS.EXE [/args] [FILENAME] [COMPORT]\n");
+		Log.Write("    Usage : NOPS.EXE [/args] [FILENAME] [IPADDRESS:PORT]\n\n");
 
-        Log.Write( "    Bridge: NOPS.EXE /bridge [LOCALIP:PORT] [COMPORT]\n" );
-        Log.Write( "            bridges e.g. a local serial device and port, allowing remote connections\n" );
-        Log.Write( "\n\n" );
+		Log.Write("    Bridge: NOPS.EXE /bridge [LOCALIP:PORT] [COMPORT]\n");
+		Log.Write("            bridges e.g. a local serial device and port, allowing remote connections\n");
+		Log.Write("\n\n");
 
-        Log.Write( $"      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {suggestedComPort}\n\n" );
+		Log.Write($"      Send an .EXE :  NOPS.EXE /exe <FILE.EXE> {suggestedComPort}\n\n");
 
-        Log.Write( $"      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> {suggestedComPort}\n\n" );
+		Log.Write($"      Flash a .ROM :  NOPS.EXE /rom <FILE.ROM> {suggestedComPort}\n\n");
 
-        Log.Write( $"      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {suggestedComPort}\n\n" );
+		Log.Write($"      Send a  .BIN :  NOPS.EXE /bin 0xADDRESS0 <FILE.BIN> {suggestedComPort}\n\n");
 
-        Log.Write( $"      Jump addr (jr) :  NOPS.EXE /jmp 0xADDRESS0 {suggestedComPort}\n" );
-        Log.Write( $"      Call addr (jal):  NOPS.EXE /jal 0xADDRESS0 {suggestedComPort}\n\n" );
+		Log.Write($"      Jump addr (jr) :  NOPS.EXE /jmp 0xADDRESS0 {suggestedComPort}\n");
+		Log.Write($"      Call addr (jal):  NOPS.EXE /jal 0xADDRESS0 {suggestedComPort}\n\n");
 
-        Log.Write($"    Dumpy Stuff:\n");
-        Log.Write($"                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 <DUMP.BIN> {suggestedComPort}\n");
-        Log.Write($"                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  <DUMP.BIN> {suggestedComPort}\n");
-        Log.Write($"                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  <DUMP.BIN> {suggestedComPort}\n");
-        Log.Write($"                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  <DUMP.BIN> {suggestedComPort}\n");
-        Log.Write($"                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  <DUMP.BIN> {suggestedComPort}\n");
-        Log.Write($"                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    <DUMP.BIN> {suggestedComPort}\n\n");
-        Log.Write($"                WARNING! If named dump file already exist it will be overwritten!\n");
-        Log.Write($"                Also note that you can use * for <DUMP.BIN> to have automagically generated filename\n\n");
+		Log.Write($"    Dumpy Stuff:\n");
+		Log.Write($"                RAM  (  2m) :  NOPS.EXE /dump 0x80000000 0x200000 <DUMP.BIN> {suggestedComPort}\n");
+		Log.Write($"                ROM  (128k) :  NOPS.EXE /dump 0x1F000000 0x20000  <DUMP.BIN> {suggestedComPort}\n");
+		Log.Write($"                ROM  (384k) :  NOPS.EXE /dump 0x1F000000 0x60000  <DUMP.BIN> {suggestedComPort}\n");
+		Log.Write($"                ROM  (512k) :  NOPS.EXE /dump 0x1F000000 0x80000  <DUMP.BIN> {suggestedComPort}\n");
+		Log.Write($"                BIOS (512k) :  NOPS.EXE /dump 0xBFC00000 0x80000  <DUMP.BIN> {suggestedComPort}\n");
+		Log.Write($"                SPAD (  1k) :  NOPS.EXE /dump 0x1F800000 0x400    <DUMP.BIN> {suggestedComPort}\n\n");
+		Log.Write($"                WARNING! If named dump file already exist it will be overwritten!\n");
+		Log.Write($"                Also note that you can use * for <DUMP.BIN> to have automagically generated filename\n\n");
 
-        Log.Write($"    Memory Cards:\n");
-        Log.Write($"               MC0->File :  NOPS.EXE /mcdown 0 filename.mcr {suggestedComPort}\n");
-        Log.Write($"               MC1->File :  NOPS.EXE /mcdown 1 filename.mcr {suggestedComPort}\n");
-        Log.Write($"               File->MC0 :  NOPS.EXE /mcup 0 filename.mcr {suggestedComPort}\n\n");
-
-
-        Log.Write($"    Pokey Poke:\n");
-        Log.Write($"                 8 bits :  NOPS.exe /poke8 0x80100001 0x01 {suggestedComPort}\n");
-        Log.Write($"                16 bits :  NOPS.exe /poke16 0x80100002 0x0202 {suggestedComPort}\n");
-        Log.Write($"                32 bits :  NOPS.exe /poke32 0x80100004 0x04040404 {suggestedComPort}\n\n");
-
-        Log.Write($"    Continuous Hex Dump (to screen):\n");
-        Log.Write($"                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {suggestedComPort}\n\n");
-
-        Log.Write($"    Extra switches:\n");
-        Log.Write($"                /m to open the Serial IO monitor (can be used /m {suggestedComPort} alone)\n");
-        Log.Write( "                /fast to enable or continue using 500k baud\n" );
-        Log.Write( "                /debug to enable experimental /bin & /dump during gameplay\n" );
-        Log.Write( "                /v Verbose logging\n" );
-        Log.Write( "\n" );
-
-        Log.Write( "    Examples:\n" );
-        Log.Write($"                nops /fast /rom unirom_b.rom {suggestedComPort}\n" );
-        Log.Write($"                nops /exe mything.exe /m {suggestedComPort}\n" );
-        Log.Write($"                nops /fast /poke8 0x80100000 0x04 {suggestedComPort}\n" );
-        Log.Write( "\n" );
-
-        Log.Write( "   Debug Functions:   (Must be in debug mode via L1+Square or nops /debug)\n" );
-        Log.Write( "                Halt the PSX                       : nops /halt\n" );
-        Log.Write( "                Continue from halt/exeception/hook : nops /cont\n" );
-        Log.Write( "                Show registers from last interrupt : nops /regs\n" );
-        Log.Write( "                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n" );
-        Log.Write( "                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n" );
-        Log.Write( "                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n" );
-        Log.Write( "                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n" );
-        Log.Write( "                Unhook (read/write/exec)           : nops /unhook\n" );
-        Log.Write( "                * = Resume with nops /cont\n" );
-        Log.Write( "\n" );
-
-        Log.Write( "   GDB Server:\n" );
-        Log.Write( "                /gdb Starts a GDB listen server. Requires IP:port and com port\n" );
-        Log.Write( "                     It's highly recommended to start the server with /fast\n" );
-        Log.Write($"                     i.e. nops /fast /gdb 127.0.0.1:3333 {suggestedComPort}\n" );
-        Log.Write( "                     You can then connect to the server with a GDB client\n" );
-        Log.Write( "                     such as GDB or Visual Studio Code\n" );
-        Log.Write( "                /nomanifest Don't send manifest to GDB client, may be required for IDA\n" );
-
-        Log.Write( "  STDIN Functions:\n" );
-        Log.Write( "                Types a string into stdin  : nops /type \"something\"\n" );
-        Log.Write( "                at about 1 char per frame  : nops /type 'something'\n" );
+		Log.Write($"    Memory Cards:\n");
+		Log.Write($"               MC0->File :  NOPS.EXE /mcdown 0 filename.mcr {suggestedComPort}\n");
+		Log.Write($"               MC1->File :  NOPS.EXE /mcdown 1 filename.mcr {suggestedComPort}\n");
+		Log.Write($"               File->MC0 :  NOPS.EXE /mcup 0 filename.mcr {suggestedComPort}\n\n");
 
 
+		Log.Write($"    Pokey Poke:\n");
+		Log.Write($"                 8 bits :  NOPS.exe /poke8 0x80100001 0x01 {suggestedComPort}\n");
+		Log.Write($"                16 bits :  NOPS.exe /poke16 0x80100002 0x0202 {suggestedComPort}\n");
+		Log.Write($"                32 bits :  NOPS.exe /poke32 0x80100004 0x04040404 {suggestedComPort}\n\n");
 
-        Log.Write( "\n" );
+		Log.Write($"    Continuous Hex Dump (to screen):\n");
+		Log.Write($"                CD REGS:   NOPS.EXE /watch 0x1F801800 0x4 {suggestedComPort}\n\n");
 
-    }
+		Log.Write($"    Extra switches:\n");
+		Log.Write($"                /m to open the Serial IO monitor (can be used /m {suggestedComPort} alone)\n");
+		Log.Write("                /fast to enable or continue using 500k baud\n");
+		Log.Write("                /debug to enable experimental /bin & /dump during gameplay\n");
+		Log.Write("                /v Verbose logging\n");
+		Log.Write("\n");
 
-    //
-    // public stuff
-    //
+		Log.Write("    Examples:\n");
+		Log.Write($"                nops /fast /rom unirom_b.rom {suggestedComPort}\n");
+		Log.Write($"                nops /exe mything.exe /m {suggestedComPort}\n");
+		Log.Write($"                nops /fast /poke8 0x80100000 0x04 {suggestedComPort}\n");
+		Log.Write("\n");
 
-    public static TargetDataPort activeSerial;
-    public static UInt32 protocolVersion = 1;
+		Log.Write("   Debug Functions:   (Must be in debug mode via L1+Square or nops /debug)\n");
+		Log.Write("                Halt the PSX                       : nops /halt\n");
+		Log.Write("                Continue from halt/exeception/hook : nops /cont\n");
+		Log.Write("                Show registers from last interrupt : nops /regs\n");
+		Log.Write("                Set a register while halted        : nops /setreg 0xADDR 0xVALUE\n");
+		Log.Write("                Hook (halt) on memory read  *      : nops /hookread 0xADDR\n");
+		Log.Write("                Hook (halt) on memory write *      : nops /hookwrite 0xADDR\n");
+		Log.Write("                Hook (halt) on memory exec  *      : nops /hookex 0xADDR\n");
+		Log.Write("                Unhook (read/write/exec)           : nops /unhook\n");
+		Log.Write("                * = Resume with nops /cont\n");
+		Log.Write("\n");
 
-    //
-    // less public stuff
-    //
+		Log.Write("   GDB Server:\n");
+		Log.Write("                /gdb Starts a GDB listen server. Requires IP:port and com port\n");
+		Log.Write("                     It's highly recommended to start the server with /fast\n");
+		Log.Write($"                     i.e. nops /fast /gdb 127.0.0.1:3333 {suggestedComPort}\n");
+		Log.Write("                     You can then connect to the server with a GDB client\n");
+		Log.Write("                     such as GDB or Visual Studio Code\n");
+		Log.Write("                /nomanifest Don't send manifest to GDB client, may be required for IDA\n");
 
-    // Shared args
-    static string argTargetDevice = "";         // E.g. COM8, /dev/tty.SLAB_USBtoUART, 127.0.0.1, etc    
-    static string suggestedComPort = "COM8";
-    static UInt32 argAddr;
-    static UInt32 argSize;
-    static UInt32 argValue;
-    static UInt32 argCard;
-    static string argIP;                         // argIP and argPort used for both local and remote params
-    static UInt32 argtargetPort = 0;             // the port we'll connect to the device/emu on
-    static UInt32 argListenPort = 0;             // the listen port we'll use for bridge mode
-    static CommandMode argCommand = CommandMode.NOT_SET;
-    static string argFileName;
-    static string argRegister = "";
-    static string argString = "";
-    // standalone/modifiers such as /fast, /slow, /m, etc
-    static bool allArgsAreSecondary = false;
-
-
-    // Input validation
-    static bool satisfiedAddressRequirements = false;
-    static bool satisfiedSizeRequirements = false;
-    static bool satisfiedRegisterRequirements = false;
-    static bool satisfiedValueRequirements = false;
-    static bool satisfiedCardRequirement = false;
-    static bool satisfiedInputFileRequirements = false;
-    static bool satisfiedOutputFileRequirements = false;
-    static bool satisfiedIPRequirements = false;
-    static bool satisfiedPortRequirements = false;
-    static bool satisfiedStringRequirements = false;
-
-    // Misc
-    static byte[] inFile;
-    static SIOSpeed pendingSpeedChange = SIOSpeed.UNINIT;
-    // user did like `nops /fast /exe something.exe /slow /m`
-    // i.e. to upload quickly, then drop back to default comms speed to monitor
-    static bool switchBackToSlowModeWhenFinished = false;
-    static bool enterFTDIMode = false;
-    // Force gapped datel V2 model via SIO
-    // (or force it off in the case of homebrew carts triggering auto detect)
-    static bool forceFlatMode = false;
-    static bool forceGappedMode = false;
-
-    static bool monitorComms = false;
-    static bool usingCachedPortOrAddress = false;
+		Log.Write("  STDIN Functions:\n");
+		Log.Write("                Types a string into stdin  : nops /type \"something\"\n");
+		Log.Write("                at about 1 char per frame  : nops /type 'something'\n");
 
 
-    /// <summary>
-    /// Ensure the input args are vaguely sane
-    /// - Make a list of args
-    /// - Cross them off one by one as they're valid
-    /// - Determine COM port
-    /// - Extra args such as /monitor comms
-    /// - Grab address values, filename etc		
-    /// </summary>
-    /// <param name="inArgs">Command line args</param>
-    /// <returns>Are there any unprocessed args?</returns>
 
-    static bool VerifyArgs( string[] inArgs ) {
+		Log.Write("\n");
 
-        if ( inArgs.Length == 0 ) {
-            PrintUsage( false );
-            return false;
-        }
+	}
 
-        // Thank you, linq <3
-        // We'll remove args as they're processed so they're not processed twice
-        // and extra args will be left over.
-        // ( we don't want extra args left over )
+	//
+	// public stuff
+	//
 
-        List<string> remainingArgs = inArgs.ToList();
+	public static TargetDataPort activeSerial;
+	public static UInt32 protocolVersion = 1;
 
-        // Specified a com port?
+	//
+	// less public stuff
+	//
 
-#if DebugArgs
-        Log.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug );
-#endif
-
-        // Remove the arg for the com port: COM* or /dev/tty*
-        for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
-
-            string s = remainingArgs[ i ];
-
-            if ( ValidIPAddress( s, ref argTargetDevice, ref argtargetPort ) ) {
-                // 127.0.0.1:1234 etc
-                remainingArgs.RemoveAt( i );
-                break;
-            } else if ( ValidTargetDevice( s, ref argTargetDevice ) ) {
-                // COM5 or /dev/uart_thing/                
-                remainingArgs.RemoveAt( i );
-                break;
-            }
-
-        }
-
-        // Cache the com port, or load the cached value
-        if ( string.IsNullOrEmpty( argTargetDevice ) ) {
-
-            string readVal = "";
-            try {
-                if ( System.IO.File.Exists( "comport.txt" ) ) {
-                    readVal = File.ReadAllText( "comport.txt" );
-                }
-            } catch ( System.Exception e ) {
-                Log.WriteLine( "Error checking for cached com port...\n" + e, LogType.Error );
-            }
-
-            if ( ValidIPAddress( readVal, ref argTargetDevice, ref argtargetPort ) ) {
-                Log.WriteLine( $"Using address and port: {argTargetDevice}:{argtargetPort}" );
-            } else if ( ValidTargetDevice( readVal, ref argTargetDevice ) ) {
-                Log.WriteLine( $"Using device {argTargetDevice}" );
-            } else {
-                // I think the GC can manage the hit on this one :)
-                return Error( $"\nERROR! Please specify a device or COM port in the format: {SampleCOMPortForEnvironment} or 127.0.0.1:1234, etc\ngot: {argCommand}" );
-            }
-
-            usingCachedPortOrAddress = true;
-
-        } else {
-
-            // port was specified, cache it for later
-            try {
-                string savedTarget = argtargetPort != 0 ? (argTargetDevice + ":" + argtargetPort) : argTargetDevice;
-                File.WriteAllText( "comport.txt", savedTarget );
-            } catch ( System.Exception e ) {
-                Log.WriteLine( "Error writing cached com port!\n" + e, LogType.Error );
-            }
-
-        }
+	// Shared args
+	static string argTargetDevice = "";         // E.g. COM8, /dev/tty.SLAB_USBtoUART, 127.0.0.1, etc    
+	static string suggestedComPort = "COM8";
+	static UInt32 argAddr;
+	static UInt32 argSize;
+	static UInt32 argValue;
+	static UInt32 argCard;
+	static string argIP;                         // argIP and argPort used for both local and remote params
+	static UInt32 argtargetPort = 0;             // the port we'll connect to the device/emu on
+	static UInt32 argListenPort = 0;             // the listen port we'll use for bridge mode
+	static CommandMode argCommand = CommandMode.NOT_SET;
+	static string argFileName;
+	static string argRegister = "";
+	static string argString = "";
+	// standalone/modifiers such as /fast, /slow, /m, etc
+	static bool allArgsAreSecondary = false;
 
 
-        // Are we using secondary args only? e.g. /fast /m
-        // in this case, there's no point processing the rest of the input
-        allArgsAreSecondary = true;
-        for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
+	// Input validation
+	static bool satisfiedAddressRequirements = false;
+	static bool satisfiedSizeRequirements = false;
+	static bool satisfiedRegisterRequirements = false;
+	static bool satisfiedValueRequirements = false;
+	static bool satisfiedCardRequirement = false;
+	static bool satisfiedInputFileRequirements = false;
+	static bool satisfiedOutputFileRequirements = false;
+	static bool satisfiedIPRequirements = false;
+	static bool satisfiedPortRequirements = false;
+	static bool satisfiedStringRequirements = false;
 
-            string lower = remainingArgs[ i ].ToLowerInvariant();
+	// Misc
+	static byte[] inFile;
+	static SIOSpeed pendingSpeedChange = SIOSpeed.UNINIT;
+	// user did like `nops /fast /exe something.exe /slow /m`
+	// i.e. to upload quickly, then drop back to default comms speed to monitor
+	static bool switchBackToSlowModeWhenFinished = false;
+	static bool enterFTDIMode = false;
+	// Force gapped datel V2 model via SIO
+	// (or force it off in the case of homebrew carts triggering auto detect)
+	static bool forceFlatMode = false;
+	static bool forceGappedMode = false;
 
-            if ( lower == "/m" ) {
-                monitorComms = true;
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/fast" ) {
-                if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
-                    // See var decl for explanation
-                    switchBackToSlowModeWhenFinished = true;
-                }
-                pendingSpeedChange = SIOSpeed.FAST;
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/medi" ) {
-                if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
-                    // See var decl for explanation
-                    switchBackToSlowModeWhenFinished = true;
-                }
-                pendingSpeedChange = SIOSpeed.MEDI;
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/slow" ) {
-                if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
-                    // See var decl for explanation
-                    switchBackToSlowModeWhenFinished = true;
-                } else {
-                    // don't overwrite /fast, but switch *after* upload, etc
-                    pendingSpeedChange = SIOSpeed.SLOW;
-                }
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/ftdi" ) {
-                enterFTDIMode = true;
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/flat" ) {
-                forceFlatMode = true;
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/gaps" ) {
-                forceGappedMode = true;
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/v" ) {
-                Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
-                remainingArgs.RemoveAt( i );
-            } else if ( lower == "/nomanifest" ) {
-                GDBServer.DisableManifest();
-                remainingArgs.RemoveAt( i );
-            } else {
-                allArgsAreSecondary = false;
-            }
+	static bool monitorComms = false;
+	static bool usingCachedPortOrAddress = false;
 
-        }
 
+	/// <summary>
+	/// Ensure the input args are vaguely sane
+	/// - Make a list of args
+	/// - Cross them off one by one as they're valid
+	/// - Determine COM port
+	/// - Extra args such as /monitor comms
+	/// - Grab address values, filename etc		
+	/// </summary>
+	/// <param name="inArgs">Command line args</param>
+	/// <returns>Are there any unprocessed args?</returns>
+
+	static bool VerifyArgs(string[] inArgs)
+	{
+
+		if (inArgs.Length == 0)
+		{
+			PrintUsage(false);
+			return false;
+		}
+
+		// Thank you, linq <3
+		// We'll remove args as they're processed so they're not processed twice
+		// and extra args will be left over.
+		// ( we don't want extra args left over )
+
+		List<string> remainingArgs = inArgs.ToList();
+
+		// Specified a com port?
 
 #if DebugArgs
-        Log.WriteLine( "__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug );
-        Log.WriteLine( "__DEBUG__TARGDEVICE: " + argTargetDevice, LogType.Debug );
-        Log.WriteLine( "__DEBUG__TARGPORT: " + argtargetPort, LogType.Debug );
-        Log.WriteLine( "__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort, LogType.Debug );
-        Log.WriteLine( "__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort, LogType.Debug );
-        Log.WriteLine( "__DEBUG__PENDINGSPEED: " + pendingSpeedChange, LogType.Debug );
-        Log.WriteLine( "__DEBUG__FTDI: " + enterFTDIMode, LogType.Debug );
+		Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
 #endif
 
-        // Not really transferring anything, let's go
-        if ( allArgsAreSecondary ) return true;
+		// Remove the arg for the com port: COM* or /dev/tty*
+		for (int i = remainingArgs.Count - 1; i >= 0; i--)
+		{
 
-        // Outer loop: Does anything resemble an command? /dump, /poke, etc?
-        // Specified a command arg (or several for future-proofing)?
-        for ( int paramIndex = remainingArgs.Count - 1; paramIndex >= 0; paramIndex-- ) {
+			string s = remainingArgs[i];
 
-            string param = remainingArgs[ paramIndex ].ToLowerInvariant();
+			if (ValidIPAddress(s, ref argTargetDevice, ref argtargetPort))
+			{
+				// 127.0.0.1:1234 etc
+				remainingArgs.RemoveAt(i);
+				break;
+			}
+			else if (ValidTargetDevice(s, ref argTargetDevice))
+			{
+				// COM5 or /dev/uart_thing/                
+				remainingArgs.RemoveAt(i);
+				break;
+			}
 
-            // Inner loop: does it match any known commands?
-            // If so, check for sub params
-            // E.g. /dump <addr> <size> <filename>
-            // first one is uninitialised... ignore it
-            for ( int argIndex = 1; argIndex < (int)CommandMode.COUNT; argIndex++ ) {
+		}
 
-                CommandMode c = (CommandMode)argIndex;
+		// Cache the com port, or load the cached value
+		if (string.IsNullOrEmpty(argTargetDevice))
+		{
 
-                if ( param.ToLowerInvariant() == c.command() ) {
+			string readVal = "";
+			try
+			{
+				if (System.IO.File.Exists("comport.txt"))
+				{
+					readVal = File.ReadAllText("comport.txt");
+				}
+			}
+			catch (System.Exception e)
+			{
+				Log.WriteLine("Error checking for cached com port...\n" + e, LogType.Error);
+			}
 
-                    // Set the current value and remove
-                    // it from the list of available args
-                    argCommand = c;
-                    remainingArgs.RemoveAt( paramIndex );
+			if (ValidIPAddress(readVal, ref argTargetDevice, ref argtargetPort))
+			{
+				Log.WriteLine($"Using address and port: {argTargetDevice}:{argtargetPort}");
+			}
+			else if (ValidTargetDevice(readVal, ref argTargetDevice))
+			{
+				Log.WriteLine($"Using device {argTargetDevice}");
+			}
+			else
+			{
+				// I think the GC can manage the hit on this one :)
+				return Error($"\nERROR! Please specify a device or COM port in the format: {SampleCOMPortForEnvironment} or 127.0.0.1:1234, etc\ngot: {argCommand}");
+			}
 
-                    // Now we've removed the /command, if there's
-                    // an address after it, it will be remaningArgs[ arg ]
+			usingCachedPortOrAddress = true;
 
-                    // Does the command require an address value?
-                    if ( argCommand.hasAttribute<NeedsAddressAttribute>() ) {
+		}
+		else
+		{
 
-                        // end of the array!
-                        if ( paramIndex >= remainingArgs.Count ) {
-                            return Error( "Specify an address in the format 0x01234567\n" );
-                        }
+			// port was specified, cache it for later
+			try
+			{
+				string savedTarget = argtargetPort != 0 ? (argTargetDevice + ":" + argtargetPort) : argTargetDevice;
+				File.WriteAllText("comport.txt", savedTarget);
+			}
+			catch (System.Exception e)
+			{
+				Log.WriteLine("Error writing cached com port!\n" + e, LogType.Error);
+			}
+
+		}
+
+
+		// Are we using secondary args only? e.g. /fast /m
+		// in this case, there's no point processing the rest of the input
+		allArgsAreSecondary = true;
+		for (int i = remainingArgs.Count - 1; i >= 0; i--)
+		{
+
+			string lower = remainingArgs[i].ToLowerInvariant();
+
+			if (lower == "/m")
+			{
+				monitorComms = true;
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/fast")
+			{
+				if (pendingSpeedChange != SIOSpeed.UNINIT)
+				{
+					// See var decl for explanation
+					switchBackToSlowModeWhenFinished = true;
+				}
+				pendingSpeedChange = SIOSpeed.FAST;
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/medi")
+			{
+				if (pendingSpeedChange != SIOSpeed.UNINIT)
+				{
+					// See var decl for explanation
+					switchBackToSlowModeWhenFinished = true;
+				}
+				pendingSpeedChange = SIOSpeed.MEDI;
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/slow")
+			{
+				if (pendingSpeedChange != SIOSpeed.UNINIT)
+				{
+					// See var decl for explanation
+					switchBackToSlowModeWhenFinished = true;
+				}
+				else
+				{
+					// don't overwrite /fast, but switch *after* upload, etc
+					pendingSpeedChange = SIOSpeed.SLOW;
+				}
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/ftdi")
+			{
+				enterFTDIMode = true;
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/flat")
+			{
+				forceFlatMode = true;
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/gaps")
+			{
+				forceGappedMode = true;
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/v")
+			{
+				Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+				remainingArgs.RemoveAt(i);
+			}
+			else if (lower == "/nomanifest")
+			{
+				GDBServer.DisableManifest();
+				remainingArgs.RemoveAt(i);
+			}
+			else
+			{
+				allArgsAreSecondary = false;
+			}
+
+		}
+
 
 #if DebugArgs
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires an address ", LogType.Debug );
+		Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
+		Log.WriteLine("__DEBUG__TARGDEVICE: " + argTargetDevice, LogType.Debug);
+		Log.WriteLine("__DEBUG__TARGPORT: " + argtargetPort, LogType.Debug);
+		Log.WriteLine("__DEBUG__IP:TARGETPORT: " + argIP + ":" + argtargetPort, LogType.Debug);
+		Log.WriteLine("__DEBUG__IP:LISTENPORT: " + argIP + ":" + argListenPort, LogType.Debug);
+		Log.WriteLine("__DEBUG__PENDINGSPEED: " + pendingSpeedChange, LogType.Debug);
+		Log.WriteLine("__DEBUG__FTDI: " + enterFTDIMode, LogType.Debug);
 #endif
 
-                        // reassign it
-                        param = remainingArgs[ paramIndex ].ToLowerInvariant();
+		// Not really transferring anything, let's go
+		if (allArgsAreSecondary) return true;
 
-                        // try and get the address argument
-                        try {
-                            argAddr = ParseHexa( argCommand, param );
-                        } catch ( System.Exception ) {
-                            return Error( "EXCEPTION: Specify an address in the format 0x01234567" );
-                        }
+		// Outer loop: Does anything resemble an command? /dump, /poke, etc?
+		// Specified a command arg (or several for future-proofing)?
+		for (int paramIndex = remainingArgs.Count - 1; paramIndex >= 0; paramIndex--)
+		{
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedAddressRequirements = true;
+			string param = remainingArgs[paramIndex].ToLowerInvariant();
 
-                    }
+			// Inner loop: does it match any known commands?
+			// If so, check for sub params
+			// E.g. /dump <addr> <size> <filename>
+			// first one is uninitialised... ignore it
+			for (int argIndex = 1; argIndex < (int)CommandMode.COUNT; argIndex++)
+			{
 
-                    // Do we need a register?
-                    if ( argCommand.hasAttribute<NeedsRegisterAttribute>() ) {
+				CommandMode c = (CommandMode)argIndex;
 
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires a register ", LogType.Debug );
+				if (param.ToLowerInvariant() == c.command())
+				{
 
-                        // reassign it
-                        param = remainingArgs[ paramIndex ].ToLowerInvariant();
+					// Set the current value and remove
+					// it from the list of available args
+					argCommand = c;
+					remainingArgs.RemoveAt(paramIndex);
 
-                        // TODO: verify register validity?
-                        // TODO: settle on a format: R4 vs V0 vs $V0, etc
-                        argRegister = param;
+					// Now we've removed the /command, if there's
+					// an address after it, it will be remaningArgs[ arg ]
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedRegisterRequirements = true;
+					// Does the command require an address value?
+					if (argCommand.hasAttribute<NeedsAddressAttribute>())
+					{
 
-                    }
-
-                    // On top of that... do we need a size? E.g. for dumping bios.
-                    if ( argCommand.hasAttribute<NeedsSizeAttribute>() ) {
+						// end of the array!
+						if (paramIndex >= remainingArgs.Count)
+						{
+							return Error("Specify an address in the format 0x01234567\n");
+						}
 
 #if DebugArgs
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires a size parameter ", LogType.Debug );
+						Log.WriteLine("__DEBUG__Command " + c + " requires an address ", LogType.Debug);
 #endif
 
-                        // reassign it
-                        param = remainingArgs[ paramIndex ].ToLowerInvariant();
+						// reassign it
+						param = remainingArgs[paramIndex].ToLowerInvariant();
 
-                        // try to get the size argument
-                        try {
-                            argSize = ParseHexa( argCommand, param );
-                        } catch ( System.Exception ) {
-                            return Error( "EXCEPTION: Specify a size in the format 0x01234567" );
-                        }
+						// try and get the address argument
+						try
+						{
+							argAddr = ParseHexa(argCommand, param);
+						}
+						catch (System.Exception)
+						{
+							return Error("EXCEPTION: Specify an address in the format 0x01234567");
+						}
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedSizeRequirements = true;
+						remainingArgs.RemoveAt(paramIndex);
+						satisfiedAddressRequirements = true;
 
-                    }
+					}
 
-                    // Do we need a value? 1 - 4 bytes
-                    if ( argCommand.hasAttribute<NeedsValueAttribute>() ) {
+					// Do we need a register?
+					if (argCommand.hasAttribute<NeedsRegisterAttribute>())
+					{
+
+						Log.WriteLine("__DEBUG__Command " + c + " requires a register ", LogType.Debug);
+
+						// reassign it
+						param = remainingArgs[paramIndex].ToLowerInvariant();
+
+						// TODO: verify register validity?
+						// TODO: settle on a format: R4 vs V0 vs $V0, etc
+						argRegister = param;
+
+						remainingArgs.RemoveAt(paramIndex);
+						satisfiedRegisterRequirements = true;
+
+					}
+
+					// On top of that... do we need a size? E.g. for dumping bios.
+					if (argCommand.hasAttribute<NeedsSizeAttribute>())
+					{
 
 #if DebugArgs
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires a value parameter ", LogType.Debug );
+						Log.WriteLine("__DEBUG__Command " + c + " requires a size parameter ", LogType.Debug);
 #endif
 
-                        // reassign it
-                        param = remainingArgs[ paramIndex ].ToLowerInvariant();
+						// reassign it
+						param = remainingArgs[paramIndex].ToLowerInvariant();
 
-                        // try to get the size argument
-                        try {
-                            argValue = ParseHexa( argCommand, param );
-                        } catch ( System.Exception ) {
-                            return Error( "EXCEPTION: Specify a 1, 2 or 4 byte hex value" );
-                        }
+						// try to get the size argument
+						try
+						{
+							argSize = ParseHexa(argCommand, param);
+						}
+						catch (System.Exception)
+						{
+							return Error("EXCEPTION: Specify a size in the format 0x01234567");
+						}
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedValueRequirements = true;
+						remainingArgs.RemoveAt(paramIndex);
+						satisfiedSizeRequirements = true;
 
-                    }
+					}
 
-
-                    // if it uses both, then let's parse them as an IP:PORT combo
-                    if ( argCommand.hasAttribute<NeedsIPAttribute>()
-                        && argCommand.hasAttribute<NeedsPortAttribute>()
-                    ) {
+					// Do we need a value? 1 - 4 bytes
+					if (argCommand.hasAttribute<NeedsValueAttribute>())
+					{
 
 #if DebugArgs
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires an IP:PORT combo", LogType.Debug );
+						Log.WriteLine("__DEBUG__Command " + c + " requires a value parameter ", LogType.Debug);
 #endif
 
-                        if ( remainingArgs.Count == 0 ) {
-                            return Error( "Need an IP:PORT e.g. 192.168.0.7:1234\n" );
-                        }
+						// reassign it
+						param = remainingArgs[paramIndex].ToLowerInvariant();
 
-                        param = remainingArgs[ paramIndex ].ToLowerInvariant();
-                        if ( ValidIPAddress( remainingArgs[ paramIndex ], ref argIP, ref argListenPort ) ) {
-                            remainingArgs.RemoveAt( paramIndex );
-                            satisfiedAddressRequirements = true;
-                        }
+						// try to get the size argument
+						try
+						{
+							argValue = ParseHexa(argCommand, param);
+						}
+						catch (System.Exception)
+						{
+							return Error("EXCEPTION: Specify a 1, 2 or 4 byte hex value");
+						}
 
-                    }
+						remainingArgs.RemoveAt(paramIndex);
+						satisfiedValueRequirements = true;
 
-                    // We might've already done a check for ip:port combos
-                    if ( !satisfiedPortRequirements && !satisfiedIPRequirements ) {
+					}
 
-                        if ( argCommand.hasAttribute<NeedsIPAttribute>() ) {
+
+					// if it uses both, then let's parse them as an IP:PORT combo
+					if (argCommand.hasAttribute<NeedsIPAttribute>()
+						&& argCommand.hasAttribute<NeedsPortAttribute>()
+					)
+					{
 
 #if DebugArgs
-                            Log.WriteLine( "__DEBUG__Command " + c + " requires an IP/host parameter!", LogType.Debug );
+						Log.WriteLine("__DEBUG__Command " + c + " requires an IP:PORT combo", LogType.Debug);
 #endif
-                            argIP = param;
-                            remainingArgs.RemoveAt( paramIndex );
-                            satisfiedIPRequirements = true;
 
-                        } // needs ip
+						if (remainingArgs.Count == 0)
+						{
+							return Error("Need an IP:PORT e.g. 192.168.0.7:1234\n");
+						}
 
-                        if ( argCommand.hasAttribute<NeedsPortAttribute>() ) {
+						param = remainingArgs[paramIndex].ToLowerInvariant();
+						if (ValidIPAddress(remainingArgs[paramIndex], ref argIP, ref argListenPort))
+						{
+							remainingArgs.RemoveAt(paramIndex);
+							satisfiedAddressRequirements = true;
+						}
+
+					}
+
+					// We might've already done a check for ip:port combos
+					if (!satisfiedPortRequirements && !satisfiedIPRequirements)
+					{
+
+						if (argCommand.hasAttribute<NeedsIPAttribute>())
+						{
 
 #if DebugArgs
-                            Log.WriteLine( "__DEBUG__Command " + c + " requires a local/remote port!", LogType.Debug);
+							Log.WriteLine("__DEBUG__Command " + c + " requires an IP/host parameter!", LogType.Debug);
 #endif
+							argIP = param;
+							remainingArgs.RemoveAt(paramIndex);
+							satisfiedIPRequirements = true;
 
-                            if ( remainingArgs.Count == 0 ) {
-                                return Error( "Need to specify a local TCP/IP port!" );
-                            }
+						} // needs ip
 
-                            param = remainingArgs[ paramIndex ].ToLowerInvariant();
-
-                            if ( !UInt32.TryParse( param, out argListenPort ) ) {
-                                return Error( "EXCEPTION: Couldn't parse a valid port number from \"" + param + "\"" );
-                            }
-
-                            remainingArgs.RemoveAt( paramIndex );
-                            satisfiedPortRequirements = true;
-
-                        } // port
-
-                    } // port and ip already satisfied
-
-                    if ( argCommand.hasAttribute<NeedsStringAttribute>() ) {
+						if (argCommand.hasAttribute<NeedsPortAttribute>())
+						{
 
 #if DebugArgs
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires a memcard parameter ", LogType.Debug);
+							Log.WriteLine("__DEBUG__Command " + c + " requires a local/remote port!", LogType.Debug);
 #endif
 
-                        argString = remainingArgs[ paramIndex ];
+							if (remainingArgs.Count == 0)
+							{
+								return Error("Need to specify a local TCP/IP port!");
+							}
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedStringRequirements = true;
+							param = remainingArgs[paramIndex].ToLowerInvariant();
 
-                    }
+							if (!UInt32.TryParse(param, out argListenPort))
+							{
+								return Error("EXCEPTION: Couldn't parse a valid port number from \"" + param + "\"");
+							}
 
-                    // Do we need a memcard number
-                    if ( argCommand.hasAttribute<NeedsCardNumberAttribute>() ) {
+							remainingArgs.RemoveAt(paramIndex);
+							satisfiedPortRequirements = true;
+
+						} // port
+
+					} // port and ip already satisfied
+
+					if (argCommand.hasAttribute<NeedsStringAttribute>())
+					{
 
 #if DebugArgs
-                        Log.WriteLine( "__DEBUG__Command " + c + " requires a memcard parameter ", LogType.Debug);
+						Log.WriteLine("__DEBUG__Command " + c + " requires a memcard parameter ", LogType.Debug);
 #endif
 
-                        // reassign it
-                        param = remainingArgs[ paramIndex ].ToLowerInvariant();
+						argString = remainingArgs[paramIndex];
 
-                        argCard = UInt32.Parse( param );
+						remainingArgs.RemoveAt(paramIndex);
+						satisfiedStringRequirements = true;
 
-                        /*
+					}
+
+					// Do we need a memcard number
+					if (argCommand.hasAttribute<NeedsCardNumberAttribute>())
+					{
+
+#if DebugArgs
+						Log.WriteLine("__DEBUG__Command " + c + " requires a memcard parameter ", LogType.Debug);
+#endif
+
+						// reassign it
+						param = remainingArgs[paramIndex].ToLowerInvariant();
+
+						argCard = UInt32.Parse(param);
+
+						/*
                         // Working on something interesting here... hold tight.
                         if ( _arg != "0" && _arg != "1" ){
                             return Error( "EXCEPTION: memory card should be 0 or 1!" );
@@ -880,615 +960,697 @@ internal partial class Program {
                         }
                         */
 
-                        remainingArgs.RemoveAt( paramIndex );
-                        satisfiedCardRequirement = true;
+						remainingArgs.RemoveAt(paramIndex);
+						satisfiedCardRequirement = true;
 
-                    }
+					}
 
-                    break; // outer loop to check new args
+					break; // outer loop to check new args
 
-                }
+				}
 
-            } // inner loop
-
-
-        } // outer loop
+			} // inner loop
 
 
-        Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
-        Log.WriteLine( "__DEBUG__COM: " + argTargetDevice, LogType.Debug );
-        Log.WriteLine("__DEBUG__COMMAND: " + argCommand, LogType.Debug );
-        Log.WriteLine("__DEBUG__ADDR: " + argAddr.ToString( "X8" ), LogType.Debug);
-        Log.WriteLine("__DEBUG__VALUE: " + argValue.ToString( "X8" ), LogType.Debug);
+		} // outer loop
 
 
-        if ( argCommand == CommandMode.NOT_SET ) {
-            return Error( "Please specify a command - e.g. /r, /e /b, etc!\n\n" );
-        }
+		Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
+		Log.WriteLine("__DEBUG__COM: " + argTargetDevice, LogType.Debug);
+		Log.WriteLine("__DEBUG__COMMAND: " + argCommand, LogType.Debug);
+		Log.WriteLine("__DEBUG__ADDR: " + argAddr.ToString("X8"), LogType.Debug);
+		Log.WriteLine("__DEBUG__VALUE: " + argValue.ToString("X8"), LogType.Debug);
 
 
-        // Do we need to load an .exe, .rom, data etc?
-        if ( argCommand.hasAttribute<NeedsInputFileAttribute>() ) {
+		if (argCommand == CommandMode.NOT_SET)
+		{
+			return Error("Please specify a command - e.g. /r, /e /b, etc!\n\n");
+		}
 
-            // One of the args specifies a file?
-            for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
 
-                string fName = remainingArgs[ i ];
-                argFileName = fName;
+		// Do we need to load an .exe, .rom, data etc?
+		if (argCommand.hasAttribute<NeedsInputFileAttribute>())
+		{
 
-                try {
-                    inFile = File.ReadAllBytes( fName );
-                } catch ( System.Exception e ) {
-                    return Error( "Couldn't open input file " + fName + " Exception: " + e );
-                }
+			// One of the args specifies a file?
+			for (int i = remainingArgs.Count - 1; i >= 0; i--)
+			{
 
-                satisfiedInputFileRequirements = true;
-                remainingArgs.RemoveAt( i );
+				string fName = remainingArgs[i];
+				argFileName = fName;
 
-            }
+				try
+				{
+					inFile = File.ReadAllBytes(fName);
+				}
+				catch (System.Exception e)
+				{
+					return Error("Couldn't open input file " + fName + " Exception: " + e);
+				}
 
-        }
+				satisfiedInputFileRequirements = true;
+				remainingArgs.RemoveAt(i);
 
-        // Do we need to save somewhere?
-        if ( argCommand.hasAttribute<NeedsOutputFileAttribute>() ) {
+			}
 
-            // One of the args specifies a file?
-            for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
-                argFileName = remainingArgs[ i ];
-                remainingArgs.RemoveAt( i );
-                satisfiedOutputFileRequirements = true;
-            }
+		}
 
-        }
+		// Do we need to save somewhere?
+		if (argCommand.hasAttribute<NeedsOutputFileAttribute>())
+		{
 
-        // The /poke command for example doesn't require a filename
-        // so that requirement is considered satisfied.
-        if ( !argCommand.hasAttribute<NeedsRegisterAttribute>() ) satisfiedRegisterRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsAddressAttribute>() ) satisfiedAddressRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsSizeAttribute>() ) satisfiedSizeRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsValueAttribute>() ) satisfiedValueRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsCardNumberAttribute>() ) satisfiedCardRequirement = true;
-        if ( !argCommand.hasAttribute<NeedsInputFileAttribute>() ) satisfiedInputFileRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsOutputFileAttribute>() ) satisfiedOutputFileRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsIPAttribute>() ) satisfiedIPRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsPortAttribute>() ) satisfiedPortRequirements = true;
-        if ( !argCommand.hasAttribute<NeedsStringAttribute>() ) satisfiedStringRequirements = true;
+			// One of the args specifies a file?
+			for (int i = remainingArgs.Count - 1; i >= 0; i--)
+			{
+				argFileName = remainingArgs[i];
+				remainingArgs.RemoveAt(i);
+				satisfiedOutputFileRequirements = true;
+			}
 
-        // Missed something...
-        if ( !satisfiedAddressRequirements ) return Error( "Did you specify an address or hex value? E.g. 0x23456788\n" );
-        if ( !satisfiedSizeRequirements ) return Error( "Did you specify a size? E.g. 0x23456788\n" );
-        if ( !satisfiedRegisterRequirements ) return Error( "Did you specify a register? E.g. a0" );
-        if ( !satisfiedValueRequirements ) return Error( "Specify a 1-4 byte value in the format 0x01" );
-        if ( !satisfiedCardRequirement ) return Error( "Specify memory card 0 or 1!" );
-        if ( !satisfiedInputFileRequirements ) return Error( "Specify an input file!" );
-        if ( !satisfiedOutputFileRequirements ) return Error( "Specify a filename to write to!" );
-        if ( !satisfiedIPRequirements ) return Error( "Specify a remote host/ip!" );
-        if ( !satisfiedPortRequirements ) return Error( "Specify a local or remote port!" );
-        if ( !satisfiedStringRequirements ) return Error( "Need a string with either \"\" or ''!" );
+		}
+
+		// The /poke command for example doesn't require a filename
+		// so that requirement is considered satisfied.
+		if (!argCommand.hasAttribute<NeedsRegisterAttribute>()) satisfiedRegisterRequirements = true;
+		if (!argCommand.hasAttribute<NeedsAddressAttribute>()) satisfiedAddressRequirements = true;
+		if (!argCommand.hasAttribute<NeedsSizeAttribute>()) satisfiedSizeRequirements = true;
+		if (!argCommand.hasAttribute<NeedsValueAttribute>()) satisfiedValueRequirements = true;
+		if (!argCommand.hasAttribute<NeedsCardNumberAttribute>()) satisfiedCardRequirement = true;
+		if (!argCommand.hasAttribute<NeedsInputFileAttribute>()) satisfiedInputFileRequirements = true;
+		if (!argCommand.hasAttribute<NeedsOutputFileAttribute>()) satisfiedOutputFileRequirements = true;
+		if (!argCommand.hasAttribute<NeedsIPAttribute>()) satisfiedIPRequirements = true;
+		if (!argCommand.hasAttribute<NeedsPortAttribute>()) satisfiedPortRequirements = true;
+		if (!argCommand.hasAttribute<NeedsStringAttribute>()) satisfiedStringRequirements = true;
+
+		// Missed something...
+		if (!satisfiedAddressRequirements) return Error("Did you specify an address or hex value? E.g. 0x23456788\n");
+		if (!satisfiedSizeRequirements) return Error("Did you specify a size? E.g. 0x23456788\n");
+		if (!satisfiedRegisterRequirements) return Error("Did you specify a register? E.g. a0");
+		if (!satisfiedValueRequirements) return Error("Specify a 1-4 byte value in the format 0x01");
+		if (!satisfiedCardRequirement) return Error("Specify memory card 0 or 1!");
+		if (!satisfiedInputFileRequirements) return Error("Specify an input file!");
+		if (!satisfiedOutputFileRequirements) return Error("Specify a filename to write to!");
+		if (!satisfiedIPRequirements) return Error("Specify a remote host/ip!");
+		if (!satisfiedPortRequirements) return Error("Specify a local or remote port!");
+		if (!satisfiedStringRequirements) return Error("Need a string with either \"\" or ''!");
 
 
 #if DebugArgs
-        Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
-        Log.WriteLine("__DEBUG__FILENAME: " + argFileName, LogType.Debug);
-        Log.WriteLine("__DEBUG__INPUTFILE: " + inFile, LogType.Debug);
-        Log.WriteLine("__DEBUG__stringArg: " + argString, LogType.Debug);
+		Log.WriteLine("__DEBUG__Argsleft: " + remainingArgs.Count, LogType.Debug);
+		Log.WriteLine("__DEBUG__FILENAME: " + argFileName, LogType.Debug);
+		Log.WriteLine("__DEBUG__INPUTFILE: " + inFile, LogType.Debug);
+		Log.WriteLine("__DEBUG__stringArg: " + argString, LogType.Debug);
 #endif
 
-        // there shouldn't be any arguments left!
-        // (noise on the console, etc)
-        if ( remainingArgs.Count > 0 ) {
+		// there shouldn't be any arguments left!
+		// (noise on the console, etc)
+		if (remainingArgs.Count > 0)
+		{
+
+			for (int i = remainingArgs.Count - 1; i >= 0; i--)
+			{
+
+				Error("Unknown arg! " + remainingArgs[i]);
+
+			}
+
+			return false;
+
+		}
+
+		// All done
+		return true;
+
+	} //VerifyArgs
 
-            for ( int i = remainingArgs.Count - 1; i >= 0; i-- ) {
+
+	// Quite satisfyingly small
+	private static void Main(string[] args)
+	{
+		Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error);
+
+		ApplyConsoleMode();
+
+		// Verify all the required args are present and parsed properly
+		if (!VerifyArgs(args))
+		{
+			return;
+		}
+
+		// Do stuff about it.
+		DoStuff();
+
+	}
+
+	/// <summary>
+	/// Set up a new serial connection on the port we parsed earlier
+	/// </summary>
+	/// <param name="inSpeed">Go fast or not go fast</param>	
+	private static bool NewSIO(SIOSpeed inSpeed)
+	{
+
+		if (activeSerial != null) activeSerial.Close();
+
+
+		// We need to find a suitable overlap in frequencies which can be divided
+		// from the Playstation's clock and from the FTDI/clone, with some wiggle room.
+		//
+		// PSX/libs uses whole integer divisions of 2073600 for anything over 115200
+		// giving us 518400 close to the half-megabyte mark.
+		//		
+		// Most FTDI/clones seem to operate in 2xinteger divisions of 48mhz
+		// giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/2)
+		//
+		// 5210000 (and even 518400) is a little fast, but the lower end
+		// of things (510000 to 518300) seems pretty stable.
+		//
+		// note: psx @ 518400, pc @ 510000
+		//
 
-                Error( "Unknown arg! " + remainingArgs[ i ] );
 
-            }
-
-            return false;
-
-        }
-
-        // All done
-        return true;
-
-    } //VerifyArgs
-
-
-    // Quite satisfyingly small
-    private static void Main( string[] args ) {
-        Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error);
-
-        ApplyConsoleMode();
-
-        // Verify all the required args are present and parsed properly
-        if ( !VerifyArgs( args ) ) {
-            return;
-        }
-
-        // Do stuff about it.
-        DoStuff();
-
-    }
-
-    /// <summary>
-    /// Set up a new serial connection on the port we parsed earlier
-    /// </summary>
-    /// <param name="inSpeed">Go fast or not go fast</param>	
-    private static bool NewSIO( SIOSpeed inSpeed ) {
-
-        if ( activeSerial != null ) activeSerial.Close();
-
-
-        // We need to find a suitable overlap in frequencies which can be divided
-        // from the Playstation's clock and from the FTDI/clone, with some wiggle room.
-        //
-        // PSX/libs uses whole integer divisions of 2073600 for anything over 115200
-        // giving us 518400 close to the half-megabyte mark.
-        //		
-        // Most FTDI/clones seem to operate in 2xinteger divisions of 48mhz
-        // giving us 510000 or 521000 close to the half-megabyte mark. e.g. (48m/47/2) or (48m/46/2)
-        //
-        // 5210000 (and even 518400) is a little fast, but the lower end
-        // of things (510000 to 518300) seems pretty stable.
-        //
-        // note: psx @ 518400, pc @ 510000
-        //
-
-
-        if ( argtargetPort != 0 ) {
-            activeSerial = new TCPTarget( argTargetDevice, argtargetPort, inSpeed );
-        } else {
-            activeSerial = new SerialTarget( argTargetDevice, inSpeed, (int)inSpeed, Parity.None, 8, StopBits.One );
-        }
-        // Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
-        activeSerial.Handshake = Handshake.None;
-        activeSerial.DtrEnable = true;
-        activeSerial.RtsEnable = true;
-        activeSerial.ReadTimeout = TIMEOUT;
-        activeSerial.WriteTimeout = TIMEOUT;
-
-        try {
-            activeSerial.Open();
-        } catch ( System.Exception exception ) {
-            Log.WriteLine( "Error opening temporary serial port on " + argTargetDevice + " speed=" + inSpeed + "!", LogType.Error );
-            Log.WriteLine( exception.Message, LogType.Error );
-            return false;
-        }
-
-        return true;
-
-    }
-
-
-    /// <summary>
-    /// We've parsed everything from stdin, let's start processing it.
-    /// </summary>
-    /// <returns>success?</returns>
-    private static bool DoStuff() {
-
-        PrintUsage( true );
-
-        //
-        // Process the secondary/standalone commands
-        // /fast, /slow, /m, etc
-        //
-
-        if ( enterFTDIMode ) {
-
-            if ( !NewSIO( SIOSpeed.FTDI ) ) return false;
-
-        } else if ( pendingSpeedChange != SIOSpeed.UNINIT ) {
-
-            if ( pendingSpeedChange == SIOSpeed.FAST || pendingSpeedChange == SIOSpeed.MEDI ) {
-                // switch to slow/default and then send a "FAST" or "MEDI"
-                // uni doesn't have to respond, so if it's already in fast/medi mode, no problem
-                if ( !NewSIO( SIOSpeed.SLOW ) ) return false;
-
-                // the raw bytes for "FAST" or "MEDI"
-                activeSerial.Write( BitConverter.GetBytes( pendingSpeedChange.ToCommand() ), 0, 4 );
-                Thread.Sleep( 100 );
-
-                // then switch to the pending speed
-                if ( !NewSIO( pendingSpeedChange ) ) return false;
-
-            } else {
-
-                // default to slow mode
-                // e.g. so you can upload something in FAST but then return to SLOW
-
-                // Try to return FAST mode to SLOW
-                if ( !NewSIO( SIOSpeed.FAST ) ) return false;
-                // The bytes "SLOW" with no null terminator
-                activeSerial.Write( BitConverter.GetBytes( SIOSpeed.SLOW.ToCommand() ), 0, 4 );
-                Thread.Sleep( 100 );
-
-                // Try to return MEDI mode to SLOW
-                if ( !NewSIO( SIOSpeed.MEDI ) ) return false;
-                // The bytes "MEDI" with no null terminator
-                activeSerial.Write( BitConverter.GetBytes( SIOSpeed.SLOW.ToCommand() ), 0, 4 );
-                Thread.Sleep( 100 );
-
-                // Hopefully uni is in SLOW mode now, so finally
-                // switch NOPS over to match                
-                if ( !NewSIO( SIOSpeed.SLOW ) ) return false;
-
-
-            }
-
-        } else {
-
-            if ( !NewSIO( SIOSpeed.SLOW ) ) return false;
-
-        }
-
-        // Older versions will just time out
-        if ( forceFlatMode ){
-            if ( !TransferLogic.ChallengeResponse("FLAT", "OKFL", 500) )
-            {
-                Error( "This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!" );
-                return false;
-            } else {
-                Log.WriteLine( "Forced flat mode...", LogType.Info );
-            }
-        }
-        if ( forceGappedMode ){
-            if ( !TransferLogic.ChallengeResponse("GAPS", "OKGP", 500) )
-            {
-                Error( "This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!" );
-                return false;
-            } else {
-                Log.WriteLine( "Forced gapped mode..." );
-            }
-        }
-        
-        // If we got /m on its own
-        if ( monitorComms && argCommand == CommandMode.NOT_SET ) {
-            Bridge.MonitorSerial();
-            return true;
-        }
-
-        // we just did 'nops /fast /m' or something
-        if ( allArgsAreSecondary ) return true;
-
-
-        //
-        // A little cleanup...
-        //
-
-        if ( usingCachedPortOrAddress ) {
-            Log.WriteLine( "Using port " + argTargetDevice + " from comport.txt\n" );
-        }
-
-        // Clear the SIO buffer incase the last program has been spamming
-
-        Log.WriteLine( "Emptying buffer... ", LogType.Debug );
-        while ( activeSerial.BytesToRead != 0 ) {
-            Log.Write( "" + (char)activeSerial.ReadByte(), LogType.Stream );
-        }
-        Log.WriteLine( "...done!\n\n", LogType.Debug);
-
-
-        //
-        // Process the primary commands
-        //
-
-        // Upload
-
-        if ( argCommand == CommandMode.SEND_EXE ) {
-            TransferLogic.Command_SendEXE( inFile );
-        }
-
-        if ( argCommand == CommandMode.SEND_BIN ) {
-            TransferLogic.Command_SendBin( argAddr, inFile );
-        }
-
-        if ( argCommand == CommandMode.SEND_ROM ) {
-            TransferLogic.Command_SendROM( argAddr, inFile );
-        }
-
-        // Program flow
-
-        if ( argCommand == CommandMode.JUMP_JMP ) {
-            TransferLogic.Command_JumpAddr( argAddr );
-        }
-
-        if ( argCommand == CommandMode.JUMP_CALL ) {
-            TransferLogic.Command_CallAddr( argAddr );
-        }
-
-        // Pokeypoke
-
-        if ( argCommand == CommandMode.POKE8 ) {
-            byte[] bytes = { (byte)(argValue & 0xFF) };
-            TransferLogic.Command_SendBin( argAddr, bytes );
-        }
-
-        if ( argCommand == CommandMode.POKE16 ) {
-            short shorty = (short)(argValue & 0xFFFF);
-            byte[] bytes = BitConverter.GetBytes( shorty );
-            TransferLogic.Command_SendBin( argAddr, bytes );
-        }
-
-        if ( argCommand == CommandMode.POKE32 ) {
-            byte[] bytes = BitConverter.GetBytes( argValue );
-            TransferLogic.Command_SendBin( argAddr, bytes );
-        }
-
-        // Utility
-
-        if ( argCommand == CommandMode.PING ) {
-            TransferLogic.ChallengeResponse( argCommand );
-        }
-
-        if ( argCommand == CommandMode.RESET ) {
-            TransferLogic.WriteChallenge( argCommand.challenge() );
-        }
-
-        // Debug functions
-
-        if ( argCommand == CommandMode.DEBUG ) {
-
-            // if it returns true, we might enter /m (monitor) mode, etc
-            if (
-                !TransferLogic.ChallengeResponse( argCommand )
-            ) return false;
-
-        }
-
-        if ( argCommand == CommandMode.HALT ) {
-            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
-            TransferLogic.Halt( false );
-        }
-
-        if ( argCommand == CommandMode.CONT ) {
-            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
-            TransferLogic.Cont( false );
-        }
-
-        if ( argCommand == CommandMode.REGS ) {
-            Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
-            TransferLogic.Command_DumpRegs();
-        }
-
-        if ( argCommand == CommandMode.SETREG ) {
-            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
-            if ( !TransferLogic.Command_SetReg( argRegister, argValue ) ) {
-                return Error( "Couldn't set reg " + argRegister + " to " + argValue, false );
-            }
-
-        }
-
-
-        // Hook functions
-
-        if (
-            argCommand == CommandMode.HOOKREAD
-            || argCommand == CommandMode.HOOKWRITE
-            || argCommand == CommandMode.HOOKEXEC
-        ) {
-            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
-            TransferLogic.HookAddr( argCommand, argAddr );
-        }
-
-        if ( argCommand == CommandMode.UNHOOK ){
-            Log.SetLevel( LogType.Info | LogType.Warning | LogType.Error | LogType.Debug );
-            TransferLogic.Unhook();
-        }
-
-        // Memory card 
-
-        if ( argCommand == CommandMode.MCUP ) {
-
-            if ( !TransferLogic.Command_MemcardUpload( argCard, inFile ) ) return false;
-        }
-
-        if ( argCommand == CommandMode.WIPEMEM ) {
-
-            if ( !TransferLogic.Command_WipeMem( argAddr, argValue ) ) return false;
-        }
-
-        if ( argCommand == CommandMode.MCDOWN ) {
-            if ( !TransferLogic.Command_MemcardDownload( argCard, argFileName ) )
-                return false;
-        }
-
-        // Peek / Read functions
-
-        if ( argCommand == CommandMode.DUMP ) {
-            if ( !TransferLogic.Command_Dump( argAddr, argSize, argFileName ) )
-                return false;
-
-        }
-
-        if ( argCommand == CommandMode.WATCH ) {
-
-            TransferLogic.Watch( argAddr, argSize );
-            return true;
-
-        }
-
-        //
-        // STDIN / RAW
-        //
-
-        if ( argCommand == CommandMode.TYPESTRING ) {
-
-            // the sio HW only has 4 bytes available
-            // You could work out a specification and pre-send the
-            // expected text length with checksums, etc...
-            // or you cold type at a speed that gives you
-            // the chance to catch a few key strokes without
-            // entering a tight while loop.
-            Log.WriteLine( "Writing raw string: " + argString );
-            byte[] bytes = System.Text.Encoding.ASCII.GetBytes( argString );
-
-            for ( int i = 0; i < bytes.Length; i++ ) {
-                activeSerial.Write( bytes, i, 1 );
-                Thread.Sleep( 20 ); // 50fps to account for pal
-            }
-
-        }
-
-        // The user probs wants to upload in fast mode
-        // then switch back to slow mode as uni loads by default
-        // this sort of thing should be fixed with V3 protocol
-        if ( switchBackToSlowModeWhenFinished ) {
-            if ( NewSIO( SIOSpeed.SLOW ) ) {
-                Console.WriteLine( $"Switched back to {(int)SIOSpeed.SLOW} baud..." );
-            } else {
-                Error( $"Failed to switch back to {(int)SIOSpeed.SLOW} baud..." );
-            }
-        }
-
-
-        //
-        // Major work in progress
-        //
-
-        if ( argCommand == CommandMode.GDB ) {
-            //GDB.DebugInit( argListenPort, argIP );
-            Bridge.Init( MonitorMode.GDB, argListenPort, argIP);
-        }
-
-        if ( argCommand == CommandMode.BRIDGE ) {
-            Bridge.Init( MonitorMode.SERIALBRIDGE, argListenPort, argIP );
-        }
-
-        //
-        // All done, are we leaving the comms monitor open?
-        //
-
-        if ( monitorComms ) {
-            Bridge.MonitorSerial();
-        } else {
-            Log.WriteLine( "\n Bye!" );
-            activeSerial.Close();
-        }
-
-        return true;
-
-    } // void Transfer
-
-
-    /// <summary>
-    /// A sample (for the help menu) of how the port should be written
-    /// on this specific operating system.
-    /// </summary>
-    // Older .NET so using getter/setter instead of expression-bodied statements.
-    public static string SampleCOMPortForEnvironment {
-        get {
-
-            switch ( realPlatform ) {
-
-                // windows/defaults
-                default:
-                    return "COM8";
-                // most mac drivers seem to default to this
-                case PlatformID.MacOSX:
-                    //return "/dev/cu.usbserial-********";            
-                    //return "(/dev/cu.usbserial-******** or /dev/tty.SLAB_USBtoUART";
-                    return "(/dev/cu.usb* or /dev/tty.SLAB_USBtoUART";
-                // mono's (old) unofficial "Unix" ID
-                case (PlatformID)128:
-                case PlatformID.Unix:
-                    return "/dev/ttyUSB0";
-            }
-
-        }
-    }
-
-
-    /// <summary>
-    /// Verify that the port argument is (potentially) valid
-    /// </summary>
-    /// <param name="inDevice">COM5, /dev/ttyUSB0, etc</param>
-    /// <returns>Does it look potentially valid?</returns>
-    public static bool ValidTargetDevice( string inDevice, ref string outTargetDevice ) {
-
-        switch ( realPlatform ) {
-
-            // A windowsy sort of affair
-            default:
-                if ( inDevice.ToUpperInvariant().StartsWith( "COM" ) )
-                    goto yay;
-                break;
-
-            // Mac
-            case PlatformID.MacOSX:
-                if ( inDevice.ToLowerInvariant().StartsWith( "/dev/cu" ) | inDevice.ToLowerInvariant().StartsWith( "/dev/tty" ) )
-                    goto yay;
-                break;
-
-            // Some kinda POSIXy environment
-            // Allow any tty device as *nix users could be using all sorts of pipes n redirects
-            case (PlatformID)128:
-            case PlatformID.Unix:
-                if ( inDevice.ToLowerInvariant().StartsWith( "/dev/tty" ) )
-                    goto yay;
-                break;
-
-        }
-
-        // nay
-        return false;
-
-        yay:;
-        outTargetDevice = inDevice;
-        return true;
-
-    }
-
-    /// <summary>
-    /// Check if we have something in the format addr:port or ip:port
-    /// Hint: just lookin' for that ":"
-    /// </summary>
-    /// <param name="inAddress"></param>
-    /// <returns>yay or nay</returns>
-    /// TODO: this will not play nice with ipv6
-    public static bool ValidIPAddress( string inAddress, ref string outAddr, ref UInt32 outPort ) {
-
-        // no separator, move on
-        if ( inAddress.IndexOf( ":" ) == -1 ) return false;
-
-        string[] parts = inAddress.Split( ':' );
-
-        // too many bits
-        if ( parts.Length != 2 ) return false;
-
-        if ( parts[ 0 ].Length == 0 ) return false;
-        if ( parts[ 1 ].Length == 0 ) return false;
-
-        // what about the start bit
-        // is it 4 numbers separated by 3 dots?
-
-        string[] bytes = parts[ 0 ].Split( '.' );
-        if ( bytes.Length != 4 ) return false;
-
-        for ( int i = 0; i < 4; i++ ) {
-            UInt32 dummy = 0; // less code than trycatch :)
-            if ( !UInt32.TryParse( bytes[ i ], out dummy ) ) {
-                return false;
-            }
-        }
-
-        // First bit looks like an IP
-        // Does the last bit look like a uint?
-
-        try {
-            outPort = UInt32.Parse( parts[ 1 ] );
-        } catch ( System.Exception ) {
-            return false;
-        }
-
-        satisfiedPortRequirements = true;
-        satisfiedIPRequirements = true;
-
-        outAddr = parts[ 0 ];
-
-        // Guess it's valid
-        return true;
-
-    }
+		if (argtargetPort != 0)
+		{
+			activeSerial = new TCPTarget(argTargetDevice, argtargetPort, inSpeed);
+		}
+		else
+		{
+			activeSerial = new SerialTarget(argTargetDevice, inSpeed, (int)inSpeed, Parity.None, 8, StopBits.One);
+		}
+		// Required for e.g. SharkLink & Yaroze cable compat. Doesn't interfere with the 3-wire setups
+		activeSerial.Handshake = Handshake.None;
+		activeSerial.DtrEnable = true;
+		activeSerial.RtsEnable = true;
+		activeSerial.ReadTimeout = TIMEOUT;
+		activeSerial.WriteTimeout = TIMEOUT;
+
+		try
+		{
+			activeSerial.Open();
+		}
+		catch (System.Exception exception)
+		{
+			Log.WriteLine("Error opening temporary serial port on " + argTargetDevice + " speed=" + inSpeed + "!", LogType.Error);
+			Log.WriteLine(exception.Message, LogType.Error);
+			return false;
+		}
+
+		return true;
+
+	}
+
+
+	/// <summary>
+	/// We've parsed everything from stdin, let's start processing it.
+	/// </summary>
+	/// <returns>success?</returns>
+	private static bool DoStuff()
+	{
+
+		PrintUsage(true);
+
+		//
+		// Process the secondary/standalone commands
+		// /fast, /slow, /m, etc
+		//
+
+		if (enterFTDIMode)
+		{
+
+			if (!NewSIO(SIOSpeed.FTDI)) return false;
+
+		}
+		else if (pendingSpeedChange != SIOSpeed.UNINIT)
+		{
+
+			if (pendingSpeedChange == SIOSpeed.FAST || pendingSpeedChange == SIOSpeed.MEDI)
+			{
+				// switch to slow/default and then send a "FAST" or "MEDI"
+				// uni doesn't have to respond, so if it's already in fast/medi mode, no problem
+				if (!NewSIO(SIOSpeed.SLOW)) return false;
+
+				// the raw bytes for "FAST" or "MEDI"
+				activeSerial.Write(BitConverter.GetBytes(pendingSpeedChange.ToCommand()), 0, 4);
+				Thread.Sleep(100);
+
+				// then switch to the pending speed
+				if (!NewSIO(pendingSpeedChange)) return false;
+
+			}
+			else
+			{
+
+				// default to slow mode
+				// e.g. so you can upload something in FAST but then return to SLOW
+
+				// Try to return FAST mode to SLOW
+				if (!NewSIO(SIOSpeed.FAST)) return false;
+				// The bytes "SLOW" with no null terminator
+				activeSerial.Write(BitConverter.GetBytes(SIOSpeed.SLOW.ToCommand()), 0, 4);
+				Thread.Sleep(100);
+
+				// Try to return MEDI mode to SLOW
+				if (!NewSIO(SIOSpeed.MEDI)) return false;
+				// The bytes "MEDI" with no null terminator
+				activeSerial.Write(BitConverter.GetBytes(SIOSpeed.SLOW.ToCommand()), 0, 4);
+				Thread.Sleep(100);
+
+				// Hopefully uni is in SLOW mode now, so finally
+				// switch NOPS over to match                
+				if (!NewSIO(SIOSpeed.SLOW)) return false;
+
+
+			}
+
+		}
+		else
+		{
+
+			if (!NewSIO(SIOSpeed.SLOW)) return false;
+
+		}
+
+		// Older versions will just time out
+		if (forceFlatMode)
+		{
+			if (!TransferLogic.ChallengeResponse("FLAT", "OKFL", 500))
+			{
+				Error("This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!");
+				return false;
+			}
+			else
+			{
+				Log.WriteLine("Forced flat mode...", LogType.Info);
+			}
+		}
+		if (forceGappedMode)
+		{
+			if (!TransferLogic.ChallengeResponse("GAPS", "OKGP", 500))
+			{
+				Error("This version of unirom doesn't support /flat or /gaps, try 8.0.K or higher!");
+				return false;
+			}
+			else
+			{
+				Log.WriteLine("Forced gapped mode...");
+			}
+		}
+
+		// If we got /m on its own
+		if (monitorComms && argCommand == CommandMode.NOT_SET)
+		{
+			Bridge.MonitorSerial();
+			return true;
+		}
+
+		// we just did 'nops /fast /m' or something
+		if (allArgsAreSecondary) return true;
+
+
+		//
+		// A little cleanup...
+		//
+
+		if (usingCachedPortOrAddress)
+		{
+			Log.WriteLine("Using port " + argTargetDevice + " from comport.txt\n");
+		}
+
+		// Clear the SIO buffer incase the last program has been spamming
+
+		Log.WriteLine("Emptying buffer... ", LogType.Debug);
+		while (activeSerial.BytesToRead != 0)
+		{
+			Log.Write("" + (char)activeSerial.ReadByte(), LogType.Stream);
+		}
+		Log.WriteLine("...done!\n\n", LogType.Debug);
+
+
+		//
+		// Process the primary commands
+		//
+
+		// Upload
+
+		if (argCommand == CommandMode.SEND_EXE)
+		{
+			TransferLogic.Command_SendEXE(inFile);
+		}
+
+		if (argCommand == CommandMode.SEND_BIN)
+		{
+			TransferLogic.Command_SendBin(argAddr, inFile);
+		}
+
+		if (argCommand == CommandMode.SEND_ROM)
+		{
+			TransferLogic.Command_SendROM(argAddr, inFile);
+		}
+
+		// Program flow
+
+		if (argCommand == CommandMode.JUMP_JMP)
+		{
+			TransferLogic.Command_JumpAddr(argAddr);
+		}
+
+		if (argCommand == CommandMode.JUMP_CALL)
+		{
+			TransferLogic.Command_CallAddr(argAddr);
+		}
+
+		// Pokeypoke
+
+		if (argCommand == CommandMode.POKE8)
+		{
+			byte[] bytes = { (byte)(argValue & 0xFF) };
+			TransferLogic.Command_SendBin(argAddr, bytes);
+		}
+
+		if (argCommand == CommandMode.POKE16)
+		{
+			short shorty = (short)(argValue & 0xFFFF);
+			byte[] bytes = BitConverter.GetBytes(shorty);
+			TransferLogic.Command_SendBin(argAddr, bytes);
+		}
+
+		if (argCommand == CommandMode.POKE32)
+		{
+			byte[] bytes = BitConverter.GetBytes(argValue);
+			TransferLogic.Command_SendBin(argAddr, bytes);
+		}
+
+		// Utility
+
+		if (argCommand == CommandMode.PING)
+		{
+			TransferLogic.ChallengeResponse(argCommand);
+		}
+
+		if (argCommand == CommandMode.RESET)
+		{
+			TransferLogic.WriteChallenge(argCommand.challenge());
+		}
+
+		// Debug functions
+
+		if (argCommand == CommandMode.DEBUG)
+		{
+
+			// if it returns true, we might enter /m (monitor) mode, etc
+			if (
+				!TransferLogic.ChallengeResponse(argCommand)
+			) return false;
+
+		}
+
+		if (argCommand == CommandMode.HALT)
+		{
+			Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+			TransferLogic.Halt(false);
+		}
+
+		if (argCommand == CommandMode.CONT)
+		{
+			Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+			TransferLogic.Cont(false);
+		}
+
+		if (argCommand == CommandMode.REGS)
+		{
+			Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+			TransferLogic.Command_DumpRegs();
+		}
+
+		if (argCommand == CommandMode.SETREG)
+		{
+			Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+			if (!TransferLogic.Command_SetReg(argRegister, argValue))
+			{
+				return Error("Couldn't set reg " + argRegister + " to " + argValue, false);
+			}
+
+		}
+
+
+		// Hook functions
+
+		if (
+			argCommand == CommandMode.HOOKREAD
+			|| argCommand == CommandMode.HOOKWRITE
+			|| argCommand == CommandMode.HOOKEXEC
+		)
+		{
+			Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+			TransferLogic.HookAddr(argCommand, argAddr);
+		}
+
+		if (argCommand == CommandMode.UNHOOK)
+		{
+			Log.SetLevel(LogType.Info | LogType.Warning | LogType.Error | LogType.Debug);
+			TransferLogic.Unhook();
+		}
+
+		// Memory card 
+
+		if (argCommand == CommandMode.MCUP)
+		{
+
+			if (!TransferLogic.Command_MemcardUpload(argCard, inFile)) return false;
+		}
+
+		if (argCommand == CommandMode.WIPEMEM)
+		{
+
+			if (!TransferLogic.Command_WipeMem(argAddr, argValue)) return false;
+		}
+
+		if (argCommand == CommandMode.MCDOWN)
+		{
+			if (!TransferLogic.Command_MemcardDownload(argCard, argFileName))
+				return false;
+		}
+
+		// Peek / Read functions
+
+		if (argCommand == CommandMode.DUMP)
+		{
+			if (!TransferLogic.Command_Dump(argAddr, argSize, argFileName))
+				return false;
+
+		}
+
+		if (argCommand == CommandMode.WATCH)
+		{
+
+			TransferLogic.Watch(argAddr, argSize);
+			return true;
+
+		}
+
+		//
+		// STDIN / RAW
+		//
+
+		if (argCommand == CommandMode.TYPESTRING)
+		{
+
+			// the sio HW only has 4 bytes available
+			// You could work out a specification and pre-send the
+			// expected text length with checksums, etc...
+			// or you cold type at a speed that gives you
+			// the chance to catch a few key strokes without
+			// entering a tight while loop.
+			Log.WriteLine("Writing raw string: " + argString);
+			byte[] bytes = System.Text.Encoding.ASCII.GetBytes(argString);
+
+			for (int i = 0; i < bytes.Length; i++)
+			{
+				activeSerial.Write(bytes, i, 1);
+				Thread.Sleep(20); // 50fps to account for pal
+			}
+
+		}
+
+		// The user probs wants to upload in fast mode
+		// then switch back to slow mode as uni loads by default
+		// this sort of thing should be fixed with V3 protocol
+		if (switchBackToSlowModeWhenFinished)
+		{
+			if (NewSIO(SIOSpeed.SLOW))
+			{
+				Console.WriteLine($"Switched back to {(int)SIOSpeed.SLOW} baud...");
+			}
+			else
+			{
+				Error($"Failed to switch back to {(int)SIOSpeed.SLOW} baud...");
+			}
+		}
+
+
+		//
+		// Major work in progress
+		//
+
+		if (argCommand == CommandMode.GDB)
+		{
+			//GDB.DebugInit( argListenPort, argIP );
+			Bridge.Init(MonitorMode.GDB, argListenPort, argIP);
+		}
+
+		if (argCommand == CommandMode.BRIDGE)
+		{
+			Bridge.Init(MonitorMode.SERIALBRIDGE, argListenPort, argIP);
+		}
+
+		//
+		// All done, are we leaving the comms monitor open?
+		//
+
+		if (monitorComms)
+		{
+			Bridge.MonitorSerial();
+		}
+		else
+		{
+			Log.WriteLine("\n Bye!");
+			activeSerial.Close();
+		}
+
+		return true;
+
+	} // void Transfer
+
+
+	/// <summary>
+	/// A sample (for the help menu) of how the port should be written
+	/// on this specific operating system.
+	/// </summary>
+	// Older .NET so using getter/setter instead of expression-bodied statements.
+	public static string SampleCOMPortForEnvironment
+	{
+		get
+		{
+
+			switch (realPlatform)
+			{
+
+				// windows/defaults
+				default:
+					return "COM8";
+				// most mac drivers seem to default to this
+				case PlatformID.MacOSX:
+					//return "/dev/cu.usbserial-********";            
+					//return "(/dev/cu.usbserial-******** or /dev/tty.SLAB_USBtoUART";
+					return "(/dev/cu.usb* or /dev/tty.SLAB_USBtoUART";
+				// mono's (old) unofficial "Unix" ID
+				case (PlatformID)128:
+				case PlatformID.Unix:
+					return "/dev/ttyUSB0";
+			}
+
+		}
+	}
+
+
+	/// <summary>
+	/// Verify that the port argument is (potentially) valid
+	/// </summary>
+	/// <param name="inDevice">COM5, /dev/ttyUSB0, etc</param>
+	/// <returns>Does it look potentially valid?</returns>
+	public static bool ValidTargetDevice(string inDevice, ref string outTargetDevice)
+	{
+
+		switch (realPlatform)
+		{
+
+			// A windowsy sort of affair
+			default:
+				if (inDevice.ToUpperInvariant().StartsWith("COM"))
+					goto yay;
+				break;
+
+			// Mac
+			case PlatformID.MacOSX:
+				if (inDevice.ToLowerInvariant().StartsWith("/dev/cu") | inDevice.ToLowerInvariant().StartsWith("/dev/tty"))
+					goto yay;
+				break;
+
+			// Some kinda POSIXy environment
+			// Allow any tty device as *nix users could be using all sorts of pipes n redirects
+			case (PlatformID)128:
+			case PlatformID.Unix:
+				if (inDevice.ToLowerInvariant().StartsWith("/dev/tty"))
+					goto yay;
+				break;
+
+		}
+
+		// nay
+		return false;
+
+	yay:;
+		outTargetDevice = inDevice;
+		return true;
+
+	}
+
+	/// <summary>
+	/// Check if we have something in the format addr:port or ip:port
+	/// Hint: just lookin' for that ":"
+	/// </summary>
+	/// <param name="inAddress"></param>
+	/// <returns>yay or nay</returns>
+	/// TODO: this will not play nice with ipv6
+	public static bool ValidIPAddress(string inAddress, ref string outAddr, ref UInt32 outPort)
+	{
+
+		// no separator, move on
+		if (inAddress.IndexOf(":") == -1) return false;
+
+		string[] parts = inAddress.Split(':');
+
+		// too many bits
+		if (parts.Length != 2) return false;
+
+		if (parts[0].Length == 0) return false;
+		if (parts[1].Length == 0) return false;
+
+		// what about the start bit
+		// is it 4 numbers separated by 3 dots?
+
+		string[] bytes = parts[0].Split('.');
+		if (bytes.Length != 4) return false;
+
+		for (int i = 0; i < 4; i++)
+		{
+			UInt32 dummy = 0; // less code than trycatch :)
+			if (!UInt32.TryParse(bytes[i], out dummy))
+			{
+				return false;
+			}
+		}
+
+		// First bit looks like an IP
+		// Does the last bit look like a uint?
+
+		try
+		{
+			outPort = UInt32.Parse(parts[1]);
+		}
+		catch (System.Exception)
+		{
+			return false;
+		}
+
+		satisfiedPortRequirements = true;
+		satisfiedIPRequirements = true;
+
+		outAddr = parts[0];
+
+		// Guess it's valid
+		return true;
+
+	}
 
 } // Main Class
 
@@ -1496,35 +1658,41 @@ internal partial class Program {
 
 // I've over-engineered this, haven't I?
 // Big fan of compile-time constants though.
-public class CommandAttribute : System.Attribute {
+public class CommandAttribute : System.Attribute
+{
 
-    public string commandText { get; set; }
+	public string commandText { get; set; }
 
-    public CommandAttribute( string inCommand ) {
-        commandText = inCommand;
-    }
+	public CommandAttribute(string inCommand)
+	{
+		commandText = inCommand;
+	}
 
 }
 
 // e.g. the string we'll send to the PSX
-public class ChallengeAttribute : System.Attribute {
+public class ChallengeAttribute : System.Attribute
+{
 
-    public string challenge { get; set; }
+	public string challenge { get; set; }
 
-    public ChallengeAttribute( string inString ) {
-        challenge = inString;
-    }
+	public ChallengeAttribute(string inString)
+	{
+		challenge = inString;
+	}
 
 }
 
 // e.g. the string we expect to recieve from the PSX
-public class ResponseAttribute : System.Attribute {
+public class ResponseAttribute : System.Attribute
+{
 
-    public string response { get; set; }
+	public string response { get; set; }
 
-    public ResponseAttribute( string inResponse ) {
-        response = inResponse;
-    }
+	public ResponseAttribute(string inResponse)
+	{
+		response = inResponse;
+	}
 
 }
 
@@ -1542,58 +1710,73 @@ public class NeedsPortAttribute : System.Attribute { public bool NeedsPort() { r
 public class NeedsIPAttribute : System.Attribute { public bool NeedsIP() { return true; } }
 public class NeedsStringAttribute : System.Attribute { public bool NeedsString() { return true; } }
 
-public static class CommandModeExtensions {
+public static class CommandModeExtensions
+{
 
-    public static string command( this CommandMode inMode ) {
+	public static string command(this CommandMode inMode)
+	{
 
-        CommandAttribute[] attributes =
-            (CommandAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( CommandAttribute ), false );
+		CommandAttribute[] attributes =
+			(CommandAttribute[])inMode.GetType().GetField(inMode.ToString()).GetCustomAttributes(typeof(CommandAttribute), false);
 
-        if ( attributes.Length == 0 ) {
-            Log.WriteLine( "internal error", LogType.Error );
-            return "";
-        } else {
-            return attributes[ 0 ].commandText;
-        }
+		if (attributes.Length == 0)
+		{
+			Log.WriteLine("internal error", LogType.Error);
+			return "";
+		}
+		else
+		{
+			return attributes[0].commandText;
+		}
 
-    }
+	}
 
-    public static string challenge( this CommandMode inMode ) {
+	public static string challenge(this CommandMode inMode)
+	{
 
-        ChallengeAttribute[] attributes =
-            (ChallengeAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( ChallengeAttribute ), false );
+		ChallengeAttribute[] attributes =
+			(ChallengeAttribute[])inMode.GetType().GetField(inMode.ToString()).GetCustomAttributes(typeof(ChallengeAttribute), false);
 
-        if ( attributes.Length == 0 ) {
-            //Log.ToScreen( "internal error", LogType.Error );
-            return "";
-        } else {
-            return attributes[ 0 ].challenge;
-        }
+		if (attributes.Length == 0)
+		{
+			//Log.ToScreen( "internal error", LogType.Error );
+			return "";
+		}
+		else
+		{
+			return attributes[0].challenge;
+		}
 
-    }
+	}
 
-    public static string response( this CommandMode inMode ) {
+	public static string response(this CommandMode inMode)
+	{
 
-        ResponseAttribute[] attributes =
-            (ResponseAttribute[])inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( typeof( ResponseAttribute ), false );
+		ResponseAttribute[] attributes =
+			(ResponseAttribute[])inMode.GetType().GetField(inMode.ToString()).GetCustomAttributes(typeof(ResponseAttribute), false);
 
-        if ( attributes.Length == 0 ) {
-            Log.WriteLine( "internal error", LogType.Error);
-            return "";
-        } else {
-            return attributes[ 0 ].response;
-        }
+		if (attributes.Length == 0)
+		{
+			Log.WriteLine("internal error", LogType.Error);
+			return "";
+		}
+		else
+		{
+			return attributes[0].response;
+		}
 
-    }
+	}
 
-    public static bool hasAttribute<T>( this CommandMode inMode ) where T : class {
+	public static bool hasAttribute<T>(this CommandMode inMode) where T : class
+	{
 
-        object[] attribs = inMode.GetType().GetField( inMode.ToString() ).GetCustomAttributes( true );
-        for ( int i = 0; i < attribs.Length; i++ ) {
-            if ( attribs[ i ].GetType() == typeof( T ) ) return true;
-        }
-        return false;
+		object[] attribs = inMode.GetType().GetField(inMode.ToString()).GetCustomAttributes(true);
+		for (int i = 0; i < attribs.Length; i++)
+		{
+			if (attribs[i].GetType() == typeof(T)) return true;
+		}
+		return false;
 
-    }
+	}
 
 }

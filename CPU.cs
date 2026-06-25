@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 
 public class CPU {
@@ -166,7 +162,7 @@ public class CPU {
     /// </summary>
     /// <param name="opcode"></param>
     /// <returns></returns>
-    public static void EmulateStep( ) {
+    public static void EmulateStep() {
         UInt32 opcode;
         if ( tcb.regs[ (int)GPR.unknown0 ] == 0 ) {
             opcode = GDBServer.GetInstructionCached( tcb.regs[ (int)GPR.rapc ] );
@@ -306,11 +302,11 @@ public class CPU {
             Log.Write( "\t " + ((GPR)i).ToString().PadLeft( 4 ) + " = 0x" + tcb.regs[ i ].ToString( "X8" ), logType );
             // this format won't change, so there's no issue hardcoding them
             if ( tab++ % 4 == 3 || i == 1 || i == 33 || i == 34 ) {
-                Log.WriteLine("", logType);
+                Log.WriteLine( "", logType );
                 tab = 0;
             }
         }
-        Log.WriteLine("", logType );
+        Log.WriteLine( "", logType );
 
         Log.WriteLine( "BD = 0x" + tcb.regs[ (int)GPR.unknown0 ].ToString( "X" ), logType );
 
@@ -318,7 +314,7 @@ public class CPU {
 
         switch ( cause ) {
             case 0x04:
-                Log.WriteLine( "AdEL - Data Load or instr fetch (0x"+ cause +")\n", logType );
+                Log.WriteLine( "AdEL - Data Load or instr fetch (0x" + cause + ")\n", logType );
                 break;
             case 0x05:
                 Log.WriteLine( "AdES - Data Store (unaligned?) (0x" + cause + ")\n", logType );
@@ -346,7 +342,7 @@ public class CPU {
                 break;
 
             default:
-                Log.WriteLine( "Code " + cause +"!\n", logType );
+                Log.WriteLine( "Code " + cause + "!\n", logType );
                 break;
         }
     }

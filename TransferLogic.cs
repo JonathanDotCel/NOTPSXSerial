@@ -8,7 +8,6 @@ using System.IO;
 using System.Text;
 using static Utils;
 using System.Collections.Generic;
-using System.Runtime.Remoting.Messaging;
 
 
 #if USE_ELFSHARP
@@ -315,7 +314,7 @@ public class TransferLogic {
         byte[] outBytes = new byte[ headerLength + progBytes.Length ];
         Buffer.BlockCopy( headerBytes, 0, outBytes, 0, (int)headerLength );
         Buffer.BlockCopy( progBytes, 0, outBytes, (int)headerLength, progBytes.Length );
-        
+
         // To dump the output to a file:
         // File.WriteAllBytes( "NOPS_ELF2EXE.EXE", outBytes );
 

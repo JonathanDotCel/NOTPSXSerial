@@ -92,7 +92,7 @@ public class Utils {
     public static bool inWindowsPlatform {
         get {
             PlatformID plat = realPlatform;
-            if ( plat == PlatformID.MacOSX || plat == PlatformID.Unix || plat == (PlatformID)128 ){
+            if ( plat == PlatformID.MacOSX || plat == PlatformID.Unix || plat == (PlatformID)128 ) {
                 return false;
             }
             // Missing anything? Not sure what to do for xbox, lol
@@ -131,7 +131,7 @@ public class Utils {
 
         IntPtr consoleHandle = GetStdHandle( STD_OUTPUT_HANDLE );
         if ( consoleHandle.ToInt32() == -INVALID_HANDLE_VALUE ) {
-            Log.WriteLine( "Error: invalid stdout handle value", LogType.Error );  
+            Log.WriteLine( "Error: invalid stdout handle value", LogType.Error );
             return;
         }
 

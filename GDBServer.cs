@@ -30,13 +30,8 @@
 //       i.e. CPUHelper for emulation, calculating branches, etc
 
 using System;
-using System.Text;
-using System.IO.Ports;
-using System.Net;
-using System.Net.Sockets;
-using System.Threading;
-using System.Globalization;
 using System.Collections.Generic;
+using System.Globalization;
 
 
 public class GDBServer {
@@ -416,7 +411,7 @@ public class GDBServer {
 
         // TODO: validate memory regions
 
-        UInt32 address = UInt32.Parse( data.Substring( 1, data.IndexOf(",") - 1 ), NumberStyles.HexNumber );
+        UInt32 address = UInt32.Parse( data.Substring( 1, data.IndexOf( "," ) - 1 ), NumberStyles.HexNumber );
 
         // Where in the string do we find the addr substring
         int sizeStart = data.IndexOf( "," ) + 1;
@@ -559,7 +554,7 @@ public class GDBServer {
                     } else {
                         SendGDBResponse( "PacketSize=4000;qXfer:threads:read+;QStartNoAckMode+" );
                     }
-                    
+
                 } else if ( manifest_enabled && data.StartsWith( "qXfer:features:read:target.xml:" ) ) {
                     SendPagedResponse( targetXML );
                 } else if ( data.StartsWith( "qXfer:memory-map:read::" ) ) {
